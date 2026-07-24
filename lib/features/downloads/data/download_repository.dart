@@ -7,6 +7,7 @@ import '../../../core/api/rule34video_api.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/video_models.dart';
 import '../../../core/session/session_store.dart';
+import '../../settings/data/app_settings_repository.dart';
 import '../domain/download_models.dart';
 
 final class DownloadException implements Exception {
@@ -24,12 +25,14 @@ final class DownloadRepository {
     this._sessionStore,
     this._api,
     this._platformService,
+    this._settingsRepository,
   );
 
   final AppDatabase _database;
   final SessionStore _sessionStore;
   final Rule34VideoApi _api;
   final DownloadPlatformService _platformService;
+  final AppSettingsRepository _settingsRepository;
 
   StreamSubscription<DownloadPlatformEvent>? _eventSubscription;
   String? _observedUserId;
@@ -109,6 +112,7 @@ final class DownloadRepository {
           'quality': quality,
         }),
         headers: headers,
+        requiresWiFi: _settingsRepository.settings.wifiOnlyDownloads,
       ),
     );
     if (!enqueued) {

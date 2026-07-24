@@ -8,6 +8,7 @@ import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/search/search_page.dart';
+import '../../features/settings/presentation/settings_pages.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/video/video_detail_page.dart';
 import '../providers.dart';
@@ -67,6 +68,43 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/profile',
                 name: AppRouteNames.profile,
                 builder: (context, state) => ProfilePage(api: api),
+                routes: [
+                  GoRoute(
+                    path: 'account',
+                    name: AppRouteNames.account,
+                    builder: (context, state) => AccountPage(api: api),
+                  ),
+                  GoRoute(
+                    path: 'appearance',
+                    name: AppRouteNames.appearanceSettings,
+                    builder: (context, state) => const AppearanceSettingsPage(),
+                  ),
+                  GoRoute(
+                    path: 'playback',
+                    name: AppRouteNames.playbackSettings,
+                    builder: (context, state) => const PlaybackSettingsPage(),
+                  ),
+                  GoRoute(
+                    path: 'content',
+                    name: AppRouteNames.contentSettings,
+                    builder: (context, state) => const ContentSettingsPage(),
+                  ),
+                  GoRoute(
+                    path: 'downloads',
+                    name: AppRouteNames.downloadSettings,
+                    builder: (context, state) => const DownloadSettingsPage(),
+                  ),
+                  GoRoute(
+                    path: 'privacy',
+                    name: AppRouteNames.privacySettings,
+                    builder: (context, state) => PrivacySettingsPage(api: api),
+                  ),
+                  GoRoute(
+                    path: 'about',
+                    name: AppRouteNames.about,
+                    builder: (context, state) => const AboutPage(),
+                  ),
+                ],
               ),
             ],
           ),

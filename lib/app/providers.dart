@@ -11,6 +11,18 @@ import '../core/session/session_store.dart';
 import '../features/downloads/data/background_download_platform_service.dart';
 import '../features/downloads/data/download_repository.dart';
 import '../features/downloads/domain/download_models.dart';
+import '../features/settings/data/app_settings_repository.dart';
+import '../features/settings/data/app_settings_store.dart';
+
+final appSettingsStoreProvider = Provider<AppSettingsStore>((ref) {
+  return SharedPreferencesAppSettingsStore();
+});
+
+final appSettingsRepositoryProvider = Provider<AppSettingsRepository>((ref) {
+  final repository = AppSettingsRepository(ref.watch(appSettingsStoreProvider));
+  ref.onDispose(repository.dispose);
+  return repository;
+});
 
 final secretStoreProvider = Provider<SecretStore>((ref) {
   return FlutterSecretStore();
@@ -57,12 +69,14 @@ final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
     ref.watch(sessionStoreProvider),
     ref.watch(rule34VideoApiProvider),
     ref.watch(downloadPlatformServiceProvider),
+    ref.watch(appSettingsRepositoryProvider),
   );
   ref.onDispose(repository.dispose);
   return repository;
 });
 
 final appInitializationProvider = FutureProvider<void>((ref) async {
+  await ref.read(appSettingsRepositoryProvider).load();
   final sessionStore = ref.read(sessionStoreProvider);
   await sessionStore.load();
   await ref.read(rule34VideoApiProvider).restoreSession();

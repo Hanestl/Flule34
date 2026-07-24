@@ -7,6 +7,8 @@ import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/features/downloads/data/download_repository.dart';
 import 'package:flule34/features/downloads/domain/download_models.dart';
+import 'package:flule34/features/settings/data/app_settings_repository.dart';
+import 'package:flule34/features/settings/data/app_settings_store.dart';
 
 import '../../helpers/test_session_harness.dart';
 
@@ -19,11 +21,14 @@ void main() {
 
     final platform = _FakeDownloadPlatformService();
     final api = _FakeRule34VideoApi(harness.sessionStore);
+    final settings = await _createSettings(wifiOnlyDownloads: true);
+    addTearDown(settings.dispose);
     final repository = DownloadRepository(
       harness.database,
       harness.sessionStore,
       api,
       platform,
+      settings,
     );
     addTearDown(repository.dispose);
     await repository.initialize();
@@ -35,6 +40,7 @@ void main() {
 
     expect(platform.requests, hasLength(1));
     expect(platform.requests.single.directory, 'downloads/2421071');
+    expect(platform.requests.single.requiresWiFi, isTrue);
     expect(platform.requests.single.headers['Cookie'], 'PHPSESSID=test-cookie');
     expect(
       platform.requests.single.headers['Referer'],
@@ -70,11 +76,14 @@ void main() {
     await harness.sessionStore.authenticate('2421071');
 
     final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
     final repository = DownloadRepository(
       harness.database,
       harness.sessionStore,
       _FakeRule34VideoApi(harness.sessionStore),
       platform,
+      settings,
     );
     addTearDown(repository.dispose);
     await repository.initialize();
@@ -94,11 +103,14 @@ void main() {
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
     final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
     final repository = DownloadRepository(
       harness.database,
       harness.sessionStore,
       _FakeRule34VideoApi(harness.sessionStore),
       platform,
+      settings,
     );
     addTearDown(repository.dispose);
     await repository.initialize();
@@ -148,6 +160,37 @@ Future<void> _waitFor(Future<bool> Function() condition) async {
     await Future<void>.delayed(const Duration(milliseconds: 5));
   }
   fail('等待异步状态更新超时。');
+}
+
+Future<AppSettingsRepository> _createSettings({
+  bool wifiOnlyDownloads = false,
+}) async {
+  final repository = AppSettingsRepository(_MemorySettingsStore());
+  await repository.load();
+  if (wifiOnlyDownloads) {
+    await repository.setWifiOnlyDownloads(true);
+  }
+  return repository;
+}
+
+final class _MemorySettingsStore implements AppSettingsStore {
+  final Map<String, Object> _values = {};
+
+  @override
+  Future<bool?> readBool(String key) async => _values[key] as bool?;
+
+  @override
+  Future<String?> readString(String key) async => _values[key] as String?;
+
+  @override
+  Future<void> writeBool(String key, bool value) async {
+    _values[key] = value;
+  }
+
+  @override
+  Future<void> writeString(String key, String value) async {
+    _values[key] = value;
+  }
 }
 
 final class _FakeRule34VideoApi extends Rule34VideoApi {

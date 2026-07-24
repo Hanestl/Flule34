@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../app/providers.dart';
 import '../../core/models/video_models.dart';
+import '../settings/domain/quality_selection.dart';
 
-class VideoPlayerPage extends StatefulWidget {
+class VideoPlayerPage extends ConsumerStatefulWidget {
   const VideoPlayerPage({
     super.key,
     required this.video,
@@ -16,10 +19,10 @@ class VideoPlayerPage extends StatefulWidget {
   final String? sessionCookie;
 
   @override
-  State<VideoPlayerPage> createState() => _VideoPlayerPageState();
+  ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
 }
 
-class _VideoPlayerPageState extends State<VideoPlayerPage> {
+class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
   VideoPlayerController? _controller;
   late VideoSource _selectedSource;
   var _initializing = false;
@@ -28,7 +31,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   @override
   void initState() {
     super.initState();
-    _selectedSource = widget.sources.last;
+    final settings = ref.read(appSettingsRepositoryProvider).settings;
+    _selectedSource = selectVideoSource(
+      widget.sources,
+      settings.playbackQuality,
+    );
     _setSource(_selectedSource);
   }
 
@@ -45,7 +52,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       _error = null;
     });
     final previous = _controller;
+    final previousPosition = previous?.value.position ?? Duration.zero;
+    final shouldContinuePlaying = previous?.value.isPlaying ?? false;
     _controller = null;
+    previous?.removeListener(_refresh);
     await previous?.dispose();
 
     final headers = <String, String>{
@@ -62,6 +72,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     controller.addListener(_refresh);
     try {
       await controller.initialize();
+      final settings = ref.read(appSettingsRepositoryProvider).settings;
+      await controller.setLooping(settings.loopPlayback);
+      if (previousPosition > Duration.zero &&
+          previousPosition < controller.value.duration) {
+        await controller.seekTo(previousPosition);
+      }
+      if (shouldContinuePlaying || (previous == null && settings.autoplay)) {
+        await controller.play();
+      }
       if (!mounted) {
         await controller.dispose();
         return;

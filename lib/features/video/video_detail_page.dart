@@ -7,6 +7,8 @@ import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../auth/login_sheet.dart';
 import '../downloads/data/download_repository.dart';
+import '../settings/data/app_settings_repository.dart';
+import '../settings/domain/quality_selection.dart';
 import 'video_player_page.dart';
 
 class VideoDetailPage extends ConsumerWidget {
@@ -40,6 +42,7 @@ class VideoDetailPage extends ConsumerWidget {
             api: api,
             details: snapshot.requireData,
             downloads: ref.watch(downloadRepositoryProvider),
+            settings: ref.watch(appSettingsRepositoryProvider),
           );
         },
       ),
@@ -52,11 +55,13 @@ class _VideoDetailsBody extends StatefulWidget {
     required this.api,
     required this.details,
     required this.downloads,
+    required this.settings,
   });
 
   final Rule34VideoApi api;
   final VideoDetails details;
   final DownloadRepository downloads;
+  final AppSettingsRepository settings;
 
   @override
   State<_VideoDetailsBody> createState() => _VideoDetailsBodyState();
@@ -131,31 +136,37 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
         return;
       }
     }
-    final source = await showModalBottomSheet<VideoSource>(
-      context: context,
-      useSafeArea: true,
-      builder: (context) {
-        return ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: Text(
-                '选择下载清晰度',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            for (final item in widget.details.sources.reversed)
-              ListTile(
-                leading: Icon(item.isHd ? Icons.hd : Icons.sd),
-                title: Text(item.label),
-                onTap: () => Navigator.of(context).pop(item),
-              ),
-          ],
-        );
-      },
-    );
+    final preferences = widget.settings.settings;
+    final source = preferences.askDownloadQuality
+        ? await showModalBottomSheet<VideoSource>(
+            context: context,
+            useSafeArea: true,
+            builder: (context) {
+              return ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: Text(
+                      '选择下载清晰度',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  for (final item in widget.details.sources.reversed)
+                    ListTile(
+                      leading: Icon(item.isHd ? Icons.hd : Icons.sd),
+                      title: Text(item.label),
+                      onTap: () => Navigator.of(context).pop(item),
+                    ),
+                ],
+              );
+            },
+          )
+        : selectVideoSource(
+            widget.details.sources,
+            preferences.downloadQuality,
+          );
     if (source == null || !mounted) {
       return;
     }
