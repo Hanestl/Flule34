@@ -234,6 +234,18 @@ final class AppDatabase extends _$AppDatabase {
         .get();
   }
 
+  Future<void> deleteDownloadRecord(String id) {
+    return (delete(
+      downloadRecords,
+    )..where((record) => record.id.equals(id))).go();
+  }
+
+  Future<void> deletePlaybackPositionsForUser(String userId) {
+    return (delete(
+      playbackPositions,
+    )..where((position) => position.userId.equals(userId))).go();
+  }
+
   Future<void> deleteAccountData(String userId) {
     return (delete(
       userAccounts,

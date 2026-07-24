@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
 
@@ -102,6 +103,46 @@ final class BackgroundDownloadPlatformService
   @override
   Future<bool> openFile(String filePath) {
     return _downloader.openFile(filePath: filePath, mimeType: 'video/mp4');
+  }
+
+  @override
+  Future<bool> delete({
+    required String taskId,
+    required String directory,
+    String? filePath,
+  }) async {
+    final record = await _downloader.database.recordForId(taskId);
+    final task = record?.task;
+    if (task != null && _normalize(task.directory) != _normalize(directory)) {
+      return false;
+    }
+
+    await _downloader.cancelTaskWithId(taskId);
+    final resolvedPath = filePath ?? await task?.filePath();
+    if (resolvedPath != null) {
+      final normalizedPath = _normalize(resolvedPath);
+      final normalizedDirectory = _normalize(directory);
+      final isInsideDirectory =
+          normalizedPath.startsWith('$normalizedDirectory/') ||
+          normalizedPath.contains('/$normalizedDirectory/');
+      if (!isInsideDirectory) {
+        return false;
+      }
+      final file = File(resolvedPath);
+      try {
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } on FileSystemException {
+        return false;
+      }
+    }
+    await _downloader.database.deleteRecordWithId(taskId);
+    return true;
+  }
+
+  String _normalize(String value) {
+    return value.replaceAll('\\', '/').replaceAll(RegExp(r'^/+|/+$'), '');
   }
 
   void _onStatus(TaskStatusUpdate update) {

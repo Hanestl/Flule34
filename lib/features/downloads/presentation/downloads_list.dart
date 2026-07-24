@@ -38,14 +38,22 @@ class DownloadsList extends StatelessWidget {
   }
 }
 
-class _DownloadCard extends StatelessWidget {
+class _DownloadCard extends StatefulWidget {
   const _DownloadCard({required this.record, required this.repository});
 
   final DownloadRecord record;
   final DownloadRepository repository;
 
   @override
+  State<_DownloadCard> createState() => _DownloadCardState();
+}
+
+class _DownloadCardState extends State<_DownloadCard> {
+  var _busy = false;
+
+  @override
   Widget build(BuildContext context) {
+    final record = widget.record;
     final totalBytes = record.totalBytes ?? 0;
     final progress = totalBytes > 0
         ? (record.bytesDownloaded / totalBytes).clamp(0.0, 1.0)
@@ -84,38 +92,53 @@ class _DownloadCard extends StatelessWidget {
             ],
             Align(
               alignment: Alignment.centerRight,
-              child: Wrap(
-                children: [
-                  if (record.state == 'running')
-                    IconButton(
-                      tooltip: '暂停',
-                      onPressed: () =>
-                          _run(context, () => repository.pause(record.id)),
-                      icon: const Icon(Icons.pause),
+              child: _busy
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : Wrap(
+                      children: [
+                        if (record.state == 'running')
+                          IconButton(
+                            tooltip: '暂停',
+                            onPressed: () =>
+                                _run(() => widget.repository.pause(record.id)),
+                            icon: const Icon(Icons.pause),
+                          ),
+                        if (record.state == 'paused')
+                          IconButton(
+                            tooltip: '继续',
+                            onPressed: () =>
+                                _run(() => widget.repository.resume(record.id)),
+                            icon: const Icon(Icons.play_arrow),
+                          ),
+                        if (_isActive(record.state))
+                          IconButton(
+                            tooltip: '取消',
+                            onPressed: () =>
+                                _run(() => widget.repository.cancel(record.id)),
+                            icon: const Icon(Icons.close),
+                          ),
+                        if (record.state == 'complete' &&
+                            record.filePath != null)
+                          IconButton(
+                            tooltip: '打开',
+                            onPressed: () =>
+                                _run(() => widget.repository.open(record)),
+                            icon: const Icon(Icons.open_in_new),
+                          ),
+                        IconButton(
+                          tooltip: '删除',
+                          onPressed: _confirmDelete,
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
                     ),
-                  if (record.state == 'paused')
-                    IconButton(
-                      tooltip: '继续',
-                      onPressed: () =>
-                          _run(context, () => repository.resume(record.id)),
-                      icon: const Icon(Icons.play_arrow),
-                    ),
-                  if (_isActive(record.state))
-                    IconButton(
-                      tooltip: '取消',
-                      onPressed: () =>
-                          _run(context, () => repository.cancel(record.id)),
-                      icon: const Icon(Icons.close),
-                    ),
-                  if (record.state == 'complete' && record.filePath != null)
-                    IconButton(
-                      tooltip: '打开',
-                      onPressed: () =>
-                          _run(context, () => repository.open(record)),
-                      icon: const Icon(Icons.open_in_new),
-                    ),
-                ],
-              ),
             ),
           ],
         ),
@@ -123,22 +146,63 @@ class _DownloadCard extends StatelessWidget {
     );
   }
 
+  Future<void> _confirmDelete() async {
+    final active = _isActive(widget.record.state);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除下载？'),
+        content: Text(
+          active ? '当前任务会被取消，临时文件、已下载文件和记录都会删除。' : '已下载文件和任务记录都会删除，此操作无法撤销。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _run(
+        () => widget.repository.delete(widget.record),
+        successMessage: '下载文件和记录已删除。',
+      );
+    }
+  }
+
   Future<void> _run(
-    BuildContext context,
-    Future<bool> Function() action,
-  ) async {
+    Future<bool> Function() action, {
+    String? successMessage,
+  }) async {
+    if (_busy) {
+      return;
+    }
+    setState(() => _busy = true);
     try {
       final success = await action();
-      if (!success && context.mounted) {
+      if (!mounted) {
+        return;
+      }
+      final message = success ? successMessage : '操作未能完成，请稍后重试。';
+      if (message != null) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('操作未能完成，请稍后重试。')));
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (error) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
       }
     }
   }

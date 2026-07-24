@@ -19,6 +19,18 @@ final class DownloadException implements Exception {
   String toString() => message;
 }
 
+final class AccountDataClearResult {
+  const AccountDataClearResult({
+    required this.deletedDownloads,
+    required this.failedDownloads,
+  });
+
+  final int deletedDownloads;
+  final int failedDownloads;
+
+  bool get isComplete => failedDownloads == 0;
+}
+
 final class DownloadRepository {
   DownloadRepository(
     this._database,
@@ -103,7 +115,7 @@ final class DownloadRepository {
         id: id,
         url: source.url,
         filename: _filename(details.video, quality),
-        directory: 'downloads/$userId',
+        directory: _directoryForUser(userId),
         displayName: details.video.title,
         metadata: jsonEncode({
           'recordId': id,
@@ -145,6 +157,39 @@ final class DownloadRepository {
     _requireOwnedRecord(record);
     final path = record.filePath;
     return path != null && await _platformService.openFile(path);
+  }
+
+  Future<bool> delete(DownloadRecord record) async {
+    _requireOwnedRecord(record);
+    final deleted = await _platformService.delete(
+      taskId: record.taskId ?? record.id,
+      directory: _directoryForUser(record.userId),
+      filePath: record.filePath,
+    );
+    if (!deleted) {
+      return false;
+    }
+    await _database.deleteDownloadRecord(record.id);
+    return true;
+  }
+
+  Future<AccountDataClearResult> clearCurrentUserData() async {
+    final userId = _requireUserId();
+    final records = await _database.watchDownloads(userId).first;
+    var deleted = 0;
+    var failed = 0;
+    for (final record in records) {
+      if (await delete(record)) {
+        deleted += 1;
+      } else {
+        failed += 1;
+      }
+    }
+    await _database.deletePlaybackPositionsForUser(userId);
+    return AccountDataClearResult(
+      deletedDownloads: deleted,
+      failedDownloads: failed,
+    );
   }
 
   Future<bool> _ownedAction(
@@ -218,6 +263,8 @@ final class DownloadRepository {
     final safeQuality = quality.replaceAll(RegExp(r'[^0-9A-Za-z]+'), '_');
     return 'flule34_${userId}_${videoId}_$safeQuality';
   }
+
+  String _directoryForUser(String userId) => 'downloads/$userId';
 
   String _filename(VideoItem video, String quality) {
     final sanitized = video.title

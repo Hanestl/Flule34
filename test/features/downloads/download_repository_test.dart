@@ -135,6 +135,90 @@ void main() {
     );
     expect(platform.requests, isEmpty);
   });
+
+  test('删除下载会先清理平台文件再删除数据库记录', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    platform.emit(
+      DownloadStatusEvent(
+        taskId: id,
+        state: DownloadTaskState.complete,
+        filePath: 'downloads/2421071/video.mp4',
+      ),
+    );
+    await _waitFor(() async {
+      final record = await harness.database.findDownloadRecord(id);
+      return record?.state == 'complete';
+    });
+
+    final record = (await harness.database.findDownloadRecord(id))!;
+    expect(await repository.delete(record), isTrue);
+
+    expect(platform.deletedIds, contains(id));
+    expect(platform.deletedDirectories[id], 'downloads/2421071');
+    expect(platform.deletedPaths[id], 'downloads/2421071/video.mp4');
+    expect(await harness.database.findDownloadRecord(id), isNull);
+  });
+
+  test('清理当前账号本地数据会删除下载和播放进度但保留账号', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    await harness.database.savePlaybackPosition(
+      userId: '2421071',
+      videoId: _details.video.id,
+      positionMs: 12000,
+    );
+
+    final result = await repository.clearCurrentUserData();
+
+    expect(result.deletedDownloads, 1);
+    expect(result.failedDownloads, 0);
+    expect(await harness.database.findDownloadRecord(id), isNull);
+    expect(
+      await harness.database.findPlaybackPosition(
+        userId: '2421071',
+        videoId: _details.video.id,
+      ),
+      isNull,
+    );
+    expect(await harness.database.findAccount('2421071'), isNotNull);
+  });
 }
 
 const _details = VideoDetails(
@@ -210,6 +294,9 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
 
   final List<DownloadRequest> requests = [];
   final Set<String> canceledIds = {};
+  final Set<String> deletedIds = {};
+  final Map<String, String> deletedDirectories = {};
+  final Map<String, String?> deletedPaths = {};
   bool permissionGranted = true;
 
   @override
@@ -243,6 +330,18 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
 
   @override
   Future<bool> openFile(String filePath) async => true;
+
+  @override
+  Future<bool> delete({
+    required String taskId,
+    required String directory,
+    String? filePath,
+  }) async {
+    deletedIds.add(taskId);
+    deletedDirectories[taskId] = directory;
+    deletedPaths[taskId] = filePath;
+    return true;
+  }
 
   @override
   void dispose() {

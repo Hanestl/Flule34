@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/api/rule34video_api.dart';
+import '../../downloads/data/download_repository.dart';
 import '../data/app_settings_repository.dart';
 import '../domain/app_settings.dart';
 
@@ -230,41 +231,113 @@ class DownloadSettingsPage extends ConsumerWidget {
   }
 }
 
-class PrivacySettingsPage extends StatelessWidget {
+class PrivacySettingsPage extends ConsumerStatefulWidget {
   const PrivacySettingsPage({super.key, required this.api});
 
   final Rule34VideoApi api;
 
   @override
+  ConsumerState<PrivacySettingsPage> createState() =>
+      _PrivacySettingsPageState();
+}
+
+class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
+  var _clearing = false;
+
+  @override
   Widget build(BuildContext context) {
+    final downloads = ref.watch(downloadRepositoryProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('隐私与数据')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const _InfoCard(
-            icon: Icons.lock_outline,
-            text: '收藏、观看进度、下载记录和文件均按登录后的稳定用户 ID 隔离；未登录状态不创建匿名媒体库。',
-          ),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.delete_sweep_outlined),
-              title: Text('清理账号本地数据'),
-              subtitle: Text('需要同时安全删除下载文件、任务和数据库记录，完整事务流程将在下一阶段提供。'),
-              enabled: false,
+      body: AnimatedBuilder(
+        animation: widget.api.sessionStore,
+        builder: (context, _) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const _InfoCard(
+              icon: Icons.lock_outline,
+              text: '收藏、观看进度、下载记录和文件均按登录后的稳定用户 ID 隔离；未登录状态不创建匿名媒体库。',
             ),
-          ),
-          if (api.sessionStore.isLoggedIn) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _confirmLogout(context, api),
-              icon: const Icon(Icons.logout),
-              label: const Text('退出当前账号'),
+            Card(
+              child: ListTile(
+                leading: _clearing
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_sweep_outlined),
+                title: const Text('清理当前账号本地数据'),
+                subtitle: const Text('删除观看进度、下载任务、私有下载文件和对应记录；网站收藏不会受影响。'),
+                enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
+                onTap: widget.api.sessionStore.isLoggedIn && !_clearing
+                    ? () => _clearAccountData(downloads)
+                    : null,
+              ),
             ),
+            if (widget.api.sessionStore.isLoggedIn) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _clearing
+                    ? null
+                    : () => _confirmLogout(context, widget.api),
+                icon: const Icon(Icons.logout),
+                label: const Text('退出当前账号'),
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _clearAccountData(DownloadRepository repository) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清理本地数据？'),
+        content: const Text(
+          '这会取消当前账号的活动下载，并删除观看进度、下载文件和下载记录。网站上的收藏与账号资料不会改变。此操作无法撤销。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('确认清理'),
+          ),
         ],
       ),
     );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() => _clearing = true);
+    try {
+      final result = await repository.clearCurrentUserData();
+      if (!mounted) {
+        return;
+      }
+      final message = result.isComplete
+          ? '本地数据已清理，共删除 ${result.deletedDownloads} 条下载。'
+          : '已删除 ${result.deletedDownloads} 条下载，${result.failedDownloads} 条因文件系统错误而保留。';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _clearing = false);
+      }
+    }
   }
 }
 

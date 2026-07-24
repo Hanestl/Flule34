@@ -97,5 +97,11 @@ abstract interface class DownloadPlatformService {
 
   Future<bool> openFile(String filePath);
 
+  Future<bool> delete({
+    required String taskId,
+    required String directory,
+    String? filePath,
+  });
+
   void dispose();
 }
