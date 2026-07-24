@@ -174,6 +174,20 @@ class Rule34VideoApi {
     return _videoList(path);
   }
 
+  Future<List<SubscriptionItem>> loadSubscriptions() async {
+    _requireLogin();
+    return SiteParser.subscriptions(await _get('/my/subscriptions/'));
+  }
+
+  Future<List<VideoItem>> loadSubscriptionVideos(
+    SubscriptionItem subscription,
+    int page,
+  ) async {
+    _requireLogin();
+    final path = page > 1 ? '${subscription.path}$page/' : subscription.path;
+    return _videoList(path);
+  }
+
   Future<void> toggleFavorite({
     required VideoItem video,
     required bool add,

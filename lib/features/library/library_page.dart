@@ -10,6 +10,7 @@ import '../downloads/presentation/downloads_list.dart';
 import '../playback/data/playback_repository.dart';
 import 'continue_watching_list.dart';
 import 'playlists_list.dart';
+import 'subscriptions_list.dart';
 
 class LibraryPage extends ConsumerWidget {
   const LibraryPage({super.key, required this.api});
@@ -88,7 +89,7 @@ class _SignedIn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -108,6 +109,7 @@ class _SignedIn extends StatelessWidget {
               Tab(text: '稍后观看'),
               Tab(text: '历史'),
               Tab(text: '播放列表'),
+              Tab(text: '订阅'),
               Tab(text: '下载'),
             ],
           ),
@@ -128,6 +130,7 @@ class _SignedIn extends StatelessWidget {
                   emptyMessage: '网站观看历史还是空的。',
                 ),
                 PlaylistsList(api: api),
+                SubscriptionsList(api: api),
                 DownloadsList(repository: downloads),
               ],
             ),

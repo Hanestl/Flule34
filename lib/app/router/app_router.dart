@@ -7,6 +7,7 @@ import '../../features/discover/discover_page.dart';
 import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
 import '../../features/library/playlist_page.dart';
+import '../../features/library/subscription_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/search/search_page.dart';
 import '../../features/settings/presentation/settings_pages.dart';
@@ -147,6 +148,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   path: '/my/playlists/${state.pathParameters['id']!}/',
                 );
           return PlaylistPage(api: api, playlist: playlist);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/subscription/:kind',
+        name: AppRouteNames.subscription,
+        builder: (context, state) {
+          final extra = state.extra;
+          final kindName = state.pathParameters['kind'];
+          final kind = SubscriptionKind.values.firstWhere(
+            (value) => value.name == kindName,
+            orElse: () => SubscriptionKind.category,
+          );
+          final subscription = extra is SubscriptionItem
+              ? extra
+              : SubscriptionItem(
+                  title: state.uri.queryParameters['title'] ?? kind.label,
+                  path: state.uri.queryParameters['path'] ?? '/',
+                  kind: kind,
+                );
+          return SubscriptionPage(api: api, subscription: subscription);
         },
       ),
     ],

@@ -102,6 +102,15 @@ void main() {
             </div>
           ''');
         }
+        if (options.uri.path == '/my/subscriptions/') {
+          return _htmlResponse('''
+            <div class="item">
+              <a href="/models/example-artist/" title="Example Artist">
+                Example Artist
+              </a>
+            </div>
+          ''');
+        }
         return _htmlResponse('<html></html>');
       }),
     );
@@ -111,12 +120,16 @@ void main() {
     await api.loadHistory(3);
     final playlist = (await api.loadMyPlaylists()).single;
     await api.loadPlaylistVideos(playlist, 2);
+    final subscription = (await api.loadSubscriptions()).single;
+    await api.loadSubscriptionVideos(subscription, 2);
 
     expect(paths, [
       '/my/favourites/videos-watch-later/2/',
       '/my/history/3/',
       '/my/playlists/',
       '/my/playlists/77/2/',
+      '/my/subscriptions/',
+      '/models/example-artist/2/',
     ]);
   });
 }

@@ -123,3 +123,29 @@ class PlaylistItem {
   final int? videoCount;
   final int? views;
 }
+
+enum SubscriptionKind {
+  category('分类'),
+  model('艺术家'),
+  member('用户'),
+  playlist('播放列表'),
+  channel('频道');
+
+  const SubscriptionKind(this.label);
+
+  final String label;
+}
+
+class SubscriptionItem {
+  const SubscriptionItem({
+    required this.title,
+    required this.path,
+    required this.kind,
+    this.thumbnailUrl,
+  });
+
+  final String title;
+  final String path;
+  final SubscriptionKind kind;
+  final String? thumbnailUrl;
+}

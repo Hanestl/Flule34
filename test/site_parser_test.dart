@@ -61,4 +61,25 @@ void main() {
       'https://rule34video.com/playlist.jpg',
     );
   });
+
+  test('解析账号订阅实体并识别类型', () {
+    const source = '''
+      <div class="item">
+        <a href="/models/example-artist/" title="Example Artist">
+          <img data-original="/artist.jpg" alt="Example Artist">
+        </a>
+      </div>
+      <div class="item">
+        <a href="/categories/123/example-category/">Example Category</a>
+      </div>
+    ''';
+
+    final subscriptions = SiteParser.subscriptions(source);
+
+    expect(subscriptions, hasLength(2));
+    expect(subscriptions.first.kind.name, 'model');
+    expect(subscriptions.first.path, '/models/example-artist/');
+    expect(subscriptions.last.kind.name, 'category');
+    expect(subscriptions.last.title, 'Example Category');
+  });
 }

@@ -13,4 +13,5 @@ abstract final class AppRouteNames {
   static const search = 'search';
   static const video = 'video';
   static const playlist = 'playlist';
+  static const subscription = 'subscription';
 }

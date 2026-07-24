@@ -165,6 +165,43 @@ class SiteParser {
     return result.values.toList(growable: false);
   }
 
+  static List<SubscriptionItem> subscriptions(String source) {
+    final document = html_parser.parse(source);
+    final result = <String, SubscriptionItem>{};
+    for (final container in document.querySelectorAll('div.item')) {
+      for (final link in container.querySelectorAll('a[href]')) {
+        final href = link.attributes['href'];
+        final kind = _subscriptionKind(href);
+        if (href == null || kind == null) {
+          continue;
+        }
+        final image = container.querySelector('img');
+        final title =
+            _clean(link.attributes['title']) ??
+            _clean(image?.attributes['alt']) ??
+            _clean(container.querySelector('.title')?.text) ??
+            _clean(link.text);
+        if (title == null) {
+          continue;
+        }
+        final path = Uri.parse(_baseUri).resolve(href).path;
+        final normalizedPath = path.endsWith('/') ? path : '$path/';
+        result[normalizedPath] = SubscriptionItem(
+          title: title,
+          path: normalizedPath,
+          kind: kind,
+          thumbnailUrl: _url(
+            image?.attributes['data-webp'] ??
+                image?.attributes['data-original'] ??
+                image?.attributes['src'],
+          ),
+        );
+        break;
+      }
+    }
+    return result.values.toList(growable: false);
+  }
+
   static String? genericError(String source) {
     return _clean(
       html_parser.parse(source).querySelector('.generic-error')?.text,
@@ -178,6 +215,28 @@ class SiteParser {
         return current;
       }
       current = current.parent;
+    }
+    return null;
+  }
+
+  static SubscriptionKind? _subscriptionKind(String? href) {
+    if (href == null) {
+      return null;
+    }
+    if (href.contains('/categories/')) {
+      return SubscriptionKind.category;
+    }
+    if (href.contains('/models/')) {
+      return SubscriptionKind.model;
+    }
+    if (href.contains('/members/')) {
+      return SubscriptionKind.member;
+    }
+    if (href.contains('/playlists/')) {
+      return SubscriptionKind.playlist;
+    }
+    if (href.contains('/channels/')) {
+      return SubscriptionKind.channel;
     }
     return null;
   }
