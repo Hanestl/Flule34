@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flule34/core/api/rule34video_api.dart';
+import 'package:flule34/core/models/video_models.dart';
 
 import '../../helpers/test_session_harness.dart';
 
@@ -131,6 +132,42 @@ void main() {
       '/my/subscriptions/',
       '/models/example-artist/2/',
     ]);
+  });
+
+  test('发现目录和集合视频使用正确的路径与排序参数', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final requests = <Uri>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options.uri);
+        if (options.uri.path == '/models/') {
+          return _htmlResponse('''
+            <div class="item">
+              <a href="/models/example-artist/" title="Example Artist">
+                Example Artist
+              </a>
+            </div>
+          ''');
+        }
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+    const spec = DiscoveryDirectorySpec(
+      title: '艺术家',
+      path: '/models/',
+      kind: DiscoveryKind.model,
+    );
+
+    final item = (await api.loadDiscoveryDirectory(spec)).single;
+    await api.loadCollectionVideos(item, 2, sort: VideoSort.mostViewed);
+
+    expect(requests.first.path, '/models/');
+    expect(requests.last.path, '/models/example-artist/2/');
+    expect(requests.last.queryParameters['sort_by'], 'video_viewed');
   });
 }
 

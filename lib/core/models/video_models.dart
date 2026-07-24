@@ -1,5 +1,61 @@
 enum FeedKind { newest, popular, topRated }
 
+enum VideoSort {
+  relevance('相关度', null),
+  newest('最新', 'post_date'),
+  mostViewed('最多观看', 'video_viewed'),
+  topRated('最高评分', 'rating'),
+  longest('最长', 'duration'),
+  random('随机', 'pseudo_rand');
+
+  const VideoSort(this.label, this.parameter);
+
+  final String label;
+  final String? parameter;
+}
+
+enum DiscoveryKind {
+  tag('标签', 'tags'),
+  category('分类', 'categories'),
+  model('艺术家', 'models'),
+  channel('频道', 'channels');
+
+  const DiscoveryKind(this.label, this.pathSegment);
+
+  final String label;
+  final String pathSegment;
+}
+
+class ContentCollectionItem {
+  const ContentCollectionItem({
+    required this.id,
+    required this.title,
+    required this.path,
+    required this.kind,
+    this.thumbnailUrl,
+    this.total,
+  });
+
+  final String id;
+  final String title;
+  final String path;
+  final DiscoveryKind kind;
+  final String? thumbnailUrl;
+  final int? total;
+}
+
+class DiscoveryDirectorySpec {
+  const DiscoveryDirectorySpec({
+    required this.title,
+    required this.path,
+    required this.kind,
+  });
+
+  final String title;
+  final String path;
+  final DiscoveryKind kind;
+}
+
 extension FeedKindPath on FeedKind {
   String pagePath(int page) {
     final suffix = page > 1 ? '$page/' : '';

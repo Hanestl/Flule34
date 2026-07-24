@@ -75,6 +75,27 @@ class Rule34VideoApi {
     return _videoList(kind.pagePath(page));
   }
 
+  Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
+    DiscoveryDirectorySpec spec,
+  ) async {
+    final body = await _get(spec.path);
+    return SiteParser.contentCollections(body, spec.kind);
+  }
+
+  Future<List<VideoItem>> loadCollectionVideos(
+    ContentCollectionItem collection,
+    int page, {
+    VideoSort sort = VideoSort.newest,
+  }) {
+    final path = page > 1 ? '${collection.path}$page/' : collection.path;
+    return _videoList(
+      path,
+      query: sort.parameter == null
+          ? null
+          : <String, String>{'sort_by': sort.parameter!},
+    );
+  }
+
   Future<List<VideoItem>> searchVideos(String query, int page) async {
     final encoded = Uri.encodeComponent(query.trim());
     if (encoded.isEmpty) {
@@ -206,8 +227,11 @@ class Rule34VideoApi {
     );
   }
 
-  Future<List<VideoItem>> _videoList(String path) async {
-    final body = await _get(path);
+  Future<List<VideoItem>> _videoList(
+    String path, {
+    Map<String, String>? query,
+  }) async {
+    final body = await _get(path, query: query);
     return SiteParser.videoList(body);
   }
 

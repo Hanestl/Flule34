@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models/video_models.dart';
 import '../../features/discover/discover_page.dart';
+import '../../features/discover/collection_page.dart';
+import '../../features/discover/discovery_directory_page.dart';
+import '../../features/discover/rankings_page.dart';
 import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
 import '../../features/library/playlist_page.dart';
@@ -117,6 +120,67 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/search',
         name: AppRouteNames.search,
         builder: (context, state) => SearchPage(api: api),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/directory/:kind',
+        name: AppRouteNames.discoveryDirectory,
+        builder: (context, state) {
+          final kindName = state.pathParameters['kind'];
+          final kind = DiscoveryKind.values.firstWhere(
+            (value) => value.name == kindName,
+            orElse: () => DiscoveryKind.tag,
+          );
+          final extra = state.extra;
+          final spec = extra is DiscoveryDirectorySpec
+              ? extra
+              : DiscoveryDirectorySpec(
+                  title: kind.label,
+                  path: '/${kind.pathSegment}/',
+                  kind: kind,
+                );
+          return DiscoveryDirectoryPage(api: api, spec: spec);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/collection/:kind/:id',
+        name: AppRouteNames.collection,
+        builder: (context, state) {
+          final kindName = state.pathParameters['kind'];
+          final kind = DiscoveryKind.values.firstWhere(
+            (value) => value.name == kindName,
+            orElse: () => DiscoveryKind.tag,
+          );
+          final id = state.pathParameters['id']!;
+          final extra = state.extra;
+          final collection = extra is ContentCollectionItem
+              ? extra
+              : ContentCollectionItem(
+                  id: id,
+                  title: state.uri.queryParameters['title'] ?? kind.label,
+                  path:
+                      state.uri.queryParameters['path'] ??
+                      '/${kind.pathSegment}/$id/',
+                  kind: kind,
+                );
+          final sortName = state.uri.queryParameters['sort'];
+          final sort = VideoSort.values.firstWhere(
+            (value) => value.name == sortName,
+            orElse: () => VideoSort.newest,
+          );
+          return CollectionPage(
+            api: api,
+            collection: collection,
+            initialSort: sort,
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/rankings',
+        name: AppRouteNames.rankings,
+        builder: (context, state) => const RankingsPage(),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,

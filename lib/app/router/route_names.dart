@@ -1,6 +1,9 @@
 abstract final class AppRouteNames {
   static const home = 'home';
   static const discover = 'discover';
+  static const discoveryDirectory = 'discovery-directory';
+  static const collection = 'collection';
+  static const rankings = 'rankings';
   static const library = 'library';
   static const profile = 'profile';
   static const account = 'account';

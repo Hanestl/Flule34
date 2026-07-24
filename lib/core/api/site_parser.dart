@@ -202,6 +202,61 @@ class SiteParser {
     return result.values.toList(growable: false);
   }
 
+  static List<ContentCollectionItem> contentCollections(
+    String source,
+    DiscoveryKind kind,
+  ) {
+    final document = html_parser.parse(source);
+    final result = <String, ContentCollectionItem>{};
+    final segment = RegExp.escape(kind.pathSegment);
+    final pathExpression = RegExp('/$segment/([^/]+)/?');
+    for (final link in document.querySelectorAll(
+      'a[href*="/${kind.pathSegment}/"]',
+    )) {
+      final href = link.attributes['href'];
+      final match = pathExpression.firstMatch(href ?? '');
+      if (match == null) {
+        continue;
+      }
+      final id = match.group(1)!;
+      if (id.isEmpty || id == 'sort') {
+        continue;
+      }
+      final container = _closestItem(link) ?? link.parent;
+      final image =
+          container?.querySelector('img') ?? link.querySelector('img');
+      final title =
+          _clean(link.attributes['title']) ??
+          _clean(image?.attributes['alt']) ??
+          _clean(container?.querySelector('.title')?.text) ??
+          _clean(link.text);
+      if (title == null) {
+        continue;
+      }
+      final path = Uri.parse(_baseUri).resolve(href!).path;
+      final normalizedPath = path.endsWith('/') ? path : '$path/';
+      final text = container?.text.replaceAll(RegExp(r'\s+'), ' ') ?? '';
+      result[normalizedPath] = ContentCollectionItem(
+        id: id,
+        title: title,
+        path: normalizedPath,
+        kind: kind,
+        thumbnailUrl: _url(
+          image?.attributes['data-webp'] ??
+              image?.attributes['data-original'] ??
+              image?.attributes['src'],
+        ),
+        total: _number(
+          RegExp(
+            r'([\d,]+)\s*videos?',
+            caseSensitive: false,
+          ).firstMatch(text)?.group(1),
+        ),
+      );
+    }
+    return result.values.toList(growable: false);
+  }
+
   static String? genericError(String source) {
     return _clean(
       html_parser.parse(source).querySelector('.generic-error')?.text,

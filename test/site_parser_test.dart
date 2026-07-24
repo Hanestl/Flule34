@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flule34/core/api/site_parser.dart';
+import 'package:flule34/core/models/video_models.dart';
 
 void main() {
   test('解析列表中的视频卡片', () {
@@ -81,5 +82,25 @@ void main() {
     expect(subscriptions.first.path, '/models/example-artist/');
     expect(subscriptions.last.kind.name, 'category');
     expect(subscriptions.last.title, 'Example Category');
+  });
+
+  test('解析发现目录实体并去重', () {
+    const source = '''
+      <div class="item">
+        <a href="/models/example-artist/" title="Example Artist">
+          <img data-original="/artist.jpg" alt="Example Artist">
+        </a>
+        <span>42 videos</span>
+      </div>
+      <a href="/models/example-artist/">重复链接</a>
+    ''';
+
+    final items = SiteParser.contentCollections(source, DiscoveryKind.model);
+
+    expect(items, hasLength(1));
+    expect(items.single.id, 'example-artist');
+    expect(items.single.title, 'Example Artist');
+    expect(items.single.total, 42);
+    expect(items.single.path, '/models/example-artist/');
   });
 }
