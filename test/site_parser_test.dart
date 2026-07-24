@@ -25,4 +25,15 @@ void main() {
     expect(videos.single.thumbnailUrl, 'https://rule34video.com/thumbnail.jpg');
     expect(videos.single.previewUrl, 'https://rule34video.com/preview.mp4');
   });
+
+  test('从页面上下文解析稳定用户 ID', () {
+    const source = '''
+      <script>
+        pageContext = { userId: '2421071', locale: 'en' };
+      </script>
+    ''';
+
+    expect(SiteParser.userId(source), '2421071');
+    expect(SiteParser.userId('<html>logged out</html>'), isNull);
+  });
 }

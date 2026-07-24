@@ -92,6 +92,22 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
   }
 
+  Future<void> _openPlayer() async {
+    final cookie = await widget.api.sessionCookieHeader();
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VideoPlayerPage(
+          video: widget.details.video,
+          sources: widget.details.sources,
+          sessionCookie: cookie,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final details = widget.details;
@@ -151,18 +167,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                 children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: details.sources.isEmpty
-                          ? null
-                          : () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => VideoPlayerPage(
-                                  video: details.video,
-                                  sources: details.sources,
-                                  sessionCookie:
-                                      widget.api.sessionStore.cookieHeader,
-                                ),
-                              ),
-                            ),
+                      onPressed: details.sources.isEmpty ? null : _openPlayer,
                       icon: const Icon(Icons.play_arrow),
                       label: const Text('播放'),
                     ),

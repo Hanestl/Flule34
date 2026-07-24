@@ -37,6 +37,11 @@ dependencies:
   flutter_riverpod: ^3.3.2
   go_router: ^17.3.0
   dio: ^5.10.0
+  cookie_jar: ^4.0.9
+  dio_cookie_manager: ^3.4.0
+  drift: 2.34.0
+  drift_flutter: ^0.3.1
+  sqlite3: ^3.5.0
   html: ^0.15.6
   cached_network_image: ^3.4.1
   video_player: ^2.13.0
@@ -46,6 +51,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  build_runner: 2.15.1
+  drift_dev: 2.34.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

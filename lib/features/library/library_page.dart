@@ -18,7 +18,7 @@ class LibraryPage extends StatelessWidget {
           return _SignedOut(api: api);
         }
         return _SignedIn(
-          key: ValueKey(api.sessionStore.cookieHeader),
+          key: ValueKey(api.sessionStore.currentUserId),
           api: api,
         );
       },

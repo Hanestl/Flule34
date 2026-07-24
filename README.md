@@ -1,29 +1,57 @@
 # Flule34 Android 客户端
 
-这是基于 Flutter 的 Android 侧载客户端。首个 MVP 使用原生 Flutter 界面，直接访问网站已有的 JSON、RSS/HTML 和 MP4 接口，不使用整站 WebView。
+Flule34 是基于 Flutter 的 Android 原生侧载客户端，直接使用网站已有的 JSON、HTML 和 MP4 接口，不以整站 WebView 作为主要界面。
 
-## 已实现
+项目正在按长期维护标准重建。产品结构、账户边界与技术决策位于 [`docs/`](docs/) 目录。
 
-- 成年人确认与本地记忆
-- 最新、热门与高评分视频列表
-- 按关键词搜索和标签自动补全
-- 详情页、标签元数据和清晰度选择
-- 原生 MP4 播放器
-- 登录、加密保存 PHPSESSID 会话、收藏与收藏列表
+## 当前基础能力
+
+- 成年人确认与本地记忆；
+- 首页、发现、媒体库、我的四栏独立导航；
+- 首页搜索入口、标签自动补全与视频搜索；
+- 最新、热门与高评分单列视频流；
+- 视频详情、元数据、清晰度选择和原生 MP4 播放；
+- 显式登录重定向与完整 CookieJar 管理；
+- 使用安全存储持久化 Cookie 和稳定用户 ID；
+- Drift 账户分区数据库、播放进度与下载记录 schema；
+- 收藏和账号媒体库基础能力。
+
+## 开发环境
+
+当前已验证环境：
+
+- Flutter 3.44.8 stable；
+- Dart 3.12.2；
+- Android SDK 36；
+- minSdk 24，targetSdk 36。
 
 ## 本地构建
 
 ```powershell
 Set-Location D:\path\to\flule34
-flutter pub get
-flutter analyze
-flutter build apk --debug
+& 'D:\tools\flutter\bin\flutter.bat' pub get
+& 'D:\tools\flutter\bin\dart.bat' run build_runner build
+& 'D:\tools\flutter\bin\flutter.bat' analyze
+& 'D:\tools\flutter\bin\flutter.bat' test
+& 'D:\tools\flutter\bin\flutter.bat' build apk --debug
 ```
 
-输出文件为 `build\app\outputs\flutter-apk\app-debug.apk`。
+APK 输出位置：`build\app\outputs\flutter-apk\app-debug.apk`。
+
+## Drift schema 工作流
+
+数据库发生结构变化时必须：
+
+1. 修改表定义、提高 `schemaVersion` 并实现迁移；
+2. 运行 `dart run build_runner build`；
+3. 运行 `dart run drift_dev make-migrations` 更新 schema 快照与迁移测试；
+4. 运行静态分析、全部测试和 Android 构建。
+
+当前 v1 快照位于 `drift_schemas/app_database/`。
 
 ## 已知边界
 
-- 列表与详情主要依赖 HTML 解析；站点页面结构发生变化时，应优先更新 `lib/core/api/site_parser.dart`。
-- 视频 URL 中的访问令牌具有时效性；播放器进入前会重新加载视频详情页。
-- 该项目尚未接入下载、评论、注册、播放列表和推送通知；这些功能应在核心浏览与播放回归测试后逐项添加。
+- 列表与详情依赖 HTML 解析，页面结构变化时应更新 Parser 和真实脱敏 fixture 测试；
+- 视频 URL 中的访问令牌具有时效性，播放器和下载任务必须在使用前刷新来源；
+- 下载、完整设置、评论、播放列表、观看历史同步和发现页数据仍在分阶段接入；
+- Release 签名、更新机制、CI 和 GitHub 开源交付尚未完成。

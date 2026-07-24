@@ -1,6 +1,6 @@
 # ADR-0002：应用基础架构与核心依赖
 
-- 状态：已接受，播放器与 Cookie 组件待专项验证
+- 状态：已接受，播放器组件待专项验证
 - 日期：2026-07-24
 - 适用基线：Flutter 3.44.8 / Dart 3.12.2 / Android SDK 36
 
@@ -62,7 +62,7 @@ lib/
 
 所有用户数据表必须包含稳定用户 ID 或通过外键关联账号表。每次 schema 变更必须提供迁移和迁移测试，不允许开发阶段简单删除生产数据库重新创建。
 
-首次接入按 2026-07-24 的稳定版本 `drift 2.34.2` 评估。
+由于 Flutter 3.44.8 的 Analyzer 与测试依赖约束，首版精确锁定 `drift 2.34.0`、`drift_dev 2.34.0` 和 `build_runner 2.15.1`。该组合已通过代码生成、迁移 CLI、静态分析和测试验证。
 
 `SharedPreferences` 只用于少量非敏感设备设置；Session、Cookie 或其他凭据只能进入安全存储。
 
@@ -107,7 +107,7 @@ DownloadRepository
 
 解析器必须使用脱敏真实页面 fixture 测试。任何 DOM 选择器或脚本字段变化都应在 Parser 层失败，不能把 HTML 细节泄漏到页面和领域模型。
 
-Cookie 组件将在登录、重定向、多 Cookie、过期与持久化专项测试后确定。无论选用何种实现，都必须保存完整适用 Cookie，而不是只截取 `PHPSESSID`。
+Cookie 使用 `cookie_jar` 与 `dio_cookie_manager`，并通过自定义 Storage 适配器将完整 CookieJar 存入 `flutter_secure_storage`。登录重定向由应用显式逐跳跟随，确保每一跳的 `Set-Cookie` 都被捕获。
 
 ## 播放器
 

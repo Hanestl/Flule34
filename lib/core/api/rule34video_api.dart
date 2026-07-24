@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 import '../models/video_models.dart';
 import '../session/session_store.dart';
@@ -16,13 +18,17 @@ class ApiException implements Exception {
 }
 
 class Rule34VideoApi {
-  Rule34VideoApi({required this.sessionStore}) {
+  Rule34VideoApi({
+    required this.sessionStore,
+    HttpClientAdapter? httpClientAdapter,
+  }) {
     _dio = Dio(
       BaseOptions(
         baseUrl: 'https://rule34video.com',
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 30),
         responseType: ResponseType.plain,
+        followRedirects: false,
         headers: const {
           'User-Agent': 'Flule34 Android/0.1',
           'Accept':
@@ -31,22 +37,11 @@ class Rule34VideoApi {
         validateStatus: (status) => status != null && status < 500,
       ),
     );
+    if (httpClientAdapter != null) {
+      _dio.httpClientAdapter = httpClientAdapter;
+    }
     _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          final cookie = sessionStore.cookieHeader;
-          if (cookie != null) {
-            options.headers['Cookie'] = cookie;
-          }
-          handler.next(options);
-        },
-        onResponse: (response, handler) async {
-          await sessionStore.captureSetCookieHeaders(
-            response.headers.map['set-cookie'] ?? const <String>[],
-          );
-          handler.next(response);
-        },
-      ),
+      CookieManager(sessionStore.cookieJar, ignoreInvalidCookies: true),
     );
   }
 
@@ -54,6 +49,27 @@ class Rule34VideoApi {
   late final Dio _dio;
 
   void close() => _dio.close(force: true);
+
+  Future<void> restoreSession() async {
+    if (!sessionStore.isLoggedIn) {
+      return;
+    }
+    try {
+      final body = await _get('/');
+      final userId = SiteParser.userId(body);
+      if (userId == null) {
+        await sessionStore.clear();
+        return;
+      }
+      await sessionStore.authenticate(userId);
+    } on ApiException {
+      // 网络暂时不可用时保留本地账号，后续请求仍可重新验证会话。
+    }
+  }
+
+  Future<String?> sessionCookieHeader() {
+    return sessionStore.cookieHeaderFor(Uri.parse('https://rule34video.com/'));
+  }
 
   Future<List<VideoItem>> loadFeed(FeedKind kind, int page) async {
     return _videoList(kind.pagePath(page));
@@ -89,19 +105,28 @@ class Rule34VideoApi {
   }
 
   Future<void> login({required String email, required String password}) async {
-    final body = await _post(
-      '/login/',
-      data: <String, String>{
-        'username': email.trim(),
-        'pass': password,
-        'action': 'login',
-        'email_link': 'https://rule34video.com/email/',
-      },
-    );
-    if (!sessionStore.isLoggedIn) {
-      throw ApiException(
-        SiteParser.genericError(body) ?? '登录失败，请检查账号、密码或验证码要求。',
+    await sessionStore.clear();
+    try {
+      final body = await _post(
+        '/login/',
+        data: <String, String>{
+          'username': email.trim(),
+          'pass': password,
+          'action': 'login',
+          'email_link': 'https://rule34video.com/email/',
+        },
+        followRedirects: true,
       );
+      final userId = SiteParser.userId(body);
+      if (userId == null) {
+        throw ApiException(
+          SiteParser.genericError(body) ?? '登录失败，请检查账号、密码或验证码要求。',
+        );
+      }
+      await sessionStore.authenticate(userId);
+    } catch (_) {
+      await sessionStore.clear();
+      rethrow;
     }
   }
 
@@ -147,7 +172,7 @@ class Rule34VideoApi {
   Future<String> _get(String path, {Map<String, String>? query}) async {
     try {
       final response = await _dio.get<String>(path, queryParameters: query);
-      return _readResponse(response);
+      return _readResponse(await _followRedirects(response));
     } on DioException catch (error) {
       throw ApiException(_networkMessage(error));
     }
@@ -158,6 +183,7 @@ class Rule34VideoApi {
     required Map<String, String> data,
     Map<String, String>? query,
     bool ajax = false,
+    bool followRedirects = false,
   }) async {
     try {
       final response = await _dio.post<String>(
@@ -166,10 +192,13 @@ class Rule34VideoApi {
         data: data,
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
+          followRedirects: false,
           headers: ajax ? const {'X-Requested-With': 'XMLHttpRequest'} : null,
         ),
       );
-      return _readResponse(response);
+      return _readResponse(
+        followRedirects ? await _followRedirects(response) : response,
+      );
     } on DioException catch (error) {
       throw ApiException(_networkMessage(error));
     }
@@ -177,10 +206,30 @@ class Rule34VideoApi {
 
   String _readResponse(Response<String> response) {
     final status = response.statusCode ?? 0;
-    if (status < 200 || status >= 400) {
+    if (status < 200 || status >= 300) {
       throw ApiException('服务器返回了 HTTP $status。');
     }
     return response.data ?? '';
+  }
+
+  Future<Response<String>> _followRedirects(Response<String> response) async {
+    var current = response;
+    for (var redirects = 0; redirects < 5; redirects += 1) {
+      final status = current.statusCode ?? 0;
+      if (status < 300 || status >= 400) {
+        return current;
+      }
+      final location = current.headers.value(HttpHeaders.locationHeader);
+      if (location == null || location.isEmpty) {
+        throw const ApiException('服务器返回了缺少目标地址的重定向。');
+      }
+      final nextUri = current.realUri.resolve(location);
+      current = await _dio.getUri<String>(
+        nextUri,
+        options: Options(followRedirects: false),
+      );
+    }
+    throw const ApiException('服务器重定向次数过多。');
   }
 
   String _networkMessage(DioException error) {

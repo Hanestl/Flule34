@@ -8,9 +8,13 @@ import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
 
+import 'helpers/test_session_harness.dart';
+
 void main() {
   testWidgets('底部导航使用四栏结构且搜索不占一级入口', (tester) async {
-    final api = _FakeRule34VideoApi();
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    final api = _FakeRule34VideoApi(harness.sessionStore);
     final container = ProviderContainer(
       overrides: [rule34VideoApiProvider.overrideWithValue(api)],
     );
@@ -41,7 +45,8 @@ void main() {
 }
 
 class _FakeRule34VideoApi extends Rule34VideoApi {
-  _FakeRule34VideoApi() : super(sessionStore: SessionStore());
+  _FakeRule34VideoApi(SessionStore sessionStore)
+    : super(sessionStore: sessionStore);
 
   @override
   Future<List<VideoItem>> loadFeed(FeedKind kind, int page) async {
@@ -49,7 +54,5 @@ class _FakeRule34VideoApi extends Rule34VideoApi {
   }
 
   @override
-  void close() {
-    sessionStore.dispose();
-  }
+  void close() {}
 }

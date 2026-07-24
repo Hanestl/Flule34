@@ -91,7 +91,9 @@ class _AccountCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    loggedIn ? '网站会话有效，个人资料将在账号接口接入后显示。' : '登录后同步媒体库并使用下载功能。',
+                    loggedIn
+                        ? '用户 ID：${api.sessionStore.currentUserId}'
+                        : '登录后同步媒体库并使用下载功能。',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],

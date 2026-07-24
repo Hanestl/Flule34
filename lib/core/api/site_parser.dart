@@ -121,6 +121,13 @@ class SiteParser {
     );
   }
 
+  static String? userId(String source) {
+    return RegExp(
+      r'''(?:["']?userId["']?)\s*:\s*["']?(\d+)["']?''',
+      caseSensitive: false,
+    ).firstMatch(source)?.group(1);
+  }
+
   static List<VideoSource> _sources(String source) {
     const fields = <(String, String)>[
       ('video_url', 'video_url_text'),
