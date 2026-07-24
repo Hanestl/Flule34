@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
+import '../../core/models/account_models.dart';
 import '../auth/login_sheet.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -26,7 +28,11 @@ class ProfilePage extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-            _AccountCard(api: api, loggedIn: loggedIn),
+            _AccountCard(
+              key: ValueKey(api.sessionStore.currentUserId),
+              api: api,
+              loggedIn: loggedIn,
+            ),
             const SizedBox(height: 24),
             _SectionTitle(title: '偏好设置'),
             _SettingsTile(
@@ -61,11 +67,17 @@ class ProfilePage extends StatelessWidget {
               subtitle: '账号隔离、本地数据和退出登录',
               onTap: () => context.pushNamed(AppRouteNames.privacySettings),
             ),
-            const _SettingsTile(
+            _SettingsTile(
+              icon: Icons.settings_applications_outlined,
+              title: 'App 设置',
+              subtitle: '语言、更新通道和诊断信息',
+              onTap: () => context.pushNamed(AppRouteNames.appSettings),
+            ),
+            _SettingsTile(
               icon: Icons.help_outline,
               title: '帮助与反馈',
               subtitle: '使用帮助、问题反馈和诊断信息',
-              enabled: false,
+              onTap: () => context.pushNamed(AppRouteNames.helpFeedback),
             ),
             _SettingsTile(
               icon: Icons.info_outline,
@@ -80,68 +92,99 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.api, required this.loggedIn});
+class _AccountCard extends StatefulWidget {
+  const _AccountCard({super.key, required this.api, required this.loggedIn});
 
   final Rule34VideoApi api;
   final bool loggedIn;
 
   @override
+  State<_AccountCard> createState() => _AccountCardState();
+}
+
+class _AccountCardState extends State<_AccountCard> {
+  Future<MemberProfile>? _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loggedIn) {
+      _profile = widget.api.loadCurrentUserProfile();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: loggedIn
-            ? () => context.pushNamed(AppRouteNames.account)
-            : () => showLoginSheet(context, api),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 30,
-                child: Icon(
-                  loggedIn ? Icons.person : Icons.person_outline,
-                  size: 32,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      loggedIn ? 'Rule34Video 账号' : '尚未登录',
-                      style: Theme.of(context).textTheme.titleMedium,
+    return FutureBuilder<MemberProfile>(
+      future: _profile,
+      builder: (context, snapshot) {
+        final profile = snapshot.data;
+        final avatarUrl = profile?.avatarUrl;
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.loggedIn
+                ? () => context.pushNamed(AppRouteNames.account)
+                : () => showLoginSheet(context, widget.api),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundImage: avatarUrl == null
+                        ? null
+                        : CachedNetworkImageProvider(avatarUrl),
+                    child: avatarUrl == null
+                        ? Icon(
+                            widget.loggedIn
+                                ? Icons.person
+                                : Icons.person_outline,
+                            size: 32,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.loggedIn
+                              ? profile?.displayName ?? 'Rule34Video 账号'
+                              : '尚未登录',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.loggedIn
+                              ? '用户 ID：${widget.api.sessionStore.currentUserId}'
+                              : '登录后同步媒体库并使用下载功能。',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        if (widget.loggedIn) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            snapshot.hasError ? '资料暂不可用' : '账号数据已隔离',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      loggedIn
-                          ? '用户 ID：${api.sessionStore.currentUserId}'
-                          : '登录后同步媒体库并使用下载功能。',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    if (loggedIn) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '账号数据已隔离',
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  widget.loggedIn
+                      ? const Icon(Icons.chevron_right)
+                      : const Icon(Icons.login),
+                ],
               ),
-              const SizedBox(width: 8),
-              loggedIn
-                  ? const Icon(Icons.chevron_right)
-                  : const Icon(Icons.login),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -166,14 +209,12 @@ class _SettingsTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.onTap,
-    this.enabled = true,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -183,11 +224,8 @@ class _SettingsTile extends StatelessWidget {
         leading: Icon(icon),
         title: Text(title),
         subtitle: Text(subtitle),
-        trailing: enabled
-            ? const Icon(Icons.chevron_right)
-            : const Text('后续接入'),
-        enabled: enabled,
-        onTap: enabled ? onTap : null,
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
   }

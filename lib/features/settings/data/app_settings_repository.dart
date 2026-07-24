@@ -16,6 +16,7 @@ final class AppSettingsRepository extends ChangeNotifier {
   static const _askDownloadQualityKey = 'flule34.settings.ask_download_quality';
   static const _downloadQualityKey = 'flule34.settings.download_quality';
   static const _wifiOnlyDownloadsKey = 'flule34.settings.wifi_only_downloads';
+  static const _updateChannelKey = 'flule34.settings.update_channel';
 
   final AppSettingsStore _store;
   AppSettings _settings = AppSettings.defaults;
@@ -38,6 +39,7 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readBool(_askDownloadQualityKey),
       _readString(_downloadQualityKey),
       _readBool(_wifiOnlyDownloadsKey),
+      _readString(_updateChannelKey),
     ]);
     _settings = AppSettings(
       theme: _enumValue(
@@ -64,6 +66,11 @@ final class AppSettingsRepository extends ChangeNotifier {
       ),
       wifiOnlyDownloads:
           values[8] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
+      updateChannel: _enumValue(
+        UpdateChannel.values,
+        values[9] as String?,
+        AppSettings.defaults.updateChannel,
+      ),
     );
     _loaded = true;
     notifyListeners();
@@ -112,6 +119,11 @@ final class AppSettingsRepository extends ChangeNotifier {
   Future<void> setWifiOnlyDownloads(bool value) async {
     await _store.writeBool(_wifiOnlyDownloadsKey, value);
     _update(_settings.copyWith(wifiOnlyDownloads: value));
+  }
+
+  Future<void> setUpdateChannel(UpdateChannel value) async {
+    await _store.writeString(_updateChannelKey, value.name);
+    _update(_settings.copyWith(updateChannel: value));
   }
 
   void _update(AppSettings value) {

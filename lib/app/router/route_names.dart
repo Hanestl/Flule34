@@ -12,6 +12,10 @@ abstract final class AppRouteNames {
   static const contentSettings = 'content-settings';
   static const downloadSettings = 'download-settings';
   static const privacySettings = 'privacy-settings';
+  static const appSettings = 'app-settings';
+  static const helpFeedback = 'help-feedback';
+  static const diagnostics = 'diagnostics';
+  static const update = 'update';
   static const about = 'about';
   static const search = 'search';
   static const video = 'video';

@@ -20,6 +20,7 @@ void main() {
     await repository.setAutoplay(true);
     await repository.setRememberPlaybackProgress(false);
     await repository.setWifiOnlyDownloads(true);
+    await repository.setUpdateChannel(UpdateChannel.prerelease);
 
     final restored = AppSettingsRepository(store);
     addTearDown(restored.dispose);
@@ -28,6 +29,7 @@ void main() {
     expect(restored.settings.autoplay, isTrue);
     expect(restored.settings.rememberPlaybackProgress, isFalse);
     expect(restored.settings.wifiOnlyDownloads, isTrue);
+    expect(restored.settings.updateChannel, UpdateChannel.prerelease);
   });
 
   test('损坏或过时的枚举值回退到默认设置', () async {

@@ -38,6 +38,29 @@ void main() {
     expect(SiteParser.userId('<html>logged out</html>'), isNull);
   });
 
+  test('解析成员资料中的名称、头像和订阅数', () {
+    const source = '''
+      <div class="channel_logo">
+        <div class="avatar">
+          <img src="/contents/avatars/98000/98965.png" alt="">
+        </div>
+        <h2 class="title">Oppai3Dporn</h2>
+        <div class="subscribers_count">25K <span>Subscribers</span></div>
+      </div>
+    ''';
+
+    final profile = SiteParser.memberProfile(source, '98965');
+
+    expect(profile, isNotNull);
+    expect(profile!.id, '98965');
+    expect(profile.displayName, 'Oppai3Dporn');
+    expect(
+      profile.avatarUrl,
+      'https://rule34video.com/contents/avatars/98000/98965.png',
+    );
+    expect(profile.subscribersLabel, '25K Subscribers');
+  });
+
   test('解析账号播放列表及统计信息', () {
     const source = '''
       <div class="item thumb playlist_77">

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
+import '../models/account_models.dart';
 import '../models/video_models.dart';
 import '../session/session_store.dart';
 import 'site_parser.dart';
@@ -153,6 +154,24 @@ class Rule34VideoApi {
   Future<VideoDetails> loadVideoDetails(VideoItem video) async {
     final body = await _get(video.detailPath);
     return SiteParser.videoDetails(source: body, fallback: video);
+  }
+
+  Future<MemberProfile> loadCurrentUserProfile() async {
+    _requireLogin();
+    final userId = sessionStore.currentUserId!;
+    final profile = SiteParser.memberProfile(
+      await _get('/members/$userId/'),
+      userId,
+    );
+    if (profile == null) {
+      throw const ApiException('无法解析当前账号资料，请稍后重试。');
+    }
+    await sessionStore.database.recordAuthenticatedAccount(
+      userId,
+      displayName: profile.displayName,
+      avatarUrl: profile.avatarUrl,
+    );
+    return profile;
   }
 
   Future<void> login({required String email, required String password}) async {

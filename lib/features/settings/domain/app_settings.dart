@@ -29,6 +29,15 @@ enum VideoQualityPreference {
   };
 }
 
+enum UpdateChannel {
+  stable('稳定版'),
+  prerelease('预发布版');
+
+  const UpdateChannel(this.label);
+
+  final String label;
+}
+
 final class AppSettings {
   const AppSettings({
     required this.theme,
@@ -40,6 +49,7 @@ final class AppSettings {
     required this.askDownloadQuality,
     required this.downloadQuality,
     required this.wifiOnlyDownloads,
+    required this.updateChannel,
   });
 
   static const defaults = AppSettings(
@@ -52,6 +62,7 @@ final class AppSettings {
     askDownloadQuality: true,
     downloadQuality: VideoQualityPreference.highest,
     wifiOnlyDownloads: false,
+    updateChannel: UpdateChannel.stable,
   );
 
   final AppThemePreference theme;
@@ -63,6 +74,7 @@ final class AppSettings {
   final bool askDownloadQuality;
   final VideoQualityPreference downloadQuality;
   final bool wifiOnlyDownloads;
+  final UpdateChannel updateChannel;
 
   AppSettings copyWith({
     AppThemePreference? theme,
@@ -74,6 +86,7 @@ final class AppSettings {
     bool? askDownloadQuality,
     VideoQualityPreference? downloadQuality,
     bool? wifiOnlyDownloads,
+    UpdateChannel? updateChannel,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
@@ -86,6 +99,7 @@ final class AppSettings {
       askDownloadQuality: askDownloadQuality ?? this.askDownloadQuality,
       downloadQuality: downloadQuality ?? this.downloadQuality,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+      updateChannel: updateChannel ?? this.updateChannel,
     );
   }
 }

@@ -29,6 +29,9 @@ Flule34 是基于 Flutter 的 Android 原生侧载客户端，直接使用网站
 - 下载入队前刷新视频令牌、系统杀死任务恢复和公共下载目录导出；
 - 媒体库下载列表、App 私有文件存储、单条删除与账号本地数据清理；
 - 完整“我的”信息架构和独立设置路由；
+- 已登录账号资料、头像、个人主页与网站安全管理入口；
+- 帮助反馈、脱敏诊断报告、运行时版本与开源许可页面；
+- 可配置 GitHub Releases 更新源、稳定/预发布通道与语义版本比较；
 - 持久化主题、播放、内容与下载偏好，并接入实际业务行为；
 - 账号绑定的播放进度恢复、节流保存与视频地址失效自动刷新；
 - 完整媒体库页签：继续观看、收藏、稍后观看、网站历史、播放列表、订阅和下载；
@@ -58,6 +61,19 @@ Set-Location D:\path\to\flule34
 
 APK 输出位置：`build\app\outputs\flutter-apk\app-debug.apk`。
 
+需要启用 GitHub 更新与构建追踪时，在构建命令中注入：
+
+```powershell
+& 'D:\tools\flutter\bin\flutter.bat' build apk --release `
+  --dart-define=FLULE34_UPDATE_API_URL=https://api.github.com/repos/OWNER/REPOSITORY/releases `
+  --dart-define=FLULE34_REPOSITORY_URL=https://github.com/OWNER/REPOSITORY `
+  --dart-define=FLUTTER_VERSION=3.44.8 `
+  --dart-define=GIT_COMMIT=<commit> `
+  --dart-define=BUILD_TIME=<ISO-8601>
+```
+
+仓库尚未确定前不要提交占位地址；未配置的构建会在 App 中明确显示“未配置更新源”。
+
 ## Drift schema 工作流
 
 数据库发生结构变化时必须：
@@ -75,6 +91,6 @@ APK 输出位置：`build\app\outputs\flutter-apk\app-debug.apk`。
 - 视频 URL 中的访问令牌具有时效性，播放器和下载任务必须在使用前刷新来源；
 - 下载失败后的自动换令牌重试和真机后台/文件清理回归仍待完成；
 - 播放器真机旋转、令牌过期和复杂网络切换回归仍待完成；
-- 账号资料解析、帮助反馈和观看历史同步仍在分阶段接入；
+- 成员资料依赖公开页面 `.channel_logo` 结构，页面变化时需更新 Parser fixture；
 - 新建播放列表、评论分页/投票和稍后观看写操作仍待可靠接口证据；
-- Release 签名、更新机制、CI 和 GitHub 开源交付尚未完成。
+- Release 签名、CI 和 GitHub 开源交付尚未完成；更新检查仅在构建时配置 GitHub Releases 源后启用。

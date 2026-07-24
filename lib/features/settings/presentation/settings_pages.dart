@@ -9,80 +9,6 @@ import '../../downloads/data/download_repository.dart';
 import '../data/app_settings_repository.dart';
 import '../domain/app_settings.dart';
 
-class AccountPage extends StatelessWidget {
-  const AccountPage({super.key, required this.api});
-
-  final Rule34VideoApi api;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('账号与安全')),
-      body: AnimatedBuilder(
-        animation: api.sessionStore,
-        builder: (context, _) {
-          final userId = api.sessionStore.currentUserId;
-          if (userId == null) {
-            return const _CenteredMessage(
-              icon: Icons.person_off_outlined,
-              title: '当前未登录',
-              message: '请返回“我的”页面登录后查看账号信息。',
-            );
-          }
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      const CircleAvatar(
-                        radius: 34,
-                        child: Icon(Icons.person, size: 36),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        'Rule34Video 账号',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 6),
-                      SelectableText('用户 ID：$userId'),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.shield_outlined),
-                  title: Text('会话安全'),
-                  subtitle: Text(
-                    '登录 Cookie 和稳定用户 ID 保存在 Android 安全存储中，密码不会由 App 保存。',
-                  ),
-                ),
-              ),
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.language_outlined),
-                  title: Text('网站账号资料'),
-                  subtitle: Text('编辑资料、修改邮箱和密码仍由网站管理；安全跳转将在后续版本接入。'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                onPressed: () => _confirmLogout(context, api),
-                icon: const Icon(Icons.logout),
-                label: const Text('退出登录'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
 class AppearanceSettingsPage extends ConsumerWidget {
   const AppearanceSettingsPage({super.key});
 
@@ -235,7 +161,8 @@ class DownloadSettingsPage extends ConsumerWidget {
         ),
         const _InfoCard(
           icon: Icons.folder_outlined,
-          text: '下载文件默认保存在 App 私有目录，并按用户 ID 隔离。公共目录导出和存储清理将在下载管理下一阶段接入。',
+          text:
+              '下载文件默认保存在 App 私有目录并按用户 ID 隔离；完成后可从下载管理导出到公共 Downloads/Flule34。',
         ),
       ],
     );
@@ -352,54 +279,6 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
   }
 }
 
-class AboutPage extends StatelessWidget {
-  const AboutPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('关于 Flule34')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const SizedBox(height: 12),
-          const Icon(Icons.play_circle_fill, size: 72),
-          const SizedBox(height: 12),
-          Text(
-            'Flule34',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 4),
-          const Text('版本 1.0.0+1', textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          const _InfoCard(
-            icon: Icons.code,
-            text:
-                'Flule34 是 Rule34Video 的 Flutter Android 客户端，计划在首个公开版本完成后开源到 GitHub。',
-          ),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.system_update_outlined),
-              title: Text('更新检查'),
-              subtitle: Text('GitHub Release 更新通道尚未配置。'),
-              enabled: false,
-            ),
-          ),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.description_outlined),
-              title: Text('开源许可'),
-              subtitle: Text('将在发布流程和依赖许可清单完成后开放。'),
-              enabled: false,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SettingsScaffold extends StatelessWidget {
   const _SettingsScaffold({
     required this.title,
@@ -478,37 +357,6 @@ class _InfoCard extends StatelessWidget {
             Icon(icon),
             const SizedBox(width: 12),
             Expanded(child: Text(text)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CenteredMessage extends StatelessWidget {
-  const _CenteredMessage({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 52),
-            const SizedBox(height: 16),
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center),
           ],
         ),
       ),

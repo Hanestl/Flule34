@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
+import '../models/account_models.dart';
 import '../models/video_models.dart';
 
 class SiteParser {
@@ -53,6 +54,24 @@ class SiteParser {
     }
 
     return result.values.toList(growable: false);
+  }
+
+  static MemberProfile? memberProfile(String source, String userId) {
+    final document = html_parser.parse(source);
+    final header = document.querySelector('.channel_logo');
+    final displayName = _clean(header?.querySelector('h2.title')?.text);
+    if (displayName == null) {
+      return null;
+    }
+
+    return MemberProfile(
+      id: userId,
+      displayName: displayName,
+      avatarUrl: _url(header?.querySelector('.avatar img')?.attributes['src']),
+      subscribersLabel: _clean(
+        header?.querySelector('.subscribers_count')?.text,
+      ),
+    );
   }
 
   static VideoDetails videoDetails({

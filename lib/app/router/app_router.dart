@@ -11,9 +11,11 @@ import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
 import '../../features/library/playlist_page.dart';
 import '../../features/library/subscription_page.dart';
+import '../../features/profile/account_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/search/search_page.dart';
 import '../../features/settings/presentation/settings_pages.dart';
+import '../../features/settings/presentation/support_pages.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/video/video_detail_page.dart';
 import '../providers.dart';
@@ -104,6 +106,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'privacy',
                     name: AppRouteNames.privacySettings,
                     builder: (context, state) => PrivacySettingsPage(api: api),
+                  ),
+                  GoRoute(
+                    path: 'app',
+                    name: AppRouteNames.appSettings,
+                    builder: (context, state) => const AppSettingsPage(),
+                  ),
+                  GoRoute(
+                    path: 'help',
+                    name: AppRouteNames.helpFeedback,
+                    builder: (context, state) => const HelpFeedbackPage(),
+                  ),
+                  GoRoute(
+                    path: 'diagnostics',
+                    name: AppRouteNames.diagnostics,
+                    builder: (context, state) => const DiagnosticsPage(),
+                  ),
+                  GoRoute(
+                    path: 'update',
+                    name: AppRouteNames.update,
+                    builder: (context, state) => const AppUpdatePage(),
                   ),
                   GoRoute(
                     path: 'about',
