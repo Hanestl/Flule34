@@ -21,6 +21,7 @@ class VideoFeed extends StatefulWidget {
 
 class _VideoFeedState extends State<VideoFeed>
     with AutomaticKeepAliveClientMixin {
+  final ScrollController _scrollController = ScrollController();
   final List<VideoItem> _videos = [];
   var _page = 1;
   var _loading = false;
@@ -30,7 +31,22 @@ class _VideoFeedState extends State<VideoFeed>
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _load(reset: true);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.extentAfter < 800) {
+      _load(reset: false);
+    }
   }
 
   Future<void> _load({required bool reset}) async {
@@ -94,6 +110,7 @@ class _VideoFeedState extends State<VideoFeed>
     return RefreshIndicator(
       onRefresh: () => _load(reset: true),
       child: ListView.builder(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _videos.length + 1,
         itemBuilder: (context, index) {
@@ -114,11 +131,7 @@ class _VideoFeedState extends State<VideoFeed>
               child: _loading
                   ? const CircularProgressIndicator()
                   : _hasMore
-                  ? OutlinedButton.icon(
-                      onPressed: () => _load(reset: false),
-                      icon: const Icon(Icons.expand_more),
-                      label: const Text('加载更多'),
-                    )
+                  ? const Text('继续向下滚动以加载更多')
                   : const Text('已经到底了'),
             ),
           );

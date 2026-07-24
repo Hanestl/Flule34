@@ -27,6 +27,7 @@ final _profileNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'profile');
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final api = ref.watch(rule34VideoApiProvider);
+  final searchHistoryRepository = ref.watch(searchHistoryRepositoryProvider);
   final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
@@ -119,7 +120,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: '/search',
         name: AppRouteNames.search,
-        builder: (context, state) => SearchPage(api: api),
+        builder: (context, state) =>
+            SearchPage(api: api, historyRepository: searchHistoryRepository),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,

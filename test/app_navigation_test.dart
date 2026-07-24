@@ -19,6 +19,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         rule34VideoApiProvider.overrideWithValue(api),
+        appDatabaseProvider.overrideWithValue(harness.database),
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
       ],
     );

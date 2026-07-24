@@ -1780,6 +1780,342 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
   }
 }
 
+class $SearchHistoriesTable extends SearchHistories
+    with TableInfo<$SearchHistoriesTable, SearchHistory> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SearchHistoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES user_accounts (user_id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _normalizedQueryMeta = const VerificationMeta(
+    'normalizedQuery',
+  );
+  @override
+  late final GeneratedColumn<String> normalizedQuery = GeneratedColumn<String>(
+    'normalized_query',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayQueryMeta = const VerificationMeta(
+    'displayQuery',
+  );
+  @override
+  late final GeneratedColumn<String> displayQuery = GeneratedColumn<String>(
+    'display_query',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastSearchedAtMeta = const VerificationMeta(
+    'lastSearchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSearchedAt =
+      GeneratedColumn<DateTime>(
+        'last_searched_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+        defaultValue: currentDateAndTime,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    userId,
+    normalizedQuery,
+    displayQuery,
+    lastSearchedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'search_histories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SearchHistory> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('normalized_query')) {
+      context.handle(
+        _normalizedQueryMeta,
+        normalizedQuery.isAcceptableOrUnknown(
+          data['normalized_query']!,
+          _normalizedQueryMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_normalizedQueryMeta);
+    }
+    if (data.containsKey('display_query')) {
+      context.handle(
+        _displayQueryMeta,
+        displayQuery.isAcceptableOrUnknown(
+          data['display_query']!,
+          _displayQueryMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayQueryMeta);
+    }
+    if (data.containsKey('last_searched_at')) {
+      context.handle(
+        _lastSearchedAtMeta,
+        lastSearchedAt.isAcceptableOrUnknown(
+          data['last_searched_at']!,
+          _lastSearchedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {userId, normalizedQuery};
+  @override
+  SearchHistory map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SearchHistory(
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      normalizedQuery: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}normalized_query'],
+      )!,
+      displayQuery: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_query'],
+      )!,
+      lastSearchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_searched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SearchHistoriesTable createAlias(String alias) {
+    return $SearchHistoriesTable(attachedDatabase, alias);
+  }
+}
+
+class SearchHistory extends DataClass implements Insertable<SearchHistory> {
+  final String userId;
+  final String normalizedQuery;
+  final String displayQuery;
+  final DateTime lastSearchedAt;
+  const SearchHistory({
+    required this.userId,
+    required this.normalizedQuery,
+    required this.displayQuery,
+    required this.lastSearchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['user_id'] = Variable<String>(userId);
+    map['normalized_query'] = Variable<String>(normalizedQuery);
+    map['display_query'] = Variable<String>(displayQuery);
+    map['last_searched_at'] = Variable<DateTime>(lastSearchedAt);
+    return map;
+  }
+
+  SearchHistoriesCompanion toCompanion(bool nullToAbsent) {
+    return SearchHistoriesCompanion(
+      userId: Value(userId),
+      normalizedQuery: Value(normalizedQuery),
+      displayQuery: Value(displayQuery),
+      lastSearchedAt: Value(lastSearchedAt),
+    );
+  }
+
+  factory SearchHistory.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SearchHistory(
+      userId: serializer.fromJson<String>(json['userId']),
+      normalizedQuery: serializer.fromJson<String>(json['normalizedQuery']),
+      displayQuery: serializer.fromJson<String>(json['displayQuery']),
+      lastSearchedAt: serializer.fromJson<DateTime>(json['lastSearchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'userId': serializer.toJson<String>(userId),
+      'normalizedQuery': serializer.toJson<String>(normalizedQuery),
+      'displayQuery': serializer.toJson<String>(displayQuery),
+      'lastSearchedAt': serializer.toJson<DateTime>(lastSearchedAt),
+    };
+  }
+
+  SearchHistory copyWith({
+    String? userId,
+    String? normalizedQuery,
+    String? displayQuery,
+    DateTime? lastSearchedAt,
+  }) => SearchHistory(
+    userId: userId ?? this.userId,
+    normalizedQuery: normalizedQuery ?? this.normalizedQuery,
+    displayQuery: displayQuery ?? this.displayQuery,
+    lastSearchedAt: lastSearchedAt ?? this.lastSearchedAt,
+  );
+  SearchHistory copyWithCompanion(SearchHistoriesCompanion data) {
+    return SearchHistory(
+      userId: data.userId.present ? data.userId.value : this.userId,
+      normalizedQuery: data.normalizedQuery.present
+          ? data.normalizedQuery.value
+          : this.normalizedQuery,
+      displayQuery: data.displayQuery.present
+          ? data.displayQuery.value
+          : this.displayQuery,
+      lastSearchedAt: data.lastSearchedAt.present
+          ? data.lastSearchedAt.value
+          : this.lastSearchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SearchHistory(')
+          ..write('userId: $userId, ')
+          ..write('normalizedQuery: $normalizedQuery, ')
+          ..write('displayQuery: $displayQuery, ')
+          ..write('lastSearchedAt: $lastSearchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(userId, normalizedQuery, displayQuery, lastSearchedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SearchHistory &&
+          other.userId == this.userId &&
+          other.normalizedQuery == this.normalizedQuery &&
+          other.displayQuery == this.displayQuery &&
+          other.lastSearchedAt == this.lastSearchedAt);
+}
+
+class SearchHistoriesCompanion extends UpdateCompanion<SearchHistory> {
+  final Value<String> userId;
+  final Value<String> normalizedQuery;
+  final Value<String> displayQuery;
+  final Value<DateTime> lastSearchedAt;
+  final Value<int> rowid;
+  const SearchHistoriesCompanion({
+    this.userId = const Value.absent(),
+    this.normalizedQuery = const Value.absent(),
+    this.displayQuery = const Value.absent(),
+    this.lastSearchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SearchHistoriesCompanion.insert({
+    required String userId,
+    required String normalizedQuery,
+    required String displayQuery,
+    this.lastSearchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId),
+       normalizedQuery = Value(normalizedQuery),
+       displayQuery = Value(displayQuery);
+  static Insertable<SearchHistory> custom({
+    Expression<String>? userId,
+    Expression<String>? normalizedQuery,
+    Expression<String>? displayQuery,
+    Expression<DateTime>? lastSearchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (userId != null) 'user_id': userId,
+      if (normalizedQuery != null) 'normalized_query': normalizedQuery,
+      if (displayQuery != null) 'display_query': displayQuery,
+      if (lastSearchedAt != null) 'last_searched_at': lastSearchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SearchHistoriesCompanion copyWith({
+    Value<String>? userId,
+    Value<String>? normalizedQuery,
+    Value<String>? displayQuery,
+    Value<DateTime>? lastSearchedAt,
+    Value<int>? rowid,
+  }) {
+    return SearchHistoriesCompanion(
+      userId: userId ?? this.userId,
+      normalizedQuery: normalizedQuery ?? this.normalizedQuery,
+      displayQuery: displayQuery ?? this.displayQuery,
+      lastSearchedAt: lastSearchedAt ?? this.lastSearchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (normalizedQuery.present) {
+      map['normalized_query'] = Variable<String>(normalizedQuery.value);
+    }
+    if (displayQuery.present) {
+      map['display_query'] = Variable<String>(displayQuery.value);
+    }
+    if (lastSearchedAt.present) {
+      map['last_searched_at'] = Variable<DateTime>(lastSearchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SearchHistoriesCompanion(')
+          ..write('userId: $userId, ')
+          ..write('normalizedQuery: $normalizedQuery, ')
+          ..write('displayQuery: $displayQuery, ')
+          ..write('lastSearchedAt: $lastSearchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1787,6 +2123,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PlaybackPositionsTable playbackPositions =
       $PlaybackPositionsTable(this);
   late final $DownloadRecordsTable downloadRecords = $DownloadRecordsTable(
+    this,
+  );
+  late final $SearchHistoriesTable searchHistories = $SearchHistoriesTable(
     this,
   );
   @override
@@ -1797,6 +2136,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     userAccounts,
     playbackPositions,
     downloadRecords,
+    searchHistories,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -1813,6 +2153,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('download_records', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'user_accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('search_histories', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -1878,6 +2225,26 @@ final class $$UserAccountsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _downloadRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SearchHistoriesTable, List<SearchHistory>>
+  _searchHistoriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.searchHistories,
+    aliasName: 'user_accounts__user_id__search_histories__user_id',
+  );
+
+  $$SearchHistoriesTableProcessedTableManager get searchHistoriesRefs {
+    final manager =
+        $$SearchHistoriesTableTableManager($_db, $_db.searchHistories).filter(
+          (f) => f.userId.userId.sqlEquals($_itemColumn<String>('user_id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _searchHistoriesRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -1960,6 +2327,31 @@ class $$UserAccountsTableFilterComposer
           }) => $$DownloadRecordsTableFilterComposer(
             $db: $db,
             $table: $db.downloadRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> searchHistoriesRefs(
+    Expression<bool> Function($$SearchHistoriesTableFilterComposer f) f,
+  ) {
+    final $$SearchHistoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.searchHistories,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SearchHistoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.searchHistories,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2083,6 +2475,31 @@ class $$UserAccountsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> searchHistoriesRefs<T extends Object>(
+    Expression<T> Function($$SearchHistoriesTableAnnotationComposer a) f,
+  ) {
+    final $$SearchHistoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.searchHistories,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SearchHistoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.searchHistories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$UserAccountsTableTableManager
@@ -2101,6 +2518,7 @@ class $$UserAccountsTableTableManager
           PrefetchHooks Function({
             bool playbackPositionsRefs,
             bool downloadRecordsRefs,
+            bool searchHistoriesRefs,
           })
         > {
   $$UserAccountsTableTableManager(_$AppDatabase db, $UserAccountsTable table)
@@ -2155,12 +2573,17 @@ class $$UserAccountsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({playbackPositionsRefs = false, downloadRecordsRefs = false}) {
+              ({
+                playbackPositionsRefs = false,
+                downloadRecordsRefs = false,
+                searchHistoriesRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (playbackPositionsRefs) db.playbackPositions,
                     if (downloadRecordsRefs) db.downloadRecords,
+                    if (searchHistoriesRefs) db.searchHistories,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -2207,6 +2630,27 @@ class $$UserAccountsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (searchHistoriesRefs)
+                        await $_getPrefetchedData<
+                          UserAccount,
+                          $UserAccountsTable,
+                          SearchHistory
+                        >(
+                          currentTable: table,
+                          referencedTable: $$UserAccountsTableReferences
+                              ._searchHistoriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$UserAccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).searchHistoriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.userId == item.userId,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -2230,6 +2674,7 @@ typedef $$UserAccountsTableProcessedTableManager =
       PrefetchHooks Function({
         bool playbackPositionsRefs,
         bool downloadRecordsRefs,
+        bool searchHistoriesRefs,
       })
     >;
 typedef $$PlaybackPositionsTableCreateCompanionBuilder =
@@ -3154,6 +3599,319 @@ typedef $$DownloadRecordsTableProcessedTableManager =
       DownloadRecord,
       PrefetchHooks Function({bool userId})
     >;
+typedef $$SearchHistoriesTableCreateCompanionBuilder =
+    SearchHistoriesCompanion Function({
+      required String userId,
+      required String normalizedQuery,
+      required String displayQuery,
+      Value<DateTime> lastSearchedAt,
+      Value<int> rowid,
+    });
+typedef $$SearchHistoriesTableUpdateCompanionBuilder =
+    SearchHistoriesCompanion Function({
+      Value<String> userId,
+      Value<String> normalizedQuery,
+      Value<String> displayQuery,
+      Value<DateTime> lastSearchedAt,
+      Value<int> rowid,
+    });
+
+final class $$SearchHistoriesTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $SearchHistoriesTable, SearchHistory> {
+  $$SearchHistoriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $UserAccountsTable _userIdTable(_$AppDatabase db) => db.userAccounts
+      .createAlias('search_histories__user_id__user_accounts__user_id');
+
+  $$UserAccountsTableProcessedTableManager get userId {
+    final $_column = $_itemColumn<String>('user_id')!;
+
+    final manager = $$UserAccountsTableTableManager(
+      $_db,
+      $_db.userAccounts,
+    ).filter((f) => f.userId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_userIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SearchHistoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $SearchHistoriesTable> {
+  $$SearchHistoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get normalizedQuery => $composableBuilder(
+    column: $table.normalizedQuery,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayQuery => $composableBuilder(
+    column: $table.displayQuery,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSearchedAt => $composableBuilder(
+    column: $table.lastSearchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$UserAccountsTableFilterComposer get userId {
+    final $$UserAccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.userAccounts,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserAccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.userAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SearchHistoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SearchHistoriesTable> {
+  $$SearchHistoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get normalizedQuery => $composableBuilder(
+    column: $table.normalizedQuery,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayQuery => $composableBuilder(
+    column: $table.displayQuery,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSearchedAt => $composableBuilder(
+    column: $table.lastSearchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$UserAccountsTableOrderingComposer get userId {
+    final $$UserAccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.userAccounts,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserAccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.userAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SearchHistoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SearchHistoriesTable> {
+  $$SearchHistoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get normalizedQuery => $composableBuilder(
+    column: $table.normalizedQuery,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get displayQuery => $composableBuilder(
+    column: $table.displayQuery,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastSearchedAt => $composableBuilder(
+    column: $table.lastSearchedAt,
+    builder: (column) => column,
+  );
+
+  $$UserAccountsTableAnnotationComposer get userId {
+    final $$UserAccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.userAccounts,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserAccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.userAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SearchHistoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SearchHistoriesTable,
+          SearchHistory,
+          $$SearchHistoriesTableFilterComposer,
+          $$SearchHistoriesTableOrderingComposer,
+          $$SearchHistoriesTableAnnotationComposer,
+          $$SearchHistoriesTableCreateCompanionBuilder,
+          $$SearchHistoriesTableUpdateCompanionBuilder,
+          (SearchHistory, $$SearchHistoriesTableReferences),
+          SearchHistory,
+          PrefetchHooks Function({bool userId})
+        > {
+  $$SearchHistoriesTableTableManager(
+    _$AppDatabase db,
+    $SearchHistoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SearchHistoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SearchHistoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SearchHistoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> userId = const Value.absent(),
+                Value<String> normalizedQuery = const Value.absent(),
+                Value<String> displayQuery = const Value.absent(),
+                Value<DateTime> lastSearchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SearchHistoriesCompanion(
+                userId: userId,
+                normalizedQuery: normalizedQuery,
+                displayQuery: displayQuery,
+                lastSearchedAt: lastSearchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String userId,
+                required String normalizedQuery,
+                required String displayQuery,
+                Value<DateTime> lastSearchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SearchHistoriesCompanion.insert(
+                userId: userId,
+                normalizedQuery: normalizedQuery,
+                displayQuery: displayQuery,
+                lastSearchedAt: lastSearchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SearchHistoriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({userId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (userId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.userId,
+                                referencedTable:
+                                    $$SearchHistoriesTableReferences
+                                        ._userIdTable(db),
+                                referencedColumn:
+                                    $$SearchHistoriesTableReferences
+                                        ._userIdTable(db)
+                                        .userId,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SearchHistoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SearchHistoriesTable,
+      SearchHistory,
+      $$SearchHistoriesTableFilterComposer,
+      $$SearchHistoriesTableOrderingComposer,
+      $$SearchHistoriesTableAnnotationComposer,
+      $$SearchHistoriesTableCreateCompanionBuilder,
+      $$SearchHistoriesTableUpdateCompanionBuilder,
+      (SearchHistory, $$SearchHistoriesTableReferences),
+      SearchHistory,
+      PrefetchHooks Function({bool userId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3164,4 +3922,6 @@ class $AppDatabaseManager {
       $$PlaybackPositionsTableTableManager(_db, _db.playbackPositions);
   $$DownloadRecordsTableTableManager get downloadRecords =>
       $$DownloadRecordsTableTableManager(_db, _db.downloadRecords);
+  $$SearchHistoriesTableTableManager get searchHistories =>
+      $$SearchHistoriesTableTableManager(_db, _db.searchHistories);
 }

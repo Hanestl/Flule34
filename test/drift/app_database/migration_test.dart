@@ -8,6 +8,7 @@ import 'generated/schema.dart';
 
 import 'generated/schema_v1.dart' as v1;
 import 'generated/schema_v2.dart' as v2;
+import 'generated/schema_v3.dart' as v3;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -136,6 +137,88 @@ void main() {
           expectedNewDownloadRecordsData,
           await newDb.select(newDb.downloadRecords).get(),
         );
+      },
+    );
+  });
+
+  test('migration from v2 to v3 preserves account media data', () async {
+    const createdAt = 1700000000;
+    const updatedAt = 1700000060;
+    const oldUser = v2.UserAccountsData(
+      userId: '1001',
+      displayName: '测试账号',
+      createdAt: createdAt,
+      lastAuthenticatedAt: updatedAt,
+    );
+    const newUser = v3.UserAccountsData(
+      userId: '1001',
+      displayName: '测试账号',
+      createdAt: createdAt,
+      lastAuthenticatedAt: updatedAt,
+    );
+    const oldPlayback = v2.PlaybackPositionsData(
+      userId: '1001',
+      videoId: '4505897',
+      title: '测试视频',
+      slug: 'test-video',
+      positionMs: 30000,
+      durationMs: 120000,
+      updatedAt: updatedAt,
+    );
+    const newPlayback = v3.PlaybackPositionsData(
+      userId: '1001',
+      videoId: '4505897',
+      title: '测试视频',
+      slug: 'test-video',
+      positionMs: 30000,
+      durationMs: 120000,
+      updatedAt: updatedAt,
+    );
+    const oldDownload = v2.DownloadRecordsData(
+      id: 'download-1',
+      userId: '1001',
+      videoId: '4505897',
+      title: '测试视频',
+      quality: '720p',
+      state: 'complete',
+      bytesDownloaded: 1024,
+      totalBytes: 1024,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      completedAt: updatedAt,
+    );
+    const newDownload = v3.DownloadRecordsData(
+      id: 'download-1',
+      userId: '1001',
+      videoId: '4505897',
+      title: '测试视频',
+      quality: '720p',
+      state: 'complete',
+      bytesDownloaded: 1024,
+      totalBytes: 1024,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      completedAt: updatedAt,
+    );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 2,
+      newVersion: 3,
+      createOld: v2.DatabaseAtV2.new,
+      createNew: v3.DatabaseAtV3.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insert(oldDb.userAccounts, oldUser);
+        batch.insert(oldDb.playbackPositions, oldPlayback);
+        batch.insert(oldDb.downloadRecords, oldDownload);
+      },
+      validateItems: (newDb) async {
+        expect([newUser], await newDb.select(newDb.userAccounts).get());
+        expect([
+          newPlayback,
+        ], await newDb.select(newDb.playbackPositions).get());
+        expect([newDownload], await newDb.select(newDb.downloadRecords).get());
+        expect(await newDb.select(newDb.searchHistories).get(), isEmpty);
       },
     );
   });

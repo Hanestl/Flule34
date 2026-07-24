@@ -72,4 +72,36 @@ void main() {
     );
     expect(await database.select(database.downloadRecords).get(), isEmpty);
   });
+
+  test('搜索历史按账号隔离并对大小写去重', () async {
+    await database.recordAuthenticatedAccount('1001');
+    await database.recordAuthenticatedAccount('2002');
+
+    await database.recordSearchQuery(userId: '1001', query: 'Example');
+    await database.recordSearchQuery(userId: '1001', query: 'example');
+    await database.recordSearchQuery(userId: '2002', query: 'Another');
+
+    final first = await database.watchSearchHistory('1001').first;
+    final second = await database.watchSearchHistory('2002').first;
+
+    expect(first, hasLength(1));
+    expect(first.single.normalizedQuery, 'example');
+    expect(first.single.displayQuery, 'example');
+    expect(second.single.displayQuery, 'Another');
+  });
+
+  test('搜索历史只保留当前账号最近 20 条并随账号级联删除', () async {
+    await database.recordAuthenticatedAccount('1001');
+    for (var index = 0; index < 22; index += 1) {
+      await database.recordSearchQuery(userId: '1001', query: 'query-$index');
+    }
+
+    final history = await database.watchSearchHistory('1001').first;
+    expect(history, hasLength(20));
+    expect(history.first.displayQuery, 'query-21');
+    expect(history.any((item) => item.displayQuery == 'query-0'), isFalse);
+
+    await database.deleteAccountData('1001');
+    expect(await database.select(database.searchHistories).get(), isEmpty);
+  });
 }

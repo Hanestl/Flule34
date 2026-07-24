@@ -60,7 +60,21 @@ class DownloadRecords extends Table {
   ];
 }
 
-@DriftDatabase(tables: [UserAccounts, PlaybackPositions, DownloadRecords])
+class SearchHistories extends Table {
+  TextColumn get userId =>
+      text().references(UserAccounts, #userId, onDelete: KeyAction.cascade)();
+  TextColumn get normalizedQuery => text()();
+  TextColumn get displayQuery => text()();
+  DateTimeColumn get lastSearchedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {userId, normalizedQuery};
+}
+
+@DriftDatabase(
+  tables: [UserAccounts, PlaybackPositions, DownloadRecords, SearchHistories],
+)
 final class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
@@ -76,7 +90,7 @@ final class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -99,6 +113,9 @@ final class AppDatabase extends _$AppDatabase {
           schema.playbackPositions,
           schema.playbackPositions.durationLabel,
         );
+      },
+      from2To3: (migrator, schema) async {
+        await migrator.createTable(schema.searchHistories);
       },
     ),
     beforeOpen: (_) async {
@@ -295,6 +312,81 @@ final class AppDatabase extends _$AppDatabase {
     return (delete(
       playbackPositions,
     )..where((position) => position.userId.equals(userId))).go();
+  }
+
+  Future<void> recordSearchQuery({
+    required String userId,
+    required String query,
+  }) async {
+    final displayQuery = query.trim();
+    final normalizedQuery = displayQuery.toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      return;
+    }
+
+    await transaction(() async {
+      final latest =
+          await (select(searchHistories)
+                ..where((item) => item.userId.equals(userId))
+                ..orderBy([(item) => OrderingTerm.desc(item.lastSearchedAt)])
+                ..limit(1))
+              .getSingleOrNull();
+      final now = DateTime.now().toUtc();
+      var searchedAt = DateTime.fromMillisecondsSinceEpoch(
+        (now.millisecondsSinceEpoch ~/ 1000) * 1000,
+        isUtc: true,
+      );
+      if (latest != null && !searchedAt.isAfter(latest.lastSearchedAt)) {
+        searchedAt = latest.lastSearchedAt.add(const Duration(seconds: 1));
+      }
+      await into(searchHistories).insertOnConflictUpdate(
+        SearchHistoriesCompanion.insert(
+          userId: userId,
+          normalizedQuery: normalizedQuery,
+          displayQuery: displayQuery,
+          lastSearchedAt: Value(searchedAt),
+        ),
+      );
+      final all =
+          await (select(searchHistories)
+                ..where((item) => item.userId.equals(userId))
+                ..orderBy([(item) => OrderingTerm.desc(item.lastSearchedAt)]))
+              .get();
+      for (final item in all.skip(20)) {
+        await (delete(searchHistories)..where(
+              (row) =>
+                  row.userId.equals(item.userId) &
+                  row.normalizedQuery.equals(item.normalizedQuery),
+            ))
+            .go();
+      }
+    });
+  }
+
+  Stream<List<SearchHistory>> watchSearchHistory(String userId) {
+    final query = select(searchHistories)
+      ..where((item) => item.userId.equals(userId))
+      ..orderBy([(item) => OrderingTerm.desc(item.lastSearchedAt)])
+      ..limit(20);
+    return query.watch();
+  }
+
+  Future<void> deleteSearchHistory({
+    required String userId,
+    required String normalizedQuery,
+  }) {
+    return (delete(searchHistories)..where(
+          (item) =>
+              item.userId.equals(userId) &
+              item.normalizedQuery.equals(normalizedQuery),
+        ))
+        .go();
+  }
+
+  Future<void> clearSearchHistory(String userId) {
+    return (delete(
+      searchHistories,
+    )..where((item) => item.userId.equals(userId))).go();
   }
 
   Future<void> deleteAccountData(String userId) {

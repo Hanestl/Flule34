@@ -12,6 +12,7 @@ import '../features/downloads/data/background_download_platform_service.dart';
 import '../features/downloads/data/download_repository.dart';
 import '../features/downloads/domain/download_models.dart';
 import '../features/playback/data/playback_repository.dart';
+import '../features/search/data/search_history_repository.dart';
 import '../features/settings/data/app_settings_repository.dart';
 import '../features/settings/data/app_settings_store.dart';
 
@@ -81,6 +82,15 @@ final playbackRepositoryProvider = Provider<PlaybackRepository>((ref) {
     ref.watch(appDatabaseProvider),
     ref.watch(sessionStoreProvider),
     ref.watch(appSettingsRepositoryProvider),
+  );
+});
+
+final searchHistoryRepositoryProvider = Provider<SearchHistoryRepository>((
+  ref,
+) {
+  return SearchHistoryRepository(
+    ref.watch(appDatabaseProvider),
+    ref.watch(sessionStoreProvider),
   );
 });
 

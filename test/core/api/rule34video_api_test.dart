@@ -169,6 +169,102 @@ void main() {
     expect(requests.last.path, '/models/example-artist/2/');
     expect(requests.last.queryParameters['sort_by'], 'video_viewed');
   });
+
+  test('视频搜索会发送排序、时间、时长、取向和实体筛选', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    Uri? request;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        request = options.uri;
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.searchVideos(
+      'example query',
+      2,
+      filters: const SearchFilters(
+        sort: VideoSort.topRated,
+        orientation: ContentOrientation.straight,
+        uploadPeriod: UploadPeriod.pastWeek,
+        duration: VideoDurationPreset.medium,
+        verifiedOnly: true,
+        tags: [
+          SearchSuggestion(
+            id: '23',
+            title: 'sound',
+            total: 1,
+            kind: SearchSuggestionKind.tag,
+          ),
+        ],
+        categories: [
+          SearchSuggestion(
+            id: '199',
+            title: '3D',
+            total: 1,
+            kind: SearchSuggestionKind.category,
+          ),
+        ],
+        models: [
+          SearchSuggestion(
+            id: '639',
+            title: 'Example Artist',
+            total: 1,
+            kind: SearchSuggestionKind.model,
+          ),
+        ],
+      ),
+    );
+
+    expect(request?.path, '/search/example%20query/2/');
+    expect(request?.queryParameters['sort_by'], 'rating');
+    expect(request?.queryParameters['flag1'], '2109');
+    expect(request?.queryParameters['duration_from'], '300');
+    expect(request?.queryParameters['duration_to'], '1200');
+    expect(request?.queryParameters['flag2'], '1');
+    expect(request?.queryParameters['tag_ids'], '23');
+    expect(request?.queryParameters['category_ids'], '199');
+    expect(request?.queryParameters['model_ids'], '639');
+    expect(
+      request?.queryParameters['post_date_from'],
+      matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')),
+    );
+  });
+
+  test('标签、分类和艺术家自动补全使用各自的参数协议', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final requests = <Uri>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options.uri);
+        return _htmlResponse(
+          '{"items":[{"id":"1","title":"Example","total":"42"}]}',
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    for (final kind in SearchSuggestionKind.values) {
+      final suggestions = await api.searchSuggestions('ex', kind);
+      expect(suggestions.single.kind, kind);
+    }
+
+    expect(requests[0].path, '/tags_json.php');
+    expect(requests[0].queryParameters['id'], 'true');
+    expect(requests[0].queryParameters['term'], 'ex');
+    expect(requests[1].path, '/categories_json.php');
+    expect(requests[1].queryParameters['term'], 'ex');
+    expect(requests[2].path, '/models_json.php');
+    expect(requests[2].queryParameters['q'], 'ex');
+    expect(requests[2].queryParameters.containsKey('term'), isFalse);
+  });
 }
 
 ResponseBody _htmlResponse(String body) {

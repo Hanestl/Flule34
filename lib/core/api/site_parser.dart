@@ -94,6 +94,18 @@ class SiteParser {
   }
 
   static List<TagSuggestion> tagSuggestions(String source) {
+    return searchSuggestions(source, SearchSuggestionKind.tag)
+        .map(
+          (item) =>
+              TagSuggestion(id: item.id, title: item.title, total: item.total),
+        )
+        .toList(growable: false);
+  }
+
+  static List<SearchSuggestion> searchSuggestions(
+    String source,
+    SearchSuggestionKind kind,
+  ) {
     final decoded = jsonDecode(source);
     if (decoded is! Map<String, dynamic>) {
       return const [];
@@ -105,13 +117,14 @@ class SiteParser {
     return items
         .whereType<Map>()
         .map((item) {
-          return TagSuggestion(
+          return SearchSuggestion(
             id: item['id']?.toString() ?? '',
             title: item['title']?.toString() ?? '',
             total: _number(item['total']?.toString()) ?? 0,
+            kind: kind,
           );
         })
-        .where((item) => item.title.isNotEmpty)
+        .where((item) => item.id.isNotEmpty && item.title.isNotEmpty)
         .toList(growable: false);
   }
 

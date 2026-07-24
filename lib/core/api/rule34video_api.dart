@@ -96,25 +96,55 @@ class Rule34VideoApi {
     );
   }
 
-  Future<List<VideoItem>> searchVideos(String query, int page) async {
+  Future<List<VideoItem>> searchVideos(
+    String query,
+    int page, {
+    SearchFilters filters = const SearchFilters(),
+  }) async {
     final encoded = Uri.encodeComponent(query.trim());
     if (encoded.isEmpty) {
       return const [];
     }
     final suffix = page > 1 ? '/$page' : '';
-    return _videoList('/search/$encoded$suffix/');
+    return _videoList('/search/$encoded$suffix/', query: _searchQuery(filters));
   }
 
   Future<List<TagSuggestion>> searchTags(String query) async {
+    return (await searchSuggestions(query, SearchSuggestionKind.tag))
+        .map(
+          (item) =>
+              TagSuggestion(id: item.id, title: item.title, total: item.total),
+        )
+        .toList(growable: false);
+  }
+
+  Future<List<SearchSuggestion>> searchSuggestions(
+    String query,
+    SearchSuggestionKind kind,
+  ) async {
     if (query.trim().length < 2) {
       return const [];
     }
-    final body = await _get(
-      '/tags_json.php',
-      query: <String, String>{'q': query.trim()},
-    );
+    final path = switch (kind) {
+      SearchSuggestionKind.tag => '/tags_json.php',
+      SearchSuggestionKind.category => '/categories_json.php',
+      SearchSuggestionKind.model => '/models_json.php',
+    };
+    final parameters = switch (kind) {
+      SearchSuggestionKind.tag => <String, String>{
+        'id': 'true',
+        'advanced_search': 'true',
+        'term': query.trim(),
+      },
+      SearchSuggestionKind.category => <String, String>{
+        'advanced_search': 'true',
+        'term': query.trim(),
+      },
+      SearchSuggestionKind.model => <String, String>{'q': query.trim()},
+    };
+    final body = await _get(path, query: parameters);
     try {
-      return SiteParser.tagSuggestions(body);
+      return SiteParser.searchSuggestions(body, kind);
     } on FormatException {
       return const [];
     }
@@ -242,6 +272,52 @@ class Rule34VideoApi {
     } on DioException catch (error) {
       throw ApiException(_networkMessage(error));
     }
+  }
+
+  Map<String, String>? _searchQuery(SearchFilters filters) {
+    final result = <String, String>{};
+    final sort = filters.sort.parameter;
+    if (sort != null) {
+      result['sort_by'] = sort;
+    }
+    final orientation = filters.orientation.parameter;
+    if (orientation != null) {
+      result['flag1'] = orientation;
+    }
+    final uploadDuration = filters.uploadPeriod.duration;
+    if (uploadDuration != null) {
+      final from = DateTime.now().subtract(uploadDuration);
+      result['post_date_from'] = _date(from);
+    }
+    final durationFrom = filters.duration.minSeconds;
+    if (durationFrom != null) {
+      result['duration_from'] = '$durationFrom';
+    }
+    final durationTo = filters.duration.maxSeconds;
+    if (durationTo != null) {
+      result['duration_to'] = '$durationTo';
+    }
+    if (filters.verifiedOnly) {
+      result['flag2'] = '1';
+    }
+    if (filters.tags.isNotEmpty) {
+      result['tag_ids'] = filters.tags.map((item) => item.id).join(',');
+    }
+    if (filters.categories.isNotEmpty) {
+      result['category_ids'] = filters.categories
+          .map((item) => item.id)
+          .join(',');
+    }
+    if (filters.models.isNotEmpty) {
+      result['model_ids'] = filters.models.map((item) => item.id).join(',');
+    }
+    return result.isEmpty ? null : result;
+  }
+
+  String _date(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
   }
 
   Future<String> _post(
