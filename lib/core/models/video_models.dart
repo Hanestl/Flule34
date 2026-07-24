@@ -281,6 +281,10 @@ class VideoDetails {
     required this.models,
     required this.isFavorite,
     this.description,
+    this.metadataItems = const [],
+    this.comments = const [],
+    this.commentCount = 0,
+    this.ratingVotes,
   });
 
   final VideoItem video;
@@ -290,6 +294,52 @@ class VideoDetails {
   final List<String> models;
   final List<VideoSource> sources;
   final bool isFavorite;
+  final List<VideoMetadataItem> metadataItems;
+  final List<VideoComment> comments;
+  final int commentCount;
+  final int? ratingVotes;
+}
+
+class VideoMetadataItem {
+  const VideoMetadataItem({
+    required this.id,
+    required this.title,
+    required this.path,
+    required this.kind,
+    this.upScore = 0,
+    this.downScore = 0,
+  });
+
+  final String id;
+  final String title;
+  final String path;
+  final DiscoveryKind kind;
+  final int upScore;
+  final int downScore;
+
+  bool get canSubscribe =>
+      kind == DiscoveryKind.category || kind == DiscoveryKind.model;
+
+  ContentCollectionItem get collection =>
+      ContentCollectionItem(id: id, title: title, path: path, kind: kind);
+}
+
+class VideoComment {
+  const VideoComment({
+    required this.id,
+    required this.author,
+    required this.text,
+    this.dateLabel,
+    this.memberPath,
+    this.avatarUrl,
+  });
+
+  final String id;
+  final String author;
+  final String text;
+  final String? dateLabel;
+  final String? memberPath;
+  final String? avatarUrl;
 }
 
 class TagSuggestion {

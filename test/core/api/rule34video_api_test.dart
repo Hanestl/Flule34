@@ -265,6 +265,65 @@ void main() {
     expect(requests[2].queryParameters['q'], 'ex');
     expect(requests[2].queryParameters.containsKey('term'), isFalse);
   });
+
+  test('评分、元数据投票、播放列表、订阅和评论使用已验证协议', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final requests = <RequestOptions>[];
+    final bodies = <Map<String, String>>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options);
+        bodies.add(_requestFields(options.data));
+        return _htmlResponse('<success/>');
+      }),
+    );
+    addTearDown(api.close);
+    const video = VideoItem(id: '4505897', title: 'Example', slug: 'example');
+    const category = VideoMetadataItem(
+      id: '199',
+      title: '3D',
+      path: '/categories/3d/',
+      kind: DiscoveryKind.category,
+    );
+
+    await api.rateVideo(video: video, like: true);
+    await api.voteMetadata(video: video, item: category, upvote: false);
+    await api.addVideoToPlaylist(video: video, playlistId: '77');
+    await api.toggleSubscription(video: video, item: category, subscribe: true);
+    await api.toggleSubscription(
+      video: video,
+      item: category,
+      subscribe: false,
+    );
+    await api.postComment(video: video, comment: 'Useful comment');
+
+    expect(requests.map((request) => request.uri.path).toSet(), {
+      '/video/4505897/example/',
+    });
+    expect(
+      requests.every(
+        (request) => request.uri.queryParameters['mode'] == 'async',
+      ),
+      isTrue,
+    );
+    expect(bodies[0], {'action': 'rate', 'video_id': '4505897', 'vote': '5'});
+    expect(bodies[1]['category_id'], '199');
+    expect(bodies[1]['vote'], '-1');
+    expect(bodies[2]['fav_type'], '10');
+    expect(bodies[2]['playlist_id'], '77');
+    expect(bodies[3], {'action': 'subscribe', 'subscribe_category_id': '199'});
+    expect(bodies[4], {
+      'action': 'unsubscribe',
+      'unsubscribe_category_id': '199',
+    });
+    expect(requests.last.data, isA<FormData>());
+    expect(bodies.last['comment'], 'Useful comment');
+    expect(requests.last.headers['X-Requested-With'], 'XMLHttpRequest');
+  });
 }
 
 ResponseBody _htmlResponse(String body) {
@@ -284,6 +343,16 @@ String? _header(RequestOptions options, String name) {
     }
   }
   return null;
+}
+
+Map<String, String> _requestFields(Object? data) {
+  if (data is FormData) {
+    return Map<String, String>.fromEntries(data.fields);
+  }
+  if (data is Map) {
+    return data.map((key, value) => MapEntry(key.toString(), value.toString()));
+  }
+  return const {};
 }
 
 final class _TestAdapter implements HttpClientAdapter {

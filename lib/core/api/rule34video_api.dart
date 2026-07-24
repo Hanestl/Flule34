@@ -257,6 +257,101 @@ class Rule34VideoApi {
     );
   }
 
+  Future<void> rateVideo({required VideoItem video, required bool like}) async {
+    _requireLogin();
+    await _post(
+      video.detailPath,
+      query: const <String, String>{'mode': 'async'},
+      data: <String, String>{
+        'action': 'rate',
+        'video_id': video.id,
+        'vote': like ? '5' : '0',
+      },
+      ajax: true,
+    );
+  }
+
+  Future<void> voteMetadata({
+    required VideoItem video,
+    required VideoMetadataItem item,
+    required bool upvote,
+  }) async {
+    _requireLogin();
+    final idField = switch (item.kind) {
+      DiscoveryKind.tag => 'tag_id',
+      DiscoveryKind.category => 'category_id',
+      DiscoveryKind.model => 'model_id',
+      DiscoveryKind.channel => throw const ApiException('此类型不支持投票。'),
+    };
+    await _post(
+      video.detailPath,
+      query: const <String, String>{'mode': 'async'},
+      data: <String, String>{
+        'action': 'rate',
+        'video_id': video.id,
+        idField: item.id,
+        'vote': upvote ? '1' : '-1',
+      },
+      ajax: true,
+    );
+  }
+
+  Future<void> addVideoToPlaylist({
+    required VideoItem video,
+    required String playlistId,
+  }) async {
+    _requireLogin();
+    await _post(
+      video.detailPath,
+      query: const <String, String>{'mode': 'async'},
+      data: <String, String>{
+        'action': 'add_to_favourites',
+        'video_id': video.id,
+        'fav_type': '10',
+        'playlist_id': playlistId,
+      },
+      ajax: true,
+    );
+  }
+
+  Future<void> toggleSubscription({
+    required VideoItem video,
+    required VideoMetadataItem item,
+    required bool subscribe,
+  }) async {
+    _requireLogin();
+    final type = switch (item.kind) {
+      DiscoveryKind.category => 'category',
+      DiscoveryKind.model => 'model',
+      _ => throw const ApiException('此类型不支持订阅。'),
+    };
+    await _post(
+      video.detailPath,
+      query: const <String, String>{'mode': 'async'},
+      data: <String, String>{
+        'action': subscribe ? 'subscribe' : 'unsubscribe',
+        '${subscribe ? 'subscribe' : 'unsubscribe'}_${type}_id': item.id,
+      },
+      ajax: true,
+    );
+  }
+
+  Future<void> postComment({
+    required VideoItem video,
+    required String comment,
+  }) async {
+    _requireLogin();
+    final text = comment.trim();
+    if (text.isEmpty) {
+      throw const ApiException('评论内容不能为空。');
+    }
+    await _postMultipart(
+      video.detailPath,
+      query: const <String, String>{'mode': 'async'},
+      data: <String, dynamic>{'comment': text, 'anonymous_username': ''},
+    );
+  }
+
   Future<List<VideoItem>> _videoList(
     String path, {
     Map<String, String>? query,
@@ -338,9 +433,40 @@ class Rule34VideoApi {
           headers: ajax ? const {'X-Requested-With': 'XMLHttpRequest'} : null,
         ),
       );
-      return _readResponse(
+      final body = _readResponse(
         followRedirects ? await _followRedirects(response) : response,
       );
+      final actionError = SiteParser.asyncActionError(body);
+      if (ajax && actionError != null) {
+        throw ApiException(actionError);
+      }
+      return body;
+    } on DioException catch (error) {
+      throw ApiException(_networkMessage(error));
+    }
+  }
+
+  Future<String> _postMultipart(
+    String path, {
+    required Map<String, dynamic> data,
+    Map<String, String>? query,
+  }) async {
+    try {
+      final response = await _dio.post<String>(
+        path,
+        queryParameters: query,
+        data: FormData.fromMap(data),
+        options: Options(
+          followRedirects: false,
+          headers: const {'X-Requested-With': 'XMLHttpRequest'},
+        ),
+      );
+      final body = _readResponse(response);
+      final actionError = SiteParser.asyncActionError(body);
+      if (actionError != null) {
+        throw ApiException(actionError);
+      }
+      return body;
     } on DioException catch (error) {
       throw ApiException(_networkMessage(error));
     }

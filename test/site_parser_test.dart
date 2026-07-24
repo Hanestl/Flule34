@@ -103,4 +103,65 @@ void main() {
     expect(items.single.total, 42);
     expect(items.single.path, '/models/example-artist/');
   });
+
+  test('解析视频元数据投票项、评分票数和评论', () {
+    const source = '''
+      <div class="action_rating">
+        <div class="voters count">94% (1,234)</div>
+      </div>
+      <a href="#tab_comments">Comments (2)</a>
+      <span class="js-video-vote-chip"
+            data-item-type="category"
+            data-item-id="199"
+            data-up-score="8"
+            data-down-score="2">
+        <a href="/categories/3d/"><span>3D</span></a>
+      </span>
+      <span class="js-video-vote-chip"
+            data-item-type="model"
+            data-item-id="639">
+        <a href="/models/example-artist/">
+          <img alt="Example Artist">
+        </a>
+      </span>
+      <div id="video_comments_video_comments_items">
+        <div class="item" data-comment-id="77">
+          <div class="user-logo"><img src="/avatar.jpg"></div>
+          <div class="comment-info">
+            <div class="inner"><a href="/members/42/">Tester</a></div>
+          </div>
+          <div class="date"><span>2 days ago</span></div>
+          <div class="coment-text">A useful comment.</div>
+        </div>
+      </div>
+    ''';
+
+    final details = SiteParser.videoDetails(
+      source: source,
+      fallback: const VideoItem(id: '123', title: 'Example', slug: 'example'),
+    );
+
+    expect(details.ratingVotes, 1234);
+    expect(details.commentCount, 2);
+    expect(details.metadataItems, hasLength(2));
+    expect(details.metadataItems.first.id, '199');
+    expect(details.metadataItems.first.upScore, 8);
+    expect(details.categories, ['3D']);
+    expect(details.models, ['Example Artist']);
+    expect(details.comments.single.id, '77');
+    expect(details.comments.single.author, 'Tester');
+    expect(details.comments.single.memberPath, '/members/42/');
+    expect(
+      details.comments.single.avatarUrl,
+      'https://rule34video.com/avatar.jpg',
+    );
+  });
+
+  test('识别 HTTP 200 异步操作中的服务端错误', () {
+    expect(
+      SiteParser.asyncActionError('<error>IP already voted</error>'),
+      'IP already voted',
+    );
+    expect(SiteParser.asyncActionError('<success/>'), isNull);
+  });
 }

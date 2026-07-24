@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../auth/login_sheet.dart';
@@ -68,25 +70,77 @@ class _VideoDetailsBody extends StatefulWidget {
 }
 
 class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
+  final _commentController = TextEditingController();
+  late VideoDetails _details;
   late bool _favorite;
+  final Set<String> _subscriptionPaths = {};
+  final Set<String> _updatingMetadata = {};
   var _updatingFavorite = false;
+  var _updatingRating = false;
+  var _addingPlaylist = false;
   var _addingDownload = false;
+  var _postingComment = false;
+  var _loadingSubscriptions = false;
+  var _subscriptionsLoaded = false;
 
   @override
   void initState() {
     super.initState();
+    _details = widget.details;
     _favorite = widget.details.isFavorite;
+    if (widget.api.sessionStore.isLoggedIn) {
+      _loadSubscriptions();
+    }
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  Future<bool> _ensureLogin() async {
+    if (widget.api.sessionStore.isLoggedIn) {
+      return true;
+    }
+    return showLoginSheet(context, widget.api);
+  }
+
+  Future<bool> _loadSubscriptions({bool showError = false}) async {
+    if (!widget.api.sessionStore.isLoggedIn || _loadingSubscriptions) {
+      return _subscriptionsLoaded;
+    }
+    setState(() => _loadingSubscriptions = true);
+    try {
+      final subscriptions = await widget.api.loadSubscriptions();
+      if (!mounted) {
+        return false;
+      }
+      setState(() {
+        _subscriptionPaths
+          ..clear()
+          ..addAll(subscriptions.map((item) => item.path));
+        _subscriptionsLoaded = true;
+      });
+      return true;
+    } catch (error) {
+      if (mounted && showError) {
+        _showMessage(error.toString());
+      }
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _loadingSubscriptions = false);
+      }
+    }
   }
 
   Future<void> _toggleFavorite() async {
     if (_updatingFavorite) {
       return;
     }
-    if (!widget.api.sessionStore.isLoggedIn) {
-      final loggedIn = await showLoginSheet(context, widget.api);
-      if (!loggedIn) {
-        return;
-      }
+    if (!await _ensureLogin() || !mounted) {
+      return;
     }
     setState(() => _updatingFavorite = true);
     try {
@@ -99,9 +153,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        _showMessage(error.toString());
       }
     } finally {
       if (mounted) {
@@ -115,8 +167,8 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
       MaterialPageRoute<void>(
         builder: (_) => VideoPlayerPage(
           api: widget.api,
-          video: widget.details.video,
-          sources: widget.details.sources,
+          video: _details.video,
+          sources: _details.sources,
         ),
       ),
     );
@@ -126,11 +178,8 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     if (_addingDownload) {
       return;
     }
-    if (!widget.api.sessionStore.isLoggedIn) {
-      final loggedIn = await showLoginSheet(context, widget.api);
-      if (!loggedIn || !mounted) {
-        return;
-      }
+    if (!await _ensureLogin() || !mounted) {
+      return;
     }
     final preferences = widget.settings.settings;
     final source = preferences.askDownloadQuality
@@ -149,7 +198,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
-                  for (final item in widget.details.sources.reversed)
+                  for (final item in _details.sources.reversed)
                     ListTile(
                       leading: Icon(item.isHd ? Icons.hd : Icons.sd),
                       title: Text(item.label),
@@ -159,30 +208,20 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
               );
             },
           )
-        : selectVideoSource(
-            widget.details.sources,
-            preferences.downloadQuality,
-          );
+        : selectVideoSource(_details.sources, preferences.downloadQuality);
     if (source == null || !mounted) {
       return;
     }
 
     setState(() => _addingDownload = true);
     try {
-      await widget.downloads.enqueueVideo(
-        details: widget.details,
-        source: source,
-      );
+      await widget.downloads.enqueueVideo(details: _details, source: source);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${source.label} 已加入下载队列。')));
+        _showMessage('${source.label} 已加入下载队列。');
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        _showMessage(error.toString());
       }
     } finally {
       if (mounted) {
@@ -191,9 +230,261 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
   }
 
+  Future<void> _rate(bool like) async {
+    if (_updatingRating || !await _ensureLogin() || !mounted) {
+      return;
+    }
+    setState(() => _updatingRating = true);
+    try {
+      await widget.api.rateVideo(video: _details.video, like: like);
+      if (mounted) {
+        _showMessage(like ? '已提交喜欢。' : '已提交不喜欢。');
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingRating = false);
+      }
+    }
+  }
+
+  Future<void> _addToPlaylist() async {
+    if (_addingPlaylist || !await _ensureLogin() || !mounted) {
+      return;
+    }
+    setState(() => _addingPlaylist = true);
+    try {
+      final playlists = await widget.api.loadMyPlaylists();
+      if (!mounted) {
+        return;
+      }
+      if (playlists.isEmpty) {
+        _showMessage('账号中还没有播放列表；新建播放列表功能将在接口确认后接入。');
+        return;
+      }
+      final playlist = await showModalBottomSheet<PlaylistItem>(
+        context: context,
+        showDragHandle: true,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+        ),
+        builder: (context) => ListView(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+              child: Text(
+                '加入播放列表',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            for (final item in playlists)
+              ListTile(
+                leading: const Icon(Icons.playlist_play),
+                title: Text(item.title),
+                subtitle: item.videoCount == null
+                    ? null
+                    : Text('${item.videoCount} 个视频'),
+                onTap: () => Navigator.pop(context, item),
+              ),
+          ],
+        ),
+      );
+      if (playlist == null || !mounted) {
+        return;
+      }
+      await widget.api.addVideoToPlaylist(
+        video: _details.video,
+        playlistId: playlist.id,
+      );
+      if (mounted) {
+        _showMessage('已加入“${playlist.title}”。');
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _addingPlaylist = false);
+      }
+    }
+  }
+
+  Future<void> _postComment() async {
+    if (_postingComment || !await _ensureLogin() || !mounted) {
+      return;
+    }
+    final text = _commentController.text.trim();
+    if (text.isEmpty) {
+      _showMessage('请输入评论内容。');
+      return;
+    }
+    setState(() => _postingComment = true);
+    try {
+      await widget.api.postComment(video: _details.video, comment: text);
+      final refreshed = await widget.api.loadVideoDetails(_details.video);
+      if (!mounted) {
+        return;
+      }
+      _commentController.clear();
+      setState(() {
+        _details = refreshed;
+        _favorite = refreshed.isFavorite;
+      });
+      _showMessage('评论已发布。');
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _postingComment = false);
+      }
+    }
+  }
+
+  Future<void> _openMetadataActions(VideoMetadataItem item) async {
+    final subscribed = _subscriptionPaths.contains(item.path);
+    final action = await showModalBottomSheet<_MetadataAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.open_in_new),
+              title: Text('打开${item.kind.label}集合'),
+              onTap: () => Navigator.pop(context, _MetadataAction.open),
+            ),
+            if (item.canSubscribe)
+              ListTile(
+                leading: Icon(
+                  subscribed
+                      ? Icons.notifications_off_outlined
+                      : Icons.notifications_active_outlined,
+                ),
+                title: Text(subscribed ? '取消订阅' : '订阅'),
+                onTap: () =>
+                    Navigator.pop(context, _MetadataAction.subscription),
+              ),
+            ListTile(
+              leading: const Icon(Icons.arrow_upward),
+              title: const Text('赞成此关联'),
+              onTap: () => Navigator.pop(context, _MetadataAction.upvote),
+            ),
+            ListTile(
+              leading: const Icon(Icons.arrow_downward),
+              title: const Text('反对此关联'),
+              onTap: () => Navigator.pop(context, _MetadataAction.downvote),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case _MetadataAction.open:
+        final collection = item.collection;
+        context.pushNamed(
+          AppRouteNames.collection,
+          pathParameters: {'kind': collection.kind.name, 'id': collection.id},
+          extra: collection,
+        );
+      case _MetadataAction.subscription:
+        await _toggleSubscription(item);
+      case _MetadataAction.upvote:
+        await _voteMetadata(item, true);
+      case _MetadataAction.downvote:
+        await _voteMetadata(item, false);
+    }
+  }
+
+  Future<void> _toggleSubscription(VideoMetadataItem item) async {
+    if (!await _ensureLogin() || !mounted) {
+      return;
+    }
+    if (!_subscriptionsLoaded && !await _loadSubscriptions(showError: true)) {
+      return;
+    }
+    final key = 'subscribe:${item.kind.name}:${item.id}';
+    if (_updatingMetadata.contains(key)) {
+      return;
+    }
+    final subscribed = _subscriptionPaths.contains(item.path);
+    setState(() => _updatingMetadata.add(key));
+    try {
+      await widget.api.toggleSubscription(
+        video: _details.video,
+        item: item,
+        subscribe: !subscribed,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (subscribed) {
+          _subscriptionPaths.remove(item.path);
+        } else {
+          _subscriptionPaths.add(item.path);
+        }
+      });
+      _showMessage(subscribed ? '已取消订阅。' : '已订阅。');
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingMetadata.remove(key));
+      }
+    }
+  }
+
+  Future<void> _voteMetadata(VideoMetadataItem item, bool upvote) async {
+    if (!await _ensureLogin() || !mounted) {
+      return;
+    }
+    final key = 'vote:${item.kind.name}:${item.id}';
+    if (_updatingMetadata.contains(key)) {
+      return;
+    }
+    setState(() => _updatingMetadata.add(key));
+    try {
+      await widget.api.voteMetadata(
+        video: _details.video,
+        item: item,
+        upvote: upvote,
+      );
+      if (mounted) {
+        _showMessage('投票已提交。');
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingMetadata.remove(key));
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final details = widget.details;
+    final details = _details;
+    final metadata = details.metadataItems;
     return ListView(
       padding: const EdgeInsets.only(bottom: 28),
       children: [
@@ -241,47 +532,55 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                   if (details.video.rating != null)
                     _StatChip(
                       icon: Icons.thumb_up_alt_outlined,
-                      label: '${details.video.rating}%',
+                      label: details.ratingVotes == null
+                          ? '${details.video.rating}%'
+                          : '${details.video.rating}% · ${details.ratingVotes} 票',
                     ),
                 ],
               ),
               const SizedBox(height: 20),
-              Row(
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: details.sources.isEmpty ? null : _openPlayer,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('播放'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: details.sources.isEmpty ? null : _openPlayer,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('播放'),
-                    ),
+                  _ActionButton(
+                    icon: _favorite ? Icons.favorite : Icons.favorite_border,
+                    label: _favorite ? '已收藏' : '收藏',
+                    busy: _updatingFavorite,
+                    onPressed: _toggleFavorite,
                   ),
-                  const SizedBox(width: 12),
-                  IconButton.filledTonal(
-                    tooltip: _favorite ? '取消收藏' : '收藏',
-                    onPressed: _updatingFavorite ? null : _toggleFavorite,
-                    icon: _updatingFavorite
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            _favorite ? Icons.favorite : Icons.favorite_border,
-                          ),
+                  _ActionButton(
+                    icon: Icons.thumb_up_alt_outlined,
+                    label: '喜欢',
+                    busy: _updatingRating,
+                    onPressed: () => _rate(true),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: '下载',
-                    onPressed: details.sources.isEmpty || _addingDownload
-                        ? null
-                        : _download,
-                    icon: _addingDownload
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.download),
+                  _ActionButton(
+                    icon: Icons.thumb_down_alt_outlined,
+                    label: '不喜欢',
+                    busy: _updatingRating,
+                    onPressed: () => _rate(false),
+                  ),
+                  _ActionButton(
+                    icon: Icons.playlist_add,
+                    label: '播放列表',
+                    busy: _addingPlaylist,
+                    onPressed: _addToPlaylist,
+                  ),
+                  _ActionButton(
+                    icon: Icons.download,
+                    label: '下载',
+                    busy: _addingDownload,
+                    onPressed: details.sources.isEmpty ? null : _download,
                   ),
                 ],
               ),
@@ -295,13 +594,85 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                 const SizedBox(height: 8),
                 SelectableText(details.description!),
               ],
-              _TagSection(title: '分类', values: details.categories),
-              _TagSection(title: '标签', values: details.tags),
-              _TagSection(title: '艺术家', values: details.models),
+              _MetadataSection(
+                title: '分类',
+                items: metadata
+                    .where((item) => item.kind == DiscoveryKind.category)
+                    .toList(growable: false),
+                fallbackValues: details.categories,
+                subscribedPaths: _subscriptionPaths,
+                updatingKeys: _updatingMetadata,
+                onTap: _openMetadataActions,
+              ),
+              _MetadataSection(
+                title: '标签',
+                items: metadata
+                    .where((item) => item.kind == DiscoveryKind.tag)
+                    .toList(growable: false),
+                fallbackValues: details.tags,
+                subscribedPaths: _subscriptionPaths,
+                updatingKeys: _updatingMetadata,
+                onTap: _openMetadataActions,
+              ),
+              _MetadataSection(
+                title: '艺术家',
+                items: metadata
+                    .where((item) => item.kind == DiscoveryKind.model)
+                    .toList(growable: false),
+                fallbackValues: details.models,
+                subscribedPaths: _subscriptionPaths,
+                updatingKeys: _updatingMetadata,
+                onTap: _openMetadataActions,
+              ),
+              _CommentsSection(
+                comments: details.comments,
+                total: details.commentCount,
+                loggedIn: widget.api.sessionStore.isLoggedIn,
+                controller: _commentController,
+                posting: _postingComment,
+                onLogin: () async {
+                  if (await _ensureLogin() && mounted) {
+                    setState(() {});
+                    await _loadSubscriptions();
+                  }
+                },
+                onSubmit: _postComment,
+              ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+enum _MetadataAction { open, subscription, upvote, downvote }
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: busy ? null : onPressed,
+      icon: busy
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon),
+      label: Text(label),
     );
   }
 }
@@ -318,15 +689,26 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _TagSection extends StatelessWidget {
-  const _TagSection({required this.title, required this.values});
+class _MetadataSection extends StatelessWidget {
+  const _MetadataSection({
+    required this.title,
+    required this.items,
+    required this.fallbackValues,
+    required this.subscribedPaths,
+    required this.updatingKeys,
+    required this.onTap,
+  });
 
   final String title;
-  final List<String> values;
+  final List<VideoMetadataItem> items;
+  final List<String> fallbackValues;
+  final Set<String> subscribedPaths;
+  final Set<String> updatingKeys;
+  final ValueChanged<VideoMetadataItem> onTap;
 
   @override
   Widget build(BuildContext context) {
-    if (values.isEmpty) {
+    if (items.isEmpty && fallbackValues.isEmpty) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -339,11 +721,172 @@ class _TagSection extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: values
-                .take(40)
-                .map((value) => Chip(label: Text(value)))
-                .toList(growable: false),
+            children: items.isEmpty
+                ? fallbackValues
+                      .take(40)
+                      .map((value) => Chip(label: Text(value)))
+                      .toList(growable: false)
+                : items
+                      .take(40)
+                      .map((item) {
+                        final subscribed = subscribedPaths.contains(item.path);
+                        final busy = updatingKeys.any(
+                          (key) => key.endsWith('${item.kind.name}:${item.id}'),
+                        );
+                        return ActionChip(
+                          avatar: busy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  subscribed
+                                      ? Icons.notifications_active
+                                      : _kindIcon(item.kind),
+                                  size: 18,
+                                ),
+                          label: Text(item.title),
+                          onPressed: busy ? null : () => onTap(item),
+                        );
+                      })
+                      .toList(growable: false),
           ),
+        ],
+      ),
+    );
+  }
+
+  IconData _kindIcon(DiscoveryKind kind) => switch (kind) {
+    DiscoveryKind.tag => Icons.tag,
+    DiscoveryKind.category => Icons.category_outlined,
+    DiscoveryKind.model => Icons.brush_outlined,
+    DiscoveryKind.channel => Icons.live_tv_outlined,
+  };
+}
+
+class _CommentsSection extends StatelessWidget {
+  const _CommentsSection({
+    required this.comments,
+    required this.total,
+    required this.loggedIn,
+    required this.controller,
+    required this.posting,
+    required this.onLogin,
+    required this.onSubmit,
+  });
+
+  final List<VideoComment> comments;
+  final int total;
+  final bool loggedIn;
+  final TextEditingController controller;
+  final bool posting;
+  final Future<void> Function() onLogin;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('评论（$total）', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          if (loggedIn) ...[
+            TextField(
+              controller: controller,
+              enabled: !posting,
+              minLines: 2,
+              maxLines: 5,
+              maxLength: 2000,
+              decoration: const InputDecoration(
+                hintText: '写下评论',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: posting ? null : onSubmit,
+                icon: posting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+                label: const Text('发表评论'),
+              ),
+            ),
+          ] else
+            OutlinedButton.icon(
+              onPressed: onLogin,
+              icon: const Icon(Icons.login),
+              label: const Text('登录后评论'),
+            ),
+          const SizedBox(height: 12),
+          if (comments.isEmpty)
+            const Text('还没有评论。')
+          else ...[
+            for (final comment in comments)
+              Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        backgroundImage: comment.avatarUrl == null
+                            ? null
+                            : CachedNetworkImageProvider(comment.avatarUrl!),
+                        child: comment.avatarUrl == null
+                            ? const Icon(Icons.person_outline)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    comment.author,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelLarge,
+                                  ),
+                                ),
+                                if (comment.dateLabel != null)
+                                  Text(
+                                    comment.dateLabel!,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            SelectableText(comment.text),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (total > comments.length)
+              Text(
+                '当前显示页面内的 ${comments.length} 条评论。',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ],
         ],
       ),
     );
