@@ -18,6 +18,7 @@ void main() {
 
     await repository.setTheme(AppThemePreference.amoled);
     await repository.setAutoplay(true);
+    await repository.setRememberPlaybackProgress(false);
     await repository.setWifiOnlyDownloads(true);
 
     final restored = AppSettingsRepository(store);
@@ -25,6 +26,7 @@ void main() {
     await restored.load();
     expect(restored.settings.theme, AppThemePreference.amoled);
     expect(restored.settings.autoplay, isTrue);
+    expect(restored.settings.rememberPlaybackProgress, isFalse);
     expect(restored.settings.wifiOnlyDownloads, isTrue);
   });
 

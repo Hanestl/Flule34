@@ -1,22 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../app/providers.dart';
+import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../playback/data/playback_repository.dart';
 import '../settings/domain/quality_selection.dart';
 
 class VideoPlayerPage extends ConsumerStatefulWidget {
   const VideoPlayerPage({
     super.key,
+    required this.api,
     required this.video,
     required this.sources,
-    this.sessionCookie,
   });
 
+  final Rule34VideoApi api;
   final VideoItem video;
   final List<VideoSource> sources;
-  final String? sessionCookie;
 
   @override
   ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
@@ -24,84 +28,256 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
 
 class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
   VideoPlayerController? _controller;
+  late List<VideoSource> _sources;
   late VideoSource _selectedSource;
-  var _initializing = false;
+  final Set<String> _failedUrls = {};
+  var _initializing = true;
+  var _refreshingSource = false;
+  var _operation = 0;
+  var _lastSavedSecond = -1;
+  var _lastKnownPlaying = false;
+  var _resumeMessageShown = false;
   String? _error;
+
+  PlaybackRepository get _playback => ref.read(playbackRepositoryProvider);
 
   @override
   void initState() {
     super.initState();
+    _sources = List.of(widget.sources);
     final settings = ref.read(appSettingsRepositoryProvider).settings;
-    _selectedSource = selectVideoSource(
-      widget.sources,
-      settings.playbackQuality,
+    _selectedSource = selectVideoSource(_sources, settings.playbackQuality);
+    unawaited(_start());
+  }
+
+  Future<void> _start() async {
+    final resumePosition = await _playback.loadPosition(widget.video.id);
+    if (!mounted) {
+      return;
+    }
+    await _setSource(
+      _selectedSource,
+      resumeAt: resumePosition,
+      shouldPlay: ref.read(appSettingsRepositoryProvider).settings.autoplay,
     );
-    _setSource(_selectedSource);
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _operation += 1;
+    final controller = _controller;
+    if (controller != null) {
+      controller.removeListener(_onControllerChanged);
+      unawaited(_persist(controller.value));
+      unawaited(controller.dispose());
+    }
     super.dispose();
   }
 
-  Future<void> _setSource(VideoSource source) async {
-    setState(() {
-      _selectedSource = source;
-      _initializing = true;
-      _error = null;
-    });
+  Future<bool> _setSource(
+    VideoSource source, {
+    Duration? resumeAt,
+    bool? shouldPlay,
+    bool allowRefresh = true,
+  }) async {
+    final operation = ++_operation;
+    if (mounted) {
+      setState(() {
+        _selectedSource = source;
+        _initializing = true;
+        _error = null;
+      });
+    }
+
     final previous = _controller;
-    final previousPosition = previous?.value.position ?? Duration.zero;
-    final shouldContinuePlaying = previous?.value.isPlaying ?? false;
+    final previousValue = previous?.value;
+    final targetPosition = resumeAt ?? previousValue?.position ?? Duration.zero;
+    final continuePlaying = shouldPlay ?? previousValue?.isPlaying ?? false;
     _controller = null;
-    previous?.removeListener(_refresh);
-    await previous?.dispose();
+    if (previous != null) {
+      previous.removeListener(_onControllerChanged);
+      await _persist(previous.value);
+      await previous.dispose();
+    }
 
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
       'User-Agent': 'Flule34 Android/0.1',
     };
-    if (widget.sessionCookie != null) {
-      headers['Cookie'] = widget.sessionCookie!;
+    final cookie = await widget.api.sessionCookieHeader();
+    if (cookie != null) {
+      headers['Cookie'] = cookie;
     }
     final controller = VideoPlayerController.networkUrl(
       Uri.parse(source.url),
       httpHeaders: headers,
     );
-    controller.addListener(_refresh);
     try {
       await controller.initialize();
+      if (!mounted || operation != _operation) {
+        await controller.dispose();
+        return false;
+      }
       final settings = ref.read(appSettingsRepositoryProvider).settings;
       await controller.setLooping(settings.loopPlayback);
-      if (previousPosition > Duration.zero &&
-          previousPosition < controller.value.duration) {
-        await controller.seekTo(previousPosition);
+      if (targetPosition > Duration.zero) {
+        await controller.seekTo(targetPosition);
       }
-      if (shouldContinuePlaying || (previous == null && settings.autoplay)) {
+      _controller = controller;
+      controller.addListener(_onControllerChanged);
+      _lastSavedSecond = targetPosition.inSeconds;
+      setState(() {
+        _selectedSource = source;
+        _initializing = false;
+        _error = null;
+      });
+      if (continuePlaying) {
         await controller.play();
       }
-      if (!mounted) {
-        await controller.dispose();
-        return;
+      _lastKnownPlaying = continuePlaying;
+      if (!_resumeMessageShown &&
+          targetPosition >= const Duration(seconds: 5)) {
+        _resumeMessageShown = true;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('已从 ${_time(targetPosition)} 继续播放。')),
+          );
+        }
       }
-      setState(() => _controller = controller);
+      return true;
     } catch (error) {
       await controller.dispose();
-      if (mounted) {
-        setState(() => _error = '无法播放此视频源：$error');
+      if (!mounted || operation != _operation) {
+        return false;
       }
-    } finally {
-      if (mounted) {
-        setState(() => _initializing = false);
+      if (allowRefresh) {
+        return _refreshSources(
+          failedSource: source,
+          resumeAt: targetPosition,
+          shouldPlay: continuePlaying,
+        );
       }
+      setState(() {
+        _initializing = false;
+        _error = '无法播放此视频源：$error';
+      });
+      return false;
     }
   }
 
-  void _refresh() {
-    if (mounted) {
-      setState(() {});
+  void _onControllerChanged() {
+    final controller = _controller;
+    if (controller == null || !mounted) {
+      return;
     }
+    final value = controller.value;
+    if (value.hasError && !_refreshingSource) {
+      unawaited(
+        _refreshSources(
+          failedSource: _selectedSource,
+          resumeAt: value.position,
+          shouldPlay: _lastKnownPlaying,
+        ),
+      );
+      return;
+    }
+    _lastKnownPlaying = value.isPlaying;
+    final second = value.position.inSeconds;
+    if (value.isInitialized &&
+        second >= 0 &&
+        (second - _lastSavedSecond).abs() >= 5) {
+      _lastSavedSecond = second;
+      unawaited(_persist(value));
+    }
+    setState(() {});
+  }
+
+  Future<bool> _refreshSources({
+    required VideoSource failedSource,
+    required Duration resumeAt,
+    required bool shouldPlay,
+    bool force = false,
+  }) async {
+    if (_refreshingSource ||
+        (!force && _failedUrls.contains(failedSource.url))) {
+      return false;
+    }
+    _failedUrls.add(failedSource.url);
+    _refreshingSource = true;
+    if (mounted) {
+      setState(() {
+        _initializing = true;
+        _error = null;
+      });
+    }
+    try {
+      final details = await widget.api.loadVideoDetails(widget.video);
+      if (!mounted) {
+        return false;
+      }
+      if (details.sources.isEmpty) {
+        setState(() {
+          _initializing = false;
+          _error = '刷新后仍未找到可播放的视频源。';
+        });
+        return false;
+      }
+      _sources = List.of(details.sources);
+      final refreshedSource = _sources.cast<VideoSource?>().firstWhere(
+        (source) => source?.label == failedSource.label,
+        orElse: () => null,
+      );
+      final fallback = selectVideoSource(
+        _sources,
+        ref.read(appSettingsRepositoryProvider).settings.playbackQuality,
+      );
+      final nextSource = refreshedSource ?? fallback;
+      if (!force && _failedUrls.contains(nextSource.url)) {
+        setState(() {
+          _initializing = false;
+          _error = '视频地址刷新后仍不可用，请稍后重试。';
+        });
+        return false;
+      }
+      return await _setSource(
+        nextSource,
+        resumeAt: resumeAt,
+        shouldPlay: shouldPlay,
+        allowRefresh: false,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _initializing = false;
+          _error = '刷新视频地址失败：$error';
+        });
+      }
+      return false;
+    } finally {
+      _refreshingSource = false;
+    }
+  }
+
+  Future<void> _manualRetry() async {
+    _failedUrls.clear();
+    final controller = _controller;
+    await _refreshSources(
+      failedSource: _selectedSource,
+      resumeAt: controller?.value.position ?? Duration.zero,
+      shouldPlay: _lastKnownPlaying,
+      force: true,
+    );
+  }
+
+  Future<void> _persist(VideoPlayerValue value) {
+    if (!value.isInitialized) {
+      return Future.value();
+    }
+    return _playback.savePosition(
+      videoId: widget.video.id,
+      position: value.position,
+      duration: value.duration,
+    );
   }
 
   @override
@@ -120,12 +296,18 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
           Expanded(
             child: Center(
               child: _initializing
-                  ? const CircularProgressIndicator()
-                  : _error != null
-                  ? _PlayerError(
-                      message: _error!,
-                      onRetry: () => _setSource(_selectedSource),
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        if (_refreshingSource) ...[
+                          const SizedBox(height: 12),
+                          const Text('正在刷新视频地址…'),
+                        ],
+                      ],
                     )
+                  : _error != null
+                  ? _PlayerError(message: _error!, onRetry: _manualRetry)
                   : controller == null
                   ? const SizedBox.shrink()
                   : _PlayerSurface(controller: controller),
@@ -143,7 +325,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
                   child: DropdownButton<VideoSource>(
                     value: _selectedSource,
                     isExpanded: true,
-                    items: widget.sources
+                    items: _sources
                         .map(
                           (source) => DropdownMenuItem(
                             value: source,
@@ -155,7 +337,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
                         ? null
                         : (source) {
                             if (source != null && source != _selectedSource) {
-                              _setSource(source);
+                              unawaited(_setSource(source));
                             }
                           },
                   ),
@@ -237,15 +419,15 @@ class _Controls extends StatelessWidget {
       ],
     );
   }
+}
 
-  String _time(Duration value) {
-    final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
-    if (value.inHours > 0) {
-      return '${value.inHours}:$minutes:$seconds';
-    }
-    return '$minutes:$seconds';
+String _time(Duration value) {
+  final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
+  if (value.inHours > 0) {
+    return '${value.inHours}:$minutes:$seconds';
   }
+  return '$minutes:$seconds';
 }
 
 class _PlayerError extends StatelessWidget {
@@ -265,7 +447,7 @@ class _PlayerError extends StatelessWidget {
           const SizedBox(height: 16),
           Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          OutlinedButton(onPressed: onRetry, child: const Text('重试')),
+          OutlinedButton(onPressed: onRetry, child: const Text('刷新并重试')),
         ],
       ),
     );

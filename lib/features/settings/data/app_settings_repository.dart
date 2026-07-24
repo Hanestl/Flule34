@@ -10,6 +10,8 @@ final class AppSettingsRepository extends ChangeNotifier {
   static const _playbackQualityKey = 'flule34.settings.playback_quality';
   static const _autoplayKey = 'flule34.settings.autoplay';
   static const _loopPlaybackKey = 'flule34.settings.loop_playback';
+  static const _rememberPlaybackProgressKey =
+      'flule34.settings.remember_playback_progress';
   static const _blurThumbnailsKey = 'flule34.settings.blur_thumbnails';
   static const _askDownloadQualityKey = 'flule34.settings.ask_download_quality';
   static const _downloadQualityKey = 'flule34.settings.download_quality';
@@ -31,6 +33,7 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_playbackQualityKey),
       _readBool(_autoplayKey),
       _readBool(_loopPlaybackKey),
+      _readBool(_rememberPlaybackProgressKey),
       _readBool(_blurThumbnailsKey),
       _readBool(_askDownloadQualityKey),
       _readString(_downloadQualityKey),
@@ -49,16 +52,18 @@ final class AppSettingsRepository extends ChangeNotifier {
       ),
       autoplay: values[2] as bool? ?? AppSettings.defaults.autoplay,
       loopPlayback: values[3] as bool? ?? AppSettings.defaults.loopPlayback,
-      blurThumbnails: values[4] as bool? ?? AppSettings.defaults.blurThumbnails,
+      rememberPlaybackProgress:
+          values[4] as bool? ?? AppSettings.defaults.rememberPlaybackProgress,
+      blurThumbnails: values[5] as bool? ?? AppSettings.defaults.blurThumbnails,
       askDownloadQuality:
-          values[5] as bool? ?? AppSettings.defaults.askDownloadQuality,
+          values[6] as bool? ?? AppSettings.defaults.askDownloadQuality,
       downloadQuality: _enumValue(
         VideoQualityPreference.values,
-        values[6] as String?,
+        values[7] as String?,
         AppSettings.defaults.downloadQuality,
       ),
       wifiOnlyDownloads:
-          values[7] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
+          values[8] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
     );
     _loaded = true;
     notifyListeners();
@@ -82,6 +87,11 @@ final class AppSettingsRepository extends ChangeNotifier {
   Future<void> setLoopPlayback(bool value) async {
     await _store.writeBool(_loopPlaybackKey, value);
     _update(_settings.copyWith(loopPlayback: value));
+  }
+
+  Future<void> setRememberPlaybackProgress(bool value) async {
+    await _store.writeBool(_rememberPlaybackProgressKey, value);
+    _update(_settings.copyWith(rememberPlaybackProgress: value));
   }
 
   Future<void> setBlurThumbnails(bool value) async {

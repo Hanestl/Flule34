@@ -151,6 +151,17 @@ class PlaybackSettingsPage extends ConsumerWidget {
             unawaited(_save(context, repository.setLoopPlayback(value)));
           },
         ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('记忆播放进度'),
+          subtitle: const Text('仅登录后按账号保存；关闭后不读取或写入已有进度。'),
+          value: settings.rememberPlaybackProgress,
+          onChanged: (value) {
+            unawaited(
+              _save(context, repository.setRememberPlaybackProgress(value)),
+            );
+          },
+        ),
         const _InfoCard(
           icon: Icons.auto_awesome_outlined,
           text: '“自动”当前选择最高可解析的直链清晰度；后续接入网络质量评估后会动态选择。',

@@ -111,16 +111,12 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
   }
 
   Future<void> _openPlayer() async {
-    final cookie = await widget.api.sessionCookieHeader();
-    if (!mounted) {
-      return;
-    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => VideoPlayerPage(
+          api: widget.api,
           video: widget.details.video,
           sources: widget.details.sources,
-          sessionCookie: cookie,
         ),
       ),
     );

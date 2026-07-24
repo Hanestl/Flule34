@@ -35,6 +35,7 @@ final class AppSettings {
     required this.playbackQuality,
     required this.autoplay,
     required this.loopPlayback,
+    required this.rememberPlaybackProgress,
     required this.blurThumbnails,
     required this.askDownloadQuality,
     required this.downloadQuality,
@@ -46,6 +47,7 @@ final class AppSettings {
     playbackQuality: VideoQualityPreference.automatic,
     autoplay: false,
     loopPlayback: false,
+    rememberPlaybackProgress: true,
     blurThumbnails: false,
     askDownloadQuality: true,
     downloadQuality: VideoQualityPreference.highest,
@@ -56,6 +58,7 @@ final class AppSettings {
   final VideoQualityPreference playbackQuality;
   final bool autoplay;
   final bool loopPlayback;
+  final bool rememberPlaybackProgress;
   final bool blurThumbnails;
   final bool askDownloadQuality;
   final VideoQualityPreference downloadQuality;
@@ -66,6 +69,7 @@ final class AppSettings {
     VideoQualityPreference? playbackQuality,
     bool? autoplay,
     bool? loopPlayback,
+    bool? rememberPlaybackProgress,
     bool? blurThumbnails,
     bool? askDownloadQuality,
     VideoQualityPreference? downloadQuality,
@@ -76,6 +80,8 @@ final class AppSettings {
       playbackQuality: playbackQuality ?? this.playbackQuality,
       autoplay: autoplay ?? this.autoplay,
       loopPlayback: loopPlayback ?? this.loopPlayback,
+      rememberPlaybackProgress:
+          rememberPlaybackProgress ?? this.rememberPlaybackProgress,
       blurThumbnails: blurThumbnails ?? this.blurThumbnails,
       askDownloadQuality: askDownloadQuality ?? this.askDownloadQuality,
       downloadQuality: downloadQuality ?? this.downloadQuality,
