@@ -151,11 +151,87 @@ final class AppDatabase extends _$AppDatabase {
     return into(downloadRecords).insertOnConflictUpdate(record);
   }
 
+  Future<DownloadRecord?> findDownloadRecord(String id) {
+    return (select(
+      downloadRecords,
+    )..where((record) => record.id.equals(id))).getSingleOrNull();
+  }
+
+  Future<DownloadRecord?> findVideoDownload({
+    required String userId,
+    required String videoId,
+    required String quality,
+  }) {
+    return (select(downloadRecords)..where(
+          (record) =>
+              record.userId.equals(userId) &
+              record.videoId.equals(videoId) &
+              record.quality.equals(quality),
+        ))
+        .getSingleOrNull();
+  }
+
+  Future<void> updateDownloadStatus({
+    required String id,
+    required String state,
+    String? filePath,
+    String? errorMessage,
+    DateTime? completedAt,
+  }) {
+    return (update(
+      downloadRecords,
+    )..where((record) => record.id.equals(id))).write(
+      DownloadRecordsCompanion(
+        state: Value(state),
+        filePath: filePath == null ? const Value.absent() : Value(filePath),
+        errorMessage: errorMessage == null
+            ? const Value.absent()
+            : Value(errorMessage),
+        completedAt: completedAt == null
+            ? const Value.absent()
+            : Value(completedAt),
+        updatedAt: Value(DateTime.now().toUtc()),
+      ),
+    );
+  }
+
+  Future<void> updateDownloadProgress({
+    required String id,
+    required int bytesDownloaded,
+    int? totalBytes,
+  }) {
+    return (update(
+      downloadRecords,
+    )..where((record) => record.id.equals(id))).write(
+      DownloadRecordsCompanion(
+        bytesDownloaded: Value(bytesDownloaded),
+        totalBytes: totalBytes == null
+            ? const Value.absent()
+            : Value(totalBytes),
+        updatedAt: Value(DateTime.now().toUtc()),
+      ),
+    );
+  }
+
   Stream<List<DownloadRecord>> watchDownloads(String userId) {
     return (select(downloadRecords)
           ..where((record) => record.userId.equals(userId))
           ..orderBy([(record) => OrderingTerm.desc(record.updatedAt)]))
         .watch();
+  }
+
+  Future<List<DownloadRecord>> activeDownloads(String userId) {
+    return (select(downloadRecords)..where(
+          (record) =>
+              record.userId.equals(userId) &
+              record.state.isIn(const [
+                'queued',
+                'running',
+                'waiting_to_retry',
+                'paused',
+              ]),
+        ))
+        .get();
   }
 
   Future<void> deleteAccountData(String userId) {

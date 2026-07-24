@@ -8,6 +8,9 @@ import '../core/database/app_database.dart';
 import '../core/session/secret_store.dart';
 import '../core/session/secure_cookie_storage.dart';
 import '../core/session/session_store.dart';
+import '../features/downloads/data/background_download_platform_service.dart';
+import '../features/downloads/data/download_repository.dart';
+import '../features/downloads/domain/download_models.dart';
 
 final secretStoreProvider = Provider<SecretStore>((ref) {
   return FlutterSecretStore();
@@ -42,8 +45,26 @@ final rule34VideoApiProvider = Provider<Rule34VideoApi>((ref) {
   return api;
 });
 
+final downloadPlatformServiceProvider = Provider<DownloadPlatformService>((
+  ref,
+) {
+  return BackgroundDownloadPlatformService();
+});
+
+final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
+  final repository = DownloadRepository(
+    ref.watch(appDatabaseProvider),
+    ref.watch(sessionStoreProvider),
+    ref.watch(rule34VideoApiProvider),
+    ref.watch(downloadPlatformServiceProvider),
+  );
+  ref.onDispose(repository.dispose);
+  return repository;
+});
+
 final appInitializationProvider = FutureProvider<void>((ref) async {
   final sessionStore = ref.read(sessionStoreProvider);
   await sessionStore.load();
   await ref.read(rule34VideoApiProvider).restoreSession();
+  await ref.read(downloadRepositoryProvider).initialize();
 });

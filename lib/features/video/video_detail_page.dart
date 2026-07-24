@@ -1,19 +1,22 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../auth/login_sheet.dart';
+import '../downloads/data/download_repository.dart';
 import 'video_player_page.dart';
 
-class VideoDetailPage extends StatelessWidget {
+class VideoDetailPage extends ConsumerWidget {
   const VideoDetailPage({super.key, required this.api, required this.video});
 
   final Rule34VideoApi api;
   final VideoItem video;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('视频详情')),
       body: FutureBuilder<VideoDetails>(
@@ -33,7 +36,11 @@ class VideoDetailPage extends StatelessWidget {
               ),
             );
           }
-          return _VideoDetailsBody(api: api, details: snapshot.requireData);
+          return _VideoDetailsBody(
+            api: api,
+            details: snapshot.requireData,
+            downloads: ref.watch(downloadRepositoryProvider),
+          );
         },
       ),
     );
@@ -41,10 +48,15 @@ class VideoDetailPage extends StatelessWidget {
 }
 
 class _VideoDetailsBody extends StatefulWidget {
-  const _VideoDetailsBody({required this.api, required this.details});
+  const _VideoDetailsBody({
+    required this.api,
+    required this.details,
+    required this.downloads,
+  });
 
   final Rule34VideoApi api;
   final VideoDetails details;
+  final DownloadRepository downloads;
 
   @override
   State<_VideoDetailsBody> createState() => _VideoDetailsBodyState();
@@ -53,6 +65,7 @@ class _VideoDetailsBody extends StatefulWidget {
 class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
   late bool _favorite;
   var _updatingFavorite = false;
+  var _addingDownload = false;
 
   @override
   void initState() {
@@ -106,6 +119,69 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
         ),
       ),
     );
+  }
+
+  Future<void> _download() async {
+    if (_addingDownload) {
+      return;
+    }
+    if (!widget.api.sessionStore.isLoggedIn) {
+      final loggedIn = await showLoginSheet(context, widget.api);
+      if (!loggedIn || !mounted) {
+        return;
+      }
+    }
+    final source = await showModalBottomSheet<VideoSource>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) {
+        return ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: Text(
+                '选择下载清晰度',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            for (final item in widget.details.sources.reversed)
+              ListTile(
+                leading: Icon(item.isHd ? Icons.hd : Icons.sd),
+                title: Text(item.label),
+                onTap: () => Navigator.of(context).pop(item),
+              ),
+          ],
+        );
+      },
+    );
+    if (source == null || !mounted) {
+      return;
+    }
+
+    setState(() => _addingDownload = true);
+    try {
+      await widget.downloads.enqueueVideo(
+        details: widget.details,
+        source: source,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${source.label} 已加入下载队列。')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _addingDownload = false);
+      }
+    }
   }
 
   @override
@@ -185,6 +261,20 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                         : Icon(
                             _favorite ? Icons.favorite : Icons.favorite_border,
                           ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: '下载',
+                    onPressed: details.sources.isEmpty || _addingDownload
+                        ? null
+                        : _download,
+                    icon: _addingDownload
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download),
                   ),
                 ],
               ),

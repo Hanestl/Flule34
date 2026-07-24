@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../shared/video_feed.dart';
 import '../auth/login_sheet.dart';
+import '../downloads/data/download_repository.dart';
+import '../downloads/presentation/downloads_list.dart';
 
-class LibraryPage extends StatelessWidget {
+class LibraryPage extends ConsumerWidget {
   const LibraryPage({super.key, required this.api});
 
   final Rule34VideoApi api;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AnimatedBuilder(
       animation: api.sessionStore,
       builder: (context, _) {
@@ -20,6 +24,7 @@ class LibraryPage extends StatelessWidget {
         return _SignedIn(
           key: ValueKey(api.sessionStore.currentUserId),
           api: api,
+          downloads: ref.watch(downloadRepositoryProvider),
         );
       },
     );
@@ -65,30 +70,44 @@ class _SignedOut extends StatelessWidget {
 }
 
 class _SignedIn extends StatelessWidget {
-  const _SignedIn({super.key, required this.api});
+  const _SignedIn({super.key, required this.api, required this.downloads});
 
   final Rule34VideoApi api;
+  final DownloadRepository downloads;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text('媒体库', style: Theme.of(context).textTheme.headlineSmall),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Text('收藏', style: Theme.of(context).textTheme.titleMedium),
-        ),
-        Expanded(
-          child: VideoFeed(
-            loadPage: api.loadFavorites,
-            emptyMessage: '收藏夹里还没有视频。',
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              '媒体库',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
           ),
-        ),
-      ],
+          const TabBar(
+            tabs: [
+              Tab(text: '收藏'),
+              Tab(text: '下载'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                VideoFeed(
+                  loadPage: api.loadFavorites,
+                  emptyMessage: '收藏夹里还没有视频。',
+                ),
+                DownloadsList(repository: downloads),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
