@@ -1,0 +1,55 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:flule34/app/providers.dart';
+import 'package:flule34/app/router/app_router.dart';
+import 'package:flule34/core/api/rule34video_api.dart';
+import 'package:flule34/core/models/video_models.dart';
+import 'package:flule34/core/session/session_store.dart';
+
+void main() {
+  testWidgets('底部导航使用四栏结构且搜索不占一级入口', (tester) async {
+    final api = _FakeRule34VideoApi();
+    final container = ProviderContainer(
+      overrides: [rule34VideoApiProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp.router(routerConfig: container.read(appRouterProvider)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationDestination), findsNWidgets(4));
+    expect(find.text('首页'), findsOneWidget);
+    expect(find.text('发现'), findsOneWidget);
+    expect(find.text('媒体库'), findsOneWidget);
+    expect(find.text('我的'), findsOneWidget);
+    expect(find.widgetWithText(NavigationDestination, '搜索'), findsNothing);
+
+    await tester.tap(find.text('发现'));
+    await tester.pumpAndSettle();
+    expect(find.text('探索内容'), findsOneWidget);
+
+    await tester.tap(find.text('我的'));
+    await tester.pumpAndSettle();
+    expect(find.text('播放设置'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('关于 Flule34'), 300);
+    expect(find.text('关于 Flule34'), findsOneWidget);
+  });
+}
+
+class _FakeRule34VideoApi extends Rule34VideoApi {
+  _FakeRule34VideoApi() : super(sessionStore: SessionStore());
+
+  @override
+  Future<List<VideoItem>> loadFeed(FeedKind kind, int page) async {
+    return const [];
+  }
+
+  @override
+  void close() {
+    sessionStore.dispose();
+  }
+}

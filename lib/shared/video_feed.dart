@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import '../core/api/rule34video_api.dart';
+import '../app/router/route_names.dart';
 import '../core/models/video_models.dart';
-import '../features/video/video_detail_page.dart';
 import 'video_card.dart';
 
 class VideoFeed extends StatefulWidget {
   const VideoFeed({
     super.key,
-    required this.api,
     required this.loadPage,
     this.emptyMessage = '没有找到视频。',
   });
 
-  final Rule34VideoApi api;
   final Future<List<VideoItem>> Function(int page) loadPage;
   final String emptyMessage;
 
@@ -101,11 +99,10 @@ class _VideoFeedState extends State<VideoFeed> {
             final video = _videos[index];
             return VideoCard(
               video: video,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      VideoDetailPage(api: widget.api, video: video),
-                ),
+              onTap: () => context.pushNamed(
+                AppRouteNames.video,
+                pathParameters: {'id': video.id, 'slug': video.slug},
+                extra: video,
               ),
             );
           }

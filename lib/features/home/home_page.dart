@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../shared/video_feed.dart';
@@ -34,6 +36,15 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: SearchBar(
+            readOnly: true,
+            leading: const Icon(Icons.search),
+            hintText: '搜索视频、标签、分类或艺术家',
+            onTap: () => context.pushNamed(AppRouteNames.search),
+          ),
+        ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -55,7 +66,6 @@ class _HomePageState extends State<HomePage> {
         Expanded(
           child: VideoFeed(
             key: ValueKey(_kind),
-            api: widget.api,
             loadPage: (page) => widget.api.loadFeed(_kind, page),
           ),
         ),

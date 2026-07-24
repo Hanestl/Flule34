@@ -1,10 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
-import '../../features/video/video_detail_page.dart';
 import '../../shared/video_card.dart';
 
 class SearchPage extends StatefulWidget {
@@ -84,47 +85,51 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: TextField(
-            controller: _controller,
-            onChanged: _onChanged,
-            onSubmitted: (_) => _search(),
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: '按标签或关键词搜索',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.arrow_forward),
-                onPressed: _search,
+    return Scaffold(
+      appBar: AppBar(title: const Text('搜索')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _controller,
+              autofocus: true,
+              onChanged: _onChanged,
+              onSubmitted: (_) => _search(),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: '按标签或关键词搜索',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.arrow_forward),
+                  onPressed: _search,
+                ),
+                border: const OutlineInputBorder(),
               ),
-              border: const OutlineInputBorder(),
             ),
           ),
-        ),
-        if (_suggestions.isNotEmpty)
-          SizedBox(
-            height: 48,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _suggestions.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final suggestion = _suggestions[index];
-                return ActionChip(
-                  label: Text(
-                    '${suggestion.title} · ${formatCount(suggestion.total)}',
-                  ),
-                  onPressed: () => _search(suggestion.title),
-                );
-              },
+          if (_suggestions.isNotEmpty)
+            SizedBox(
+              height: 48,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _suggestions.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final suggestion = _suggestions[index];
+                  return ActionChip(
+                    label: Text(
+                      '${suggestion.title} · ${formatCount(suggestion.total)}',
+                    ),
+                    onPressed: () => _search(suggestion.title),
+                  );
+                },
+              ),
             ),
-          ),
-        Expanded(child: _buildResults(context)),
-      ],
+          Expanded(child: _buildResults(context)),
+        ],
+      ),
     );
   }
 
@@ -149,10 +154,10 @@ class _SearchPageState extends State<SearchPage> {
         final video = _results[index];
         return VideoCard(
           video: video,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => VideoDetailPage(api: widget.api, video: video),
-            ),
+          onTap: () => context.pushNamed(
+            AppRouteNames.video,
+            pathParameters: {'id': video.id, 'slug': video.slug},
+            extra: video,
           ),
         );
       },
