@@ -8,10 +8,16 @@ import '../app/providers.dart';
 import '../core/models/video_models.dart';
 
 class VideoCard extends ConsumerWidget {
-  const VideoCard({super.key, required this.video, required this.onTap});
+  const VideoCard({
+    super.key,
+    required this.video,
+    required this.onTap,
+    this.progress,
+  });
 
   final VideoItem video;
   final VoidCallback onTap;
+  final double? progress;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -100,6 +106,11 @@ class VideoCard extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (progress != null)
+                  LinearProgressIndicator(
+                    value: progress!.clamp(0.0, 1.0),
+                    minHeight: 3,
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   child: Column(

@@ -146,6 +146,34 @@ class Rule34VideoApi {
     return _videoList(path);
   }
 
+  Future<List<VideoItem>> loadWatchLater(int page) async {
+    _requireLogin();
+    final path = page > 1
+        ? '/my/favourites/videos-watch-later/$page/'
+        : '/my/favourites/videos-watch-later/';
+    return _videoList(path);
+  }
+
+  Future<List<VideoItem>> loadHistory(int page) async {
+    _requireLogin();
+    final path = page > 1 ? '/my/history/$page/' : '/my/history/';
+    return _videoList(path);
+  }
+
+  Future<List<PlaylistItem>> loadMyPlaylists() async {
+    _requireLogin();
+    return SiteParser.playlists(await _get('/my/playlists/'));
+  }
+
+  Future<List<VideoItem>> loadPlaylistVideos(
+    PlaylistItem playlist,
+    int page,
+  ) async {
+    _requireLogin();
+    final path = page > 1 ? '${playlist.path}$page/' : playlist.path;
+    return _videoList(path);
+  }
+
   Future<void> toggleFavorite({
     required VideoItem video,
     required bool add,

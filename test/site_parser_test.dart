@@ -36,4 +36,29 @@ void main() {
     expect(SiteParser.userId(source), '2421071');
     expect(SiteParser.userId('<html>logged out</html>'), isNull);
   });
+
+  test('解析账号播放列表及统计信息', () {
+    const source = '''
+      <div class="item thumb playlist_77">
+        <a class="th" href="/my/playlists/77/" title="稍后整理">
+          <img data-original="/playlist.jpg" alt="稍后整理">
+        </a>
+        <div class="title">稍后整理</div>
+        <div>12 videos · 3,456 views</div>
+      </div>
+    ''';
+
+    final playlists = SiteParser.playlists(source);
+
+    expect(playlists, hasLength(1));
+    expect(playlists.single.id, '77');
+    expect(playlists.single.title, '稍后整理');
+    expect(playlists.single.path, '/my/playlists/77/');
+    expect(playlists.single.videoCount, 12);
+    expect(playlists.single.views, 3456);
+    expect(
+      playlists.single.thumbnailUrl,
+      'https://rule34video.com/playlist.jpg',
+    );
+  });
 }

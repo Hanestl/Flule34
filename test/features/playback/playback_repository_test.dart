@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/features/playback/data/playback_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
@@ -21,7 +22,7 @@ void main() {
     );
 
     await repository.savePosition(
-      videoId: '4505897',
+      video: _video,
       position: const Duration(seconds: 30),
       duration: const Duration(minutes: 2),
     );
@@ -29,6 +30,10 @@ void main() {
       await repository.loadPosition('4505897'),
       const Duration(seconds: 30),
     );
+    final continueWatching = await repository.watchContinueWatching().first;
+    expect(continueWatching, hasLength(1));
+    expect(continueWatching.single.title, _video.title);
+    expect(continueWatching.single.slug, _video.slug);
 
     await harness.sessionStore.authenticate('2002');
     expect(await repository.loadPosition('4505897'), isNull);
@@ -53,7 +58,7 @@ void main() {
     );
 
     await repository.savePosition(
-      videoId: '4505897',
+      video: _video,
       position: const Duration(seconds: 110),
       duration: const Duration(minutes: 2),
     );
@@ -79,7 +84,7 @@ void main() {
       settings,
     );
     await repository.savePosition(
-      videoId: '4505897',
+      video: _video,
       position: const Duration(seconds: 30),
       duration: const Duration(minutes: 2),
     );
@@ -87,7 +92,7 @@ void main() {
     await settings.setRememberPlaybackProgress(false);
     expect(await repository.loadPosition('4505897'), isNull);
     await repository.savePosition(
-      videoId: '4505897',
+      video: _video,
       position: const Duration(seconds: 50),
       duration: const Duration(minutes: 2),
     );
@@ -98,6 +103,14 @@ void main() {
     expect(record?.positionMs, const Duration(seconds: 30).inMilliseconds);
   });
 }
+
+const _video = VideoItem(
+  id: '4505897',
+  title: '测试视频',
+  slug: 'test-video',
+  thumbnailUrl: 'https://example.com/thumb.jpg',
+  duration: '2:00',
+);
 
 Future<AppSettingsRepository> _createSettings() async {
   final repository = AppSettingsRepository(_MemorySettingsStore());

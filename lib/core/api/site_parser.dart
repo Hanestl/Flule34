@@ -115,10 +115,71 @@ class SiteParser {
         .toList(growable: false);
   }
 
+  static List<PlaylistItem> playlists(String source) {
+    final document = html_parser.parse(source);
+    final result = <String, PlaylistItem>{};
+    for (final link in document.querySelectorAll(
+      'a[href*="/playlists/"], a[href*="/my/playlists/"]',
+    )) {
+      final href = link.attributes['href'];
+      final match = RegExp(
+        r'/(?:my/)?playlists/(\d+)(?:/([^/]+))?/?',
+      ).firstMatch(href ?? '');
+      if (match == null) {
+        continue;
+      }
+      final container = _closestItem(link) ?? link.parent;
+      final text = container?.text.replaceAll(RegExp(r'\s+'), ' ') ?? '';
+      final image =
+          container?.querySelector('img') ?? link.querySelector('img');
+      final title =
+          _clean(link.attributes['title']) ??
+          _clean(image?.attributes['alt']) ??
+          _clean(container?.querySelector('.title')?.text) ??
+          _clean(link.text) ??
+          '未命名播放列表';
+      final resolved = Uri.parse(_baseUri).resolve(href!).path;
+      result[match.group(1)!] = PlaylistItem(
+        id: match.group(1)!,
+        title: title,
+        path: resolved.endsWith('/') ? resolved : '$resolved/',
+        thumbnailUrl: _url(
+          image?.attributes['data-webp'] ??
+              image?.attributes['data-original'] ??
+              image?.attributes['src'],
+        ),
+        videoCount: _number(
+          RegExp(
+            r'([\d,]+)\s*videos?',
+            caseSensitive: false,
+          ).firstMatch(text)?.group(1),
+        ),
+        views: _number(
+          RegExp(
+            r'([\d,]+)\s*views?',
+            caseSensitive: false,
+          ).firstMatch(text)?.group(1),
+        ),
+      );
+    }
+    return result.values.toList(growable: false);
+  }
+
   static String? genericError(String source) {
     return _clean(
       html_parser.parse(source).querySelector('.generic-error')?.text,
     );
+  }
+
+  static dom.Element? _closestItem(dom.Element element) {
+    dom.Element? current = element;
+    while (current != null) {
+      if (current.localName == 'div' && current.classes.contains('item')) {
+        return current;
+      }
+      current = current.parent;
+    }
+    return null;
   }
 
   static String? userId(String source) {

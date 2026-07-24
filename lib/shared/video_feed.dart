@@ -19,7 +19,8 @@ class VideoFeed extends StatefulWidget {
   State<VideoFeed> createState() => _VideoFeedState();
 }
 
-class _VideoFeedState extends State<VideoFeed> {
+class _VideoFeedState extends State<VideoFeed>
+    with AutomaticKeepAliveClientMixin {
   final List<VideoItem> _videos = [];
   var _page = 1;
   var _loading = false;
@@ -71,6 +72,7 @@ class _VideoFeedState extends State<VideoFeed> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_videos.isEmpty && _loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -124,6 +126,9 @@ class _VideoFeedState extends State<VideoFeed> {
       ),
     );
   }
+
+  @override
+  bool get wantKeepAlive => true;
 }
 
 class _StateMessage extends StatelessWidget {

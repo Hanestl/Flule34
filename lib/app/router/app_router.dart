@@ -6,6 +6,7 @@ import '../../core/models/video_models.dart';
 import '../../features/discover/discover_page.dart';
 import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
+import '../../features/library/playlist_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/search/search_page.dart';
 import '../../features/settings/presentation/settings_pages.dart';
@@ -130,6 +131,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   title: '视频 ${state.pathParameters['id']!}',
                 );
           return VideoDetailPage(api: api, video: video);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/playlist/:id',
+        name: AppRouteNames.playlist,
+        builder: (context, state) {
+          final extra = state.extra;
+          final playlist = extra is PlaylistItem
+              ? extra
+              : PlaylistItem(
+                  id: state.pathParameters['id']!,
+                  title: '播放列表 ${state.pathParameters['id']!}',
+                  path: '/my/playlists/${state.pathParameters['id']!}/',
+                );
+          return PlaylistPage(api: api, playlist: playlist);
         },
       ),
     ],

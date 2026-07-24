@@ -84,6 +84,41 @@ void main() {
       isNull,
     );
   });
+
+  test('账号媒体库接口使用正确的分页路径', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final paths = <String>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        paths.add(options.uri.path);
+        if (options.uri.path == '/my/playlists/') {
+          return _htmlResponse('''
+            <div class="item">
+              <a href="/my/playlists/77/" title="测试列表">测试列表</a>
+            </div>
+          ''');
+        }
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.loadWatchLater(2);
+    await api.loadHistory(3);
+    final playlist = (await api.loadMyPlaylists()).single;
+    await api.loadPlaylistVideos(playlist, 2);
+
+    expect(paths, [
+      '/my/favourites/videos-watch-later/2/',
+      '/my/history/3/',
+      '/my/playlists/',
+      '/my/playlists/77/2/',
+    ]);
+  });
 }
 
 ResponseBody _htmlResponse(String body) {

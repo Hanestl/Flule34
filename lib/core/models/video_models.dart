@@ -105,3 +105,21 @@ class TagSuggestion {
   final String title;
   final int total;
 }
+
+class PlaylistItem {
+  const PlaylistItem({
+    required this.id,
+    required this.title,
+    required this.path,
+    this.thumbnailUrl,
+    this.videoCount,
+    this.views,
+  });
+
+  final String id;
+  final String title;
+  final String path;
+  final String? thumbnailUrl;
+  final int? videoCount;
+  final int? views;
+}

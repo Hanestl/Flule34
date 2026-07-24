@@ -7,6 +7,9 @@ import '../../shared/video_feed.dart';
 import '../auth/login_sheet.dart';
 import '../downloads/data/download_repository.dart';
 import '../downloads/presentation/downloads_list.dart';
+import '../playback/data/playback_repository.dart';
+import 'continue_watching_list.dart';
+import 'playlists_list.dart';
 
 class LibraryPage extends ConsumerWidget {
   const LibraryPage({super.key, required this.api});
@@ -25,6 +28,7 @@ class LibraryPage extends ConsumerWidget {
           key: ValueKey(api.sessionStore.currentUserId),
           api: api,
           downloads: ref.watch(downloadRepositoryProvider),
+          playback: ref.watch(playbackRepositoryProvider),
         );
       },
     );
@@ -70,15 +74,21 @@ class _SignedOut extends StatelessWidget {
 }
 
 class _SignedIn extends StatelessWidget {
-  const _SignedIn({super.key, required this.api, required this.downloads});
+  const _SignedIn({
+    super.key,
+    required this.api,
+    required this.downloads,
+    required this.playback,
+  });
 
   final Rule34VideoApi api;
   final DownloadRepository downloads;
+  final PlaybackRepository playback;
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 6,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -90,18 +100,34 @@ class _SignedIn extends StatelessWidget {
             ),
           ),
           const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
+              Tab(text: '继续观看'),
               Tab(text: '收藏'),
+              Tab(text: '稍后观看'),
+              Tab(text: '历史'),
+              Tab(text: '播放列表'),
               Tab(text: '下载'),
             ],
           ),
           Expanded(
             child: TabBarView(
               children: [
+                ContinueWatchingList(repository: playback),
                 VideoFeed(
                   loadPage: api.loadFavorites,
                   emptyMessage: '收藏夹里还没有视频。',
                 ),
+                VideoFeed(
+                  loadPage: api.loadWatchLater,
+                  emptyMessage: '稍后观看列表还是空的。',
+                ),
+                VideoFeed(
+                  loadPage: api.loadHistory,
+                  emptyMessage: '网站观看历史还是空的。',
+                ),
+                PlaylistsList(api: api),
                 DownloadsList(repository: downloads),
               ],
             ),

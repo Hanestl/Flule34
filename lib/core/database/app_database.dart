@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:sqlite3/common.dart' show CommonDatabase;
 
+import 'app_database.steps.dart' as migrations;
+
 part 'app_database.g.dart';
 
 class UserAccounts extends Table {
@@ -20,6 +22,10 @@ class PlaybackPositions extends Table {
   TextColumn get userId =>
       text().references(UserAccounts, #userId, onDelete: KeyAction.cascade)();
   TextColumn get videoId => text()();
+  TextColumn get title => text().nullable()();
+  TextColumn get slug => text().nullable()();
+  TextColumn get thumbnailUrl => text().nullable()();
+  TextColumn get durationLabel => text().nullable()();
   IntColumn get positionMs => integer().withDefault(const Constant(0))();
   IntColumn get durationMs => integer().nullable()();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
@@ -70,11 +76,31 @@ final class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) => migrator.createAll(),
+    onUpgrade: migrations.stepByStep(
+      from1To2: (migrator, schema) async {
+        await migrator.addColumn(
+          schema.playbackPositions,
+          schema.playbackPositions.title,
+        );
+        await migrator.addColumn(
+          schema.playbackPositions,
+          schema.playbackPositions.slug,
+        );
+        await migrator.addColumn(
+          schema.playbackPositions,
+          schema.playbackPositions.thumbnailUrl,
+        );
+        await migrator.addColumn(
+          schema.playbackPositions,
+          schema.playbackPositions.durationLabel,
+        );
+      },
+    ),
     beforeOpen: (_) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
@@ -124,11 +150,23 @@ final class AppDatabase extends _$AppDatabase {
     required String videoId,
     required int positionMs,
     int? durationMs,
+    String? title,
+    String? slug,
+    String? thumbnailUrl,
+    String? durationLabel,
   }) {
     return into(playbackPositions).insertOnConflictUpdate(
       PlaybackPositionsCompanion(
         userId: Value(userId),
         videoId: Value(videoId),
+        title: title == null ? const Value.absent() : Value(title),
+        slug: slug == null ? const Value.absent() : Value(slug),
+        thumbnailUrl: thumbnailUrl == null
+            ? const Value.absent()
+            : Value(thumbnailUrl),
+        durationLabel: durationLabel == null
+            ? const Value.absent()
+            : Value(durationLabel),
         positionMs: Value(positionMs),
         durationMs: Value(durationMs),
         updatedAt: Value(DateTime.now().toUtc()),
@@ -145,6 +183,19 @@ final class AppDatabase extends _$AppDatabase {
               position.userId.equals(userId) & position.videoId.equals(videoId),
         ))
         .getSingleOrNull();
+  }
+
+  Stream<List<PlaybackPosition>> watchContinueWatching(String userId) {
+    return (select(playbackPositions)
+          ..where(
+            (position) =>
+                position.userId.equals(userId) &
+                position.positionMs.isBiggerThanValue(0) &
+                position.title.isNotNull() &
+                position.slug.isNotNull(),
+          )
+          ..orderBy([(position) => OrderingTerm.desc(position.updatedAt)]))
+        .watch();
   }
 
   Future<void> saveDownloadRecord(DownloadRecordsCompanion record) {

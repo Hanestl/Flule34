@@ -1,4 +1,5 @@
 import '../../../core/database/app_database.dart';
+import '../../../core/models/video_models.dart';
 import '../../../core/session/session_store.dart';
 import '../../settings/data/app_settings_repository.dart';
 
@@ -42,7 +43,7 @@ final class PlaybackRepository {
   }
 
   Future<void> savePosition({
-    required String videoId,
+    required VideoItem video,
     required Duration position,
     required Duration duration,
   }) async {
@@ -57,9 +58,20 @@ final class PlaybackRepository {
         : position;
     await _database.savePlaybackPosition(
       userId: userId,
-      videoId: videoId,
+      videoId: video.id,
+      title: video.title,
+      slug: video.slug,
+      thumbnailUrl: video.thumbnailUrl,
+      durationLabel: video.duration,
       positionMs: normalizedPosition.inMilliseconds,
       durationMs: duration.inMilliseconds,
     );
+  }
+
+  Stream<List<PlaybackPosition>> watchContinueWatching() {
+    final userId = _sessionStore.currentUserId;
+    return userId == null
+        ? Stream.value(const <PlaybackPosition>[])
+        : _database.watchContinueWatching(userId);
   }
 }

@@ -274,7 +274,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       return Future.value();
     }
     return _playback.savePosition(
-      videoId: widget.video.id,
+      video: widget.video,
       position: value.position,
       duration: value.duration,
     );

@@ -416,6 +416,46 @@ class $PlaybackPositionsTable extends PlaybackPositions
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _slugMeta = const VerificationMeta('slug');
+  @override
+  late final GeneratedColumn<String> slug = GeneratedColumn<String>(
+    'slug',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _thumbnailUrlMeta = const VerificationMeta(
+    'thumbnailUrl',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailUrl = GeneratedColumn<String>(
+    'thumbnail_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationLabelMeta = const VerificationMeta(
+    'durationLabel',
+  );
+  @override
+  late final GeneratedColumn<String> durationLabel = GeneratedColumn<String>(
+    'duration_label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _positionMsMeta = const VerificationMeta(
     'positionMs',
   );
@@ -455,6 +495,10 @@ class $PlaybackPositionsTable extends PlaybackPositions
   List<GeneratedColumn> get $columns => [
     userId,
     videoId,
+    title,
+    slug,
+    thumbnailUrl,
+    durationLabel,
     positionMs,
     durationMs,
     updatedAt,
@@ -486,6 +530,36 @@ class $PlaybackPositionsTable extends PlaybackPositions
       );
     } else if (isInserting) {
       context.missing(_videoIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('slug')) {
+      context.handle(
+        _slugMeta,
+        slug.isAcceptableOrUnknown(data['slug']!, _slugMeta),
+      );
+    }
+    if (data.containsKey('thumbnail_url')) {
+      context.handle(
+        _thumbnailUrlMeta,
+        thumbnailUrl.isAcceptableOrUnknown(
+          data['thumbnail_url']!,
+          _thumbnailUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('duration_label')) {
+      context.handle(
+        _durationLabelMeta,
+        durationLabel.isAcceptableOrUnknown(
+          data['duration_label']!,
+          _durationLabelMeta,
+        ),
+      );
     }
     if (data.containsKey('position_ms')) {
       context.handle(
@@ -522,6 +596,22 @@ class $PlaybackPositionsTable extends PlaybackPositions
         DriftSqlType.string,
         data['${effectivePrefix}video_id'],
       )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      slug: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}slug'],
+      ),
+      thumbnailUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_url'],
+      ),
+      durationLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}duration_label'],
+      ),
       positionMs: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}position_ms'],
@@ -547,12 +637,20 @@ class PlaybackPosition extends DataClass
     implements Insertable<PlaybackPosition> {
   final String userId;
   final String videoId;
+  final String? title;
+  final String? slug;
+  final String? thumbnailUrl;
+  final String? durationLabel;
   final int positionMs;
   final int? durationMs;
   final DateTime updatedAt;
   const PlaybackPosition({
     required this.userId,
     required this.videoId,
+    this.title,
+    this.slug,
+    this.thumbnailUrl,
+    this.durationLabel,
     required this.positionMs,
     this.durationMs,
     required this.updatedAt,
@@ -562,6 +660,18 @@ class PlaybackPosition extends DataClass
     final map = <String, Expression>{};
     map['user_id'] = Variable<String>(userId);
     map['video_id'] = Variable<String>(videoId);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    if (!nullToAbsent || slug != null) {
+      map['slug'] = Variable<String>(slug);
+    }
+    if (!nullToAbsent || thumbnailUrl != null) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl);
+    }
+    if (!nullToAbsent || durationLabel != null) {
+      map['duration_label'] = Variable<String>(durationLabel);
+    }
     map['position_ms'] = Variable<int>(positionMs);
     if (!nullToAbsent || durationMs != null) {
       map['duration_ms'] = Variable<int>(durationMs);
@@ -574,6 +684,16 @@ class PlaybackPosition extends DataClass
     return PlaybackPositionsCompanion(
       userId: Value(userId),
       videoId: Value(videoId),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      slug: slug == null && nullToAbsent ? const Value.absent() : Value(slug),
+      thumbnailUrl: thumbnailUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbnailUrl),
+      durationLabel: durationLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationLabel),
       positionMs: Value(positionMs),
       durationMs: durationMs == null && nullToAbsent
           ? const Value.absent()
@@ -590,6 +710,10 @@ class PlaybackPosition extends DataClass
     return PlaybackPosition(
       userId: serializer.fromJson<String>(json['userId']),
       videoId: serializer.fromJson<String>(json['videoId']),
+      title: serializer.fromJson<String?>(json['title']),
+      slug: serializer.fromJson<String?>(json['slug']),
+      thumbnailUrl: serializer.fromJson<String?>(json['thumbnailUrl']),
+      durationLabel: serializer.fromJson<String?>(json['durationLabel']),
       positionMs: serializer.fromJson<int>(json['positionMs']),
       durationMs: serializer.fromJson<int?>(json['durationMs']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -601,6 +725,10 @@ class PlaybackPosition extends DataClass
     return <String, dynamic>{
       'userId': serializer.toJson<String>(userId),
       'videoId': serializer.toJson<String>(videoId),
+      'title': serializer.toJson<String?>(title),
+      'slug': serializer.toJson<String?>(slug),
+      'thumbnailUrl': serializer.toJson<String?>(thumbnailUrl),
+      'durationLabel': serializer.toJson<String?>(durationLabel),
       'positionMs': serializer.toJson<int>(positionMs),
       'durationMs': serializer.toJson<int?>(durationMs),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -610,12 +738,22 @@ class PlaybackPosition extends DataClass
   PlaybackPosition copyWith({
     String? userId,
     String? videoId,
+    Value<String?> title = const Value.absent(),
+    Value<String?> slug = const Value.absent(),
+    Value<String?> thumbnailUrl = const Value.absent(),
+    Value<String?> durationLabel = const Value.absent(),
     int? positionMs,
     Value<int?> durationMs = const Value.absent(),
     DateTime? updatedAt,
   }) => PlaybackPosition(
     userId: userId ?? this.userId,
     videoId: videoId ?? this.videoId,
+    title: title.present ? title.value : this.title,
+    slug: slug.present ? slug.value : this.slug,
+    thumbnailUrl: thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
+    durationLabel: durationLabel.present
+        ? durationLabel.value
+        : this.durationLabel,
     positionMs: positionMs ?? this.positionMs,
     durationMs: durationMs.present ? durationMs.value : this.durationMs,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -624,6 +762,14 @@ class PlaybackPosition extends DataClass
     return PlaybackPosition(
       userId: data.userId.present ? data.userId.value : this.userId,
       videoId: data.videoId.present ? data.videoId.value : this.videoId,
+      title: data.title.present ? data.title.value : this.title,
+      slug: data.slug.present ? data.slug.value : this.slug,
+      thumbnailUrl: data.thumbnailUrl.present
+          ? data.thumbnailUrl.value
+          : this.thumbnailUrl,
+      durationLabel: data.durationLabel.present
+          ? data.durationLabel.value
+          : this.durationLabel,
       positionMs: data.positionMs.present
           ? data.positionMs.value
           : this.positionMs,
@@ -639,6 +785,10 @@ class PlaybackPosition extends DataClass
     return (StringBuffer('PlaybackPosition(')
           ..write('userId: $userId, ')
           ..write('videoId: $videoId, ')
+          ..write('title: $title, ')
+          ..write('slug: $slug, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('durationLabel: $durationLabel, ')
           ..write('positionMs: $positionMs, ')
           ..write('durationMs: $durationMs, ')
           ..write('updatedAt: $updatedAt')
@@ -647,14 +797,27 @@ class PlaybackPosition extends DataClass
   }
 
   @override
-  int get hashCode =>
-      Object.hash(userId, videoId, positionMs, durationMs, updatedAt);
+  int get hashCode => Object.hash(
+    userId,
+    videoId,
+    title,
+    slug,
+    thumbnailUrl,
+    durationLabel,
+    positionMs,
+    durationMs,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlaybackPosition &&
           other.userId == this.userId &&
           other.videoId == this.videoId &&
+          other.title == this.title &&
+          other.slug == this.slug &&
+          other.thumbnailUrl == this.thumbnailUrl &&
+          other.durationLabel == this.durationLabel &&
           other.positionMs == this.positionMs &&
           other.durationMs == this.durationMs &&
           other.updatedAt == this.updatedAt);
@@ -663,6 +826,10 @@ class PlaybackPosition extends DataClass
 class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   final Value<String> userId;
   final Value<String> videoId;
+  final Value<String?> title;
+  final Value<String?> slug;
+  final Value<String?> thumbnailUrl;
+  final Value<String?> durationLabel;
   final Value<int> positionMs;
   final Value<int?> durationMs;
   final Value<DateTime> updatedAt;
@@ -670,6 +837,10 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   const PlaybackPositionsCompanion({
     this.userId = const Value.absent(),
     this.videoId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.slug = const Value.absent(),
+    this.thumbnailUrl = const Value.absent(),
+    this.durationLabel = const Value.absent(),
     this.positionMs = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -678,6 +849,10 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   PlaybackPositionsCompanion.insert({
     required String userId,
     required String videoId,
+    this.title = const Value.absent(),
+    this.slug = const Value.absent(),
+    this.thumbnailUrl = const Value.absent(),
+    this.durationLabel = const Value.absent(),
     this.positionMs = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -687,6 +862,10 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   static Insertable<PlaybackPosition> custom({
     Expression<String>? userId,
     Expression<String>? videoId,
+    Expression<String>? title,
+    Expression<String>? slug,
+    Expression<String>? thumbnailUrl,
+    Expression<String>? durationLabel,
     Expression<int>? positionMs,
     Expression<int>? durationMs,
     Expression<DateTime>? updatedAt,
@@ -695,6 +874,10 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     return RawValuesInsertable({
       if (userId != null) 'user_id': userId,
       if (videoId != null) 'video_id': videoId,
+      if (title != null) 'title': title,
+      if (slug != null) 'slug': slug,
+      if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (durationLabel != null) 'duration_label': durationLabel,
       if (positionMs != null) 'position_ms': positionMs,
       if (durationMs != null) 'duration_ms': durationMs,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -705,6 +888,10 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   PlaybackPositionsCompanion copyWith({
     Value<String>? userId,
     Value<String>? videoId,
+    Value<String?>? title,
+    Value<String?>? slug,
+    Value<String?>? thumbnailUrl,
+    Value<String?>? durationLabel,
     Value<int>? positionMs,
     Value<int?>? durationMs,
     Value<DateTime>? updatedAt,
@@ -713,6 +900,10 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     return PlaybackPositionsCompanion(
       userId: userId ?? this.userId,
       videoId: videoId ?? this.videoId,
+      title: title ?? this.title,
+      slug: slug ?? this.slug,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      durationLabel: durationLabel ?? this.durationLabel,
       positionMs: positionMs ?? this.positionMs,
       durationMs: durationMs ?? this.durationMs,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -728,6 +919,18 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     }
     if (videoId.present) {
       map['video_id'] = Variable<String>(videoId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (slug.present) {
+      map['slug'] = Variable<String>(slug.value);
+    }
+    if (thumbnailUrl.present) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
+    }
+    if (durationLabel.present) {
+      map['duration_label'] = Variable<String>(durationLabel.value);
     }
     if (positionMs.present) {
       map['position_ms'] = Variable<int>(positionMs.value);
@@ -749,6 +952,10 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     return (StringBuffer('PlaybackPositionsCompanion(')
           ..write('userId: $userId, ')
           ..write('videoId: $videoId, ')
+          ..write('title: $title, ')
+          ..write('slug: $slug, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('durationLabel: $durationLabel, ')
           ..write('positionMs: $positionMs, ')
           ..write('durationMs: $durationMs, ')
           ..write('updatedAt: $updatedAt, ')
@@ -2029,6 +2236,10 @@ typedef $$PlaybackPositionsTableCreateCompanionBuilder =
     PlaybackPositionsCompanion Function({
       required String userId,
       required String videoId,
+      Value<String?> title,
+      Value<String?> slug,
+      Value<String?> thumbnailUrl,
+      Value<String?> durationLabel,
       Value<int> positionMs,
       Value<int?> durationMs,
       Value<DateTime> updatedAt,
@@ -2038,6 +2249,10 @@ typedef $$PlaybackPositionsTableUpdateCompanionBuilder =
     PlaybackPositionsCompanion Function({
       Value<String> userId,
       Value<String> videoId,
+      Value<String?> title,
+      Value<String?> slug,
+      Value<String?> thumbnailUrl,
+      Value<String?> durationLabel,
       Value<int> positionMs,
       Value<int?> durationMs,
       Value<DateTime> updatedAt,
@@ -2086,6 +2301,26 @@ class $$PlaybackPositionsTableFilterComposer
   });
   ColumnFilters<String> get videoId => $composableBuilder(
     column: $table.videoId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2142,6 +2377,26 @@ class $$PlaybackPositionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get positionMs => $composableBuilder(
     column: $table.positionMs,
     builder: (column) => ColumnOrderings(column),
@@ -2192,6 +2447,22 @@ class $$PlaybackPositionsTableAnnotationComposer
   });
   GeneratedColumn<String> get videoId =>
       $composableBuilder(column: $table.videoId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get slug =>
+      $composableBuilder(column: $table.slug, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get positionMs => $composableBuilder(
     column: $table.positionMs,
@@ -2265,6 +2536,10 @@ class $$PlaybackPositionsTableTableManager
               ({
                 Value<String> userId = const Value.absent(),
                 Value<String> videoId = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> slug = const Value.absent(),
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> durationLabel = const Value.absent(),
                 Value<int> positionMs = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2272,6 +2547,10 @@ class $$PlaybackPositionsTableTableManager
               }) => PlaybackPositionsCompanion(
                 userId: userId,
                 videoId: videoId,
+                title: title,
+                slug: slug,
+                thumbnailUrl: thumbnailUrl,
+                durationLabel: durationLabel,
                 positionMs: positionMs,
                 durationMs: durationMs,
                 updatedAt: updatedAt,
@@ -2281,6 +2560,10 @@ class $$PlaybackPositionsTableTableManager
               ({
                 required String userId,
                 required String videoId,
+                Value<String?> title = const Value.absent(),
+                Value<String?> slug = const Value.absent(),
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> durationLabel = const Value.absent(),
                 Value<int> positionMs = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2288,6 +2571,10 @@ class $$PlaybackPositionsTableTableManager
               }) => PlaybackPositionsCompanion.insert(
                 userId: userId,
                 videoId: videoId,
+                title: title,
+                slug: slug,
+                thumbnailUrl: thumbnailUrl,
+                durationLabel: durationLabel,
                 positionMs: positionMs,
                 durationMs: durationMs,
                 updatedAt: updatedAt,
