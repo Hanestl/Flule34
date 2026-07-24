@@ -132,6 +132,12 @@ class _DownloadCardState extends State<_DownloadCard> {
                                 _run(() => widget.repository.open(record)),
                             icon: const Icon(Icons.open_in_new),
                           ),
+                        if (record.state == 'complete')
+                          IconButton(
+                            tooltip: '导出到下载目录',
+                            onPressed: _export,
+                            icon: const Icon(Icons.save_alt),
+                          ),
                         IconButton(
                           tooltip: '删除',
                           onPressed: _confirmDelete,
@@ -172,6 +178,36 @@ class _DownloadCardState extends State<_DownloadCard> {
         () => widget.repository.delete(widget.record),
         successMessage: '下载文件和记录已删除。',
       );
+    }
+  }
+
+  Future<void> _export() async {
+    if (_busy) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final path = await widget.repository.export(widget.record);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            path == null ? '导出失败，请检查存储权限。' : '已导出到公共下载目录的 Flule34 文件夹。',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 

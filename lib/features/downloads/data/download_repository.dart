@@ -82,6 +82,16 @@ final class DownloadRepository {
     if (existing != null) {
       throw DownloadException('$quality 已在当前账号的下载列表中。');
     }
+    final refreshedDetails = await _api.loadVideoDetails(details.video);
+    final refreshedSource = refreshedDetails.sources
+        .cast<VideoSource?>()
+        .firstWhere(
+          (candidate) => candidate?.label.trim() == quality,
+          orElse: () => null,
+        );
+    if (refreshedSource == null) {
+      throw DownloadException('刷新后已找不到 $quality 下载源，请重新选择清晰度。');
+    }
     if (!await _platformService.ensureNotificationPermission()) {
       throw const DownloadException('需要通知权限才能可靠显示后台下载进度。');
     }
@@ -113,7 +123,7 @@ final class DownloadRepository {
     final enqueued = await _platformService.enqueue(
       DownloadRequest(
         id: id,
-        url: source.url,
+        url: refreshedSource.url,
         filename: _filename(details.video, quality),
         directory: _directoryForUser(userId),
         displayName: details.video.title,
@@ -157,6 +167,14 @@ final class DownloadRepository {
     _requireOwnedRecord(record);
     final path = record.filePath;
     return path != null && await _platformService.openFile(path);
+  }
+
+  Future<String?> export(DownloadRecord record) async {
+    _requireOwnedRecord(record);
+    if (record.state != DownloadTaskState.complete.storageValue) {
+      throw const DownloadException('只能导出已完成的下载。');
+    }
+    return _platformService.exportToDownloads(record.taskId ?? record.id);
   }
 
   Future<bool> delete(DownloadRecord record) async {

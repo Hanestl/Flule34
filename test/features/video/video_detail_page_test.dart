@@ -166,6 +166,9 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   Future<bool> openFile(String filePath) async => true;
 
   @override
+  Future<String?> exportToDownloads(String taskId) async => null;
+
+  @override
   Future<bool> pause(String taskId) async => true;
 
   @override

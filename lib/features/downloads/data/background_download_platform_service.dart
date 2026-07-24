@@ -45,6 +45,8 @@ final class BackgroundDownloadPlatformService
           tapOpensFile: true,
         );
     await _downloader.start(autoCleanDatabase: false);
+    await _downloader.trackTasksInGroup(_group);
+    await _downloader.rescheduleKilledTasks();
     _initialized = true;
   }
 
@@ -103,6 +105,21 @@ final class BackgroundDownloadPlatformService
   @override
   Future<bool> openFile(String filePath) {
     return _downloader.openFile(filePath: filePath, mimeType: 'video/mp4');
+  }
+
+  @override
+  Future<String?> exportToDownloads(String taskId) async {
+    final record = await _downloader.database.recordForId(taskId);
+    final task = record?.task;
+    if (task is! DownloadTask) {
+      return null;
+    }
+    return _downloader.moveToSharedStorage(
+      task,
+      SharedStorage.downloads,
+      directory: 'Flule34',
+      mimeType: 'video/mp4',
+    );
   }
 
   @override

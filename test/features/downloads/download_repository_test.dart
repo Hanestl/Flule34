@@ -178,6 +178,46 @@ void main() {
     expect(await harness.database.findDownloadRecord(id), isNull);
   });
 
+  test('已完成下载可以导出到公共下载目录', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    platform.emit(
+      DownloadStatusEvent(
+        taskId: id,
+        state: DownloadTaskState.complete,
+        filePath: 'downloads/2421071/video.mp4',
+      ),
+    );
+    await _waitFor(() async {
+      final record = await harness.database.findDownloadRecord(id);
+      return record?.state == 'complete';
+    });
+
+    final record = (await harness.database.findDownloadRecord(id))!;
+    expect(
+      await repository.export(record),
+      'Downloads/Flule34/video.mp4',
+    );
+  });
+
   test('清理当前账号本地数据会删除下载和播放进度但保留账号', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
@@ -285,6 +325,9 @@ final class _FakeRule34VideoApi extends Rule34VideoApi {
   Future<String?> sessionCookieHeader() async => 'PHPSESSID=test-cookie';
 
   @override
+  Future<VideoDetails> loadVideoDetails(VideoItem video) async => _details;
+
+  @override
   void close() {}
 }
 
@@ -298,6 +341,7 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   final Map<String, String> deletedDirectories = {};
   final Map<String, String?> deletedPaths = {};
   bool permissionGranted = true;
+  String? exportedPath = 'Downloads/Flule34/video.mp4';
 
   @override
   Stream<DownloadPlatformEvent> get events => _events.stream;
@@ -330,6 +374,9 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
 
   @override
   Future<bool> openFile(String filePath) async => true;
+
+  @override
+  Future<String?> exportToDownloads(String taskId) async => exportedPath;
 
   @override
   Future<bool> delete({
