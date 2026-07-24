@@ -1,0 +1,165 @@
+import 'package:flutter/material.dart';
+
+import '../core/api/rule34video_api.dart';
+import '../core/models/video_models.dart';
+import '../features/video/video_detail_page.dart';
+import 'video_card.dart';
+
+class VideoFeed extends StatefulWidget {
+  const VideoFeed({
+    super.key,
+    required this.api,
+    required this.loadPage,
+    this.emptyMessage = '没有找到视频。',
+  });
+
+  final Rule34VideoApi api;
+  final Future<List<VideoItem>> Function(int page) loadPage;
+  final String emptyMessage;
+
+  @override
+  State<VideoFeed> createState() => _VideoFeedState();
+}
+
+class _VideoFeedState extends State<VideoFeed> {
+  final List<VideoItem> _videos = [];
+  var _page = 1;
+  var _loading = false;
+  var _hasMore = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load(reset: true);
+  }
+
+  Future<void> _load({required bool reset}) async {
+    if (_loading || (!reset && !_hasMore)) {
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      if (reset) {
+        _videos.clear();
+        _page = 1;
+        _hasMore = true;
+      }
+    });
+    try {
+      final page = await widget.loadPage(_page);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _videos.addAll(
+          page.where((item) => !_videos.any((saved) => saved.id == item.id)),
+        );
+        _page += 1;
+        _hasMore = page.length >= 30;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_videos.isEmpty && _loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_videos.isEmpty && _error != null) {
+      return _StateMessage(
+        icon: Icons.cloud_off_outlined,
+        message: _error!,
+        actionLabel: '重试',
+        onAction: () => _load(reset: true),
+      );
+    }
+    if (_videos.isEmpty) {
+      return _StateMessage(
+        icon: Icons.video_library_outlined,
+        message: widget.emptyMessage,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _load(reset: true),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _videos.length + 1,
+        itemBuilder: (context, index) {
+          if (index < _videos.length) {
+            final video = _videos[index];
+            return VideoCard(
+              video: video,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      VideoDetailPage(api: widget.api, video: video),
+                ),
+              ),
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Center(
+              child: _loading
+                  ? const CircularProgressIndicator()
+                  : _hasMore
+                  ? OutlinedButton.icon(
+                      onPressed: () => _load(reset: false),
+                      icon: const Icon(Icons.expand_more),
+                      label: const Text('加载更多'),
+                    )
+                  : const Text('已经到底了'),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _StateMessage extends StatelessWidget {
+  const _StateMessage({
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center),
+            if (actionLabel != null) ...[
+              const SizedBox(height: 16),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
