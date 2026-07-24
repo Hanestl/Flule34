@@ -47,14 +47,14 @@ class _AppBootstrapState extends State<AppBootstrap> {
           );
         }
 
-        return Rule34VideoApp(api: _api);
+        return Flule34App(api: _api);
       },
     );
   }
 }
 
-class Rule34VideoApp extends StatelessWidget {
-  const Rule34VideoApp({super.key, required this.api});
+class Flule34App extends StatelessWidget {
+  const Flule34App({super.key, required this.api});
 
   final Rule34VideoApi api;
 
@@ -66,7 +66,7 @@ class Rule34VideoApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'Rule34Video',
+      title: 'Flule34',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: colorScheme,

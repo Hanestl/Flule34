@@ -24,7 +24,7 @@ class Rule34VideoApi {
         receiveTimeout: const Duration(seconds: 30),
         responseType: ResponseType.plain,
         headers: const {
-          'User-Agent': 'Rule34Video Android/0.1',
+          'User-Agent': 'Flule34 Android/0.1',
           'Accept':
               'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
         },

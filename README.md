@@ -1,4 +1,4 @@
-# Rule34Video Android 客户端
+# Flule34 Android 客户端
 
 这是基于 Flutter 的 Android 侧载客户端。首个 MVP 使用原生 Flutter 界面，直接访问网站已有的 JSON、RSS/HTML 和 MP4 接口，不使用整站 WebView。
 
@@ -14,7 +14,7 @@
 ## 本地构建
 
 ```powershell
-cd D:\work\flutter\rule34video_app
+Set-Location D:\path\to\flule34
 flutter pub get
 flutter analyze
 flutter build apk --debug

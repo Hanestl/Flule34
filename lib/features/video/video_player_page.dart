@@ -50,7 +50,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Rule34Video Android/0.1',
+      'User-Agent': 'Flule34 Android/0.1',
     };
     if (widget.sessionCookie != null) {
       headers['Cookie'] = widget.sessionCookie!;

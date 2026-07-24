@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rule34video_app/core/api/site_parser.dart';
+import 'package:flule34/core/api/site_parser.dart';
 
 void main() {
   test('解析列表中的视频卡片', () {

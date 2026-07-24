@@ -1,4 +1,4 @@
-package com.rule34video.rule34video_app
+package com.hanestl.flule34
 
 import io.flutter.embedding.android.FlutterActivity
 

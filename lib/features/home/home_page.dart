@@ -26,7 +26,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               Expanded(
                 child: Text(
-                  'Rule34Video',
+                  'Flule34',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),

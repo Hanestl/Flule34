@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.rule34video.rule34video_app"
+    namespace = "com.hanestl.flule34"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.rule34video.rule34video_app"
+        applicationId = "com.hanestl.flule34"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
