@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/database/app_database.dart';
@@ -148,17 +150,9 @@ class _DownloadCardState extends State<_DownloadCard> {
                                 _run(() => widget.repository.cancel(record.id)),
                             icon: const Icon(Icons.close),
                           ),
-                        if (record.state == 'complete' &&
-                            record.filePath != null)
-                          IconButton(
-                            tooltip: '打开',
-                            onPressed: () =>
-                                _run(() => widget.repository.open(record)),
-                            icon: const Icon(Icons.open_in_new),
-                          ),
                         if (record.state == 'complete')
                           IconButton(
-                            tooltip: '导出到下载目录',
+                            tooltip: '复制到下载目录',
                             onPressed: _export,
                             icon: const Icon(Icons.save_alt),
                           ),
@@ -183,7 +177,9 @@ class _DownloadCardState extends State<_DownloadCard> {
       builder: (context) => AlertDialog(
         title: const Text('删除下载？'),
         content: Text(
-          active ? '当前任务会被取消，临时文件、已下载文件和记录都会删除。' : '已下载文件和任务记录都会删除，此操作无法撤销。',
+          active
+              ? '当前任务会被取消，临时文件、App 私有下载和记录都会删除。已导出的公共副本不受影响。'
+              : 'App 私有下载和任务记录都会删除；已导出的公共副本会保留。此操作无法撤销。',
         ),
         actions: [
           TextButton(
@@ -215,11 +211,18 @@ class _DownloadCardState extends State<_DownloadCard> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
-            path == null ? '导出失败，请检查存储权限。' : '已导出到公共下载目录的 Flule34 文件夹。',
+            path == null ? '复制失败，请检查存储权限。' : '已复制到公共下载目录的 Flule34 文件夹。',
           ),
+          action: path == null
+              ? null
+              : SnackBarAction(
+                  label: '打开',
+                  onPressed: () => unawaited(_openExported(path)),
+                ),
         ),
       );
     } catch (error) {
@@ -231,6 +234,23 @@ class _DownloadCardState extends State<_DownloadCard> {
     } finally {
       if (mounted) {
         setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _openExported(String path) async {
+    try {
+      final opened = await widget.repository.openExported(path);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('没有找到可打开此 MP4 的应用。')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('打开导出文件失败：$error')));
       }
     }
   }

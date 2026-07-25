@@ -212,7 +212,14 @@ void main() {
     });
 
     final record = (await harness.database.findDownloadRecord(id))!;
-    expect(await repository.export(record), 'Downloads/Flule34/video.mp4');
+    final exportedPath = await repository.export(record);
+    expect(exportedPath, 'Downloads/Flule34/video.mp4');
+    expect(await repository.openExported(exportedPath!), isTrue);
+    expect(platform.openedPaths, ['Downloads/Flule34/video.mp4']);
+    expect(
+      (await harness.database.findDownloadRecord(id))?.filePath,
+      'downloads/2421071/video.mp4',
+    );
   });
 
   test('清理当前账号本地数据会删除下载和播放进度但保留账号', () async {
@@ -486,6 +493,7 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   final Map<String, String> deletedDirectories = {};
   final Map<String, String?> deletedPaths = {};
   final List<int> maxConcurrentValues = [];
+  final List<String> openedPaths = [];
   bool permissionGranted = true;
   String? exportedPath = 'Downloads/Flule34/video.mp4';
 
@@ -524,7 +532,10 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   }
 
   @override
-  Future<bool> openFile(String filePath) async => true;
+  Future<bool> openFile(String filePath) async {
+    openedPaths.add(filePath);
+    return true;
+  }
 
   @override
   Future<String?> exportToDownloads(String taskId) async => exportedPath;

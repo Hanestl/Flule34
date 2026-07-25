@@ -13,8 +13,8 @@
 - 刷新后目标清晰度消失时停止入队并要求用户重新选择，不静默降级；
 - 重复下载检查先于网络刷新，避免无意义请求；
 - 后台下载器启用任务跟踪，并在初始化时调用 `rescheduleKilledTasks` 恢复数据库中被系统杀掉的任务；
-- 已完成任务可通过 `moveToSharedStorage(..., SharedStorage.downloads)` 导出到公共 `Downloads/Flule34`；
-- 导出不删除 App 私有副本和账号记录，用户可继续在 App 中管理原任务。
+- 已完成任务先在 App 私有目录创建临时副本，再通过 `moveFileToSharedStorage(..., SharedStorage.downloads)` 将临时副本导出到公共 `Downloads/Flule34`；
+- 原始私有下载和账号记录不会因导出而删除；导出成功后可从提示条交给外部播放器打开，已导出的公共副本由用户自行管理。
 
 原生 `onTaskStart` 回调只能决定任务是否提前结束，不能安全调用带账号 Cookie 的站点 API 并替换任务 URL，因此不把它描述为令牌自动刷新方案。
 

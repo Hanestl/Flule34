@@ -109,7 +109,7 @@ class HelpFeedbackPage extends StatelessWidget {
           const _InfoCard(
             icon: Icons.download_outlined,
             title: '下载与导出',
-            text: '下载默认进入 App 私有目录；完成后可从下载管理导出到 Downloads/Flule34。',
+            text: '下载默认进入 App 私有目录；完成后可从下载管理复制到 Downloads/Flule34，并使用外部播放器打开。',
           ),
           const _InfoCard(
             icon: Icons.play_circle_outline,

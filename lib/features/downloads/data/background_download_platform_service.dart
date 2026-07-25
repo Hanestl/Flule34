@@ -130,12 +130,39 @@ final class BackgroundDownloadPlatformService
     if (task is! DownloadTask) {
       return null;
     }
-    return _downloader.moveToSharedStorage(
-      task,
-      SharedStorage.downloads,
-      directory: 'Flule34',
-      mimeType: 'video/mp4',
+    final source = File(await task.filePath());
+    if (!await source.exists()) {
+      return null;
+    }
+    final exportDirectory = Directory(
+      '${source.parent.path}${Platform.pathSeparator}.flule34-export-${DateTime.now().microsecondsSinceEpoch}',
     );
+    final temporaryCopy = File(
+      '${exportDirectory.path}${Platform.pathSeparator}${task.filename}',
+    );
+    try {
+      await exportDirectory.create();
+      await source.copy(temporaryCopy.path);
+      return await _downloader.moveFileToSharedStorage(
+        temporaryCopy.path,
+        SharedStorage.downloads,
+        directory: 'Flule34',
+        mimeType: 'video/mp4',
+      );
+    } on FileSystemException {
+      return null;
+    } finally {
+      try {
+        if (await temporaryCopy.exists()) {
+          await temporaryCopy.delete();
+        }
+        if (await exportDirectory.exists()) {
+          await exportDirectory.delete();
+        }
+      } on FileSystemException {
+        // 临时目录位于 App 私有目录；清理失败不会影响原始下载文件。
+      }
+    }
   }
 
   @override

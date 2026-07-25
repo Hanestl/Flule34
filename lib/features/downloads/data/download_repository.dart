@@ -272,6 +272,10 @@ final class DownloadRepository {
     return path != null && await _platformService.openFile(path);
   }
 
+  Future<bool> openExported(String filePath) {
+    return _platformService.openFile(filePath);
+  }
+
   Future<String?> export(DownloadRecord record) async {
     _requireOwnedRecord(record);
     if (record.state != DownloadTaskState.complete.storageValue) {

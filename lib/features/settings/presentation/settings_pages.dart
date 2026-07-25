@@ -310,7 +310,7 @@ class DownloadSettingsPage extends ConsumerWidget {
         const _InfoCard(
           icon: Icons.folder_outlined,
           text:
-              '下载文件默认保存在 App 私有目录并按用户 ID 隔离；完成后可从下载管理导出到公共 Downloads/Flule34。',
+              '下载文件默认保存在 App 私有目录并按用户 ID 隔离；完成后可从下载管理复制到公共 Downloads/Flule34，并交给外部播放器打开。',
         ),
       ],
     );
@@ -396,7 +396,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                       : const Icon(Icons.delete_sweep_outlined),
                   title: const Text('清理当前账号本地数据'),
                   subtitle: const Text(
-                    '删除搜索历史、观看进度、下载任务、私有下载文件和对应记录；网站收藏不会受影响。',
+                    '删除搜索历史、观看进度、下载任务、App 私有下载和对应记录；已导出的公共副本与网站收藏不会受影响。',
                   ),
                   enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
                   onTap: widget.api.sessionStore.isLoggedIn && !_clearing
@@ -454,7 +454,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
       builder: (context) => AlertDialog(
         title: const Text('清理本地数据？'),
         content: const Text(
-          '这会取消当前账号的活动下载，并删除观看进度、下载文件和下载记录。网站上的收藏与账号资料不会改变。此操作无法撤销。',
+          '这会取消当前账号的活动下载，并删除观看进度、App 私有下载和下载记录。已导出的公共副本、网站收藏与账号资料不会改变。此操作无法撤销。',
         ),
         actions: [
           TextButton(
