@@ -374,6 +374,56 @@ void main() {
       isNull,
     );
   });
+
+  test('重试下载刷新地址期间切换账号不会重新入队', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('1001');
+
+    final initialSettings = await _createSettings();
+    addTearDown(initialSettings.dispose);
+    final initialRepository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      _FakeRule34VideoApi(harness.sessionStore),
+      _FakeDownloadPlatformService(),
+      initialSettings,
+    );
+    await initialRepository.initialize();
+    final id = await initialRepository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    initialRepository.dispose();
+    final record = (await harness.database.findDownloadRecord(id))!;
+
+    final platform = _FakeDownloadPlatformService();
+    final api = _BlockingRule34VideoApi(harness.sessionStore);
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      api,
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    await repository.initialize();
+
+    final retry = repository.retry(record);
+    await api.requestStarted.future;
+    await harness.sessionStore.authenticate('2002');
+    api.details.complete(_details);
+
+    expect(await retry, isFalse);
+    expect(platform.requests, isEmpty);
+    expect(
+      (await harness.database.findDownloadRecord(id))?.state,
+      isNot('queued'),
+    );
+  });
 }
 
 const _details = VideoDetails(

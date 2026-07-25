@@ -6,6 +6,7 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 import '../models/account_models.dart';
 import '../models/video_models.dart';
+import '../security/error_redaction.dart';
 import '../session/session_store.dart';
 import 'site_parser.dart';
 
@@ -16,6 +17,10 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+final class SessionExpiredException extends ApiException {
+  const SessionExpiredException() : super('登录状态已过期，请重新登录。');
 }
 
 class Rule34VideoApi {
@@ -444,6 +449,9 @@ class Rule34VideoApi {
     try {
       final response = await _dio.get<String>(path, queryParameters: query);
       return _readResponse(await _followRedirects(response));
+    } on SessionExpiredException {
+      await _clearExpiredSession();
+      rethrow;
     } on DioException catch (error) {
       throw ApiException(_networkMessage(error));
     }
@@ -521,6 +529,9 @@ class Rule34VideoApi {
         throw ApiException(actionError);
       }
       return body;
+    } on SessionExpiredException {
+      await _clearExpiredSession();
+      rethrow;
     } on DioException catch (error) {
       throw ApiException(_networkMessage(error));
     }
@@ -547,6 +558,9 @@ class Rule34VideoApi {
         throw ApiException(actionError);
       }
       return body;
+    } on SessionExpiredException {
+      await _clearExpiredSession();
+      rethrow;
     } on DioException catch (error) {
       throw ApiException(_networkMessage(error));
     }
@@ -554,6 +568,10 @@ class Rule34VideoApi {
 
   String _readResponse(Response<String> response) {
     final status = response.statusCode ?? 0;
+    if (_isLoginRedirect(response) ||
+        (sessionStore.isLoggedIn && (status == 401 || status == 403))) {
+      throw const SessionExpiredException();
+    }
     if (status < 200 || status >= 300) {
       throw ApiException('服务器返回了 HTTP $status。');
     }
@@ -572,6 +590,9 @@ class Rule34VideoApi {
         throw const ApiException('服务器返回了缺少目标地址的重定向。');
       }
       final nextUri = current.realUri.resolve(location);
+      if (sessionStore.isLoggedIn && _isLoginUri(nextUri)) {
+        throw const SessionExpiredException();
+      }
       current = await _dio.getUri<String>(
         nextUri,
         options: Options(followRedirects: false),
@@ -586,8 +607,37 @@ class Rule34VideoApi {
       DioExceptionType.receiveTimeout ||
       DioExceptionType.sendTimeout => '网络请求超时，请稍后重试。',
       DioExceptionType.connectionError => '无法连接到网站，请检查网络。',
-      _ => '请求失败：${error.message ?? '未知网络错误'}',
+      _ => _genericNetworkMessage(error),
     };
+  }
+
+  String _genericNetworkMessage(DioException error) {
+    final detail = redactSensitiveText(error.message).trim();
+    return detail.isEmpty ? '请求失败，请稍后重试。' : '请求失败：$detail';
+  }
+
+  bool _isLoginRedirect(Response<String> response) {
+    if (!sessionStore.isLoggedIn) {
+      return false;
+    }
+    final status = response.statusCode ?? 0;
+    if (status < 300 || status >= 400) {
+      return false;
+    }
+    final location = response.headers.value(HttpHeaders.locationHeader);
+    return location != null &&
+        location.isNotEmpty &&
+        _isLoginUri(response.realUri.resolve(location));
+  }
+
+  bool _isLoginUri(Uri uri) {
+    return uri.path == '/' && uri.queryParameters.containsKey('login');
+  }
+
+  Future<void> _clearExpiredSession() async {
+    _subscriptionCache = null;
+    _subscriptionCacheUserId = null;
+    await sessionStore.clear();
   }
 
   void _requireLogin() {

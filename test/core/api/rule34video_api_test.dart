@@ -86,6 +86,107 @@ void main() {
     );
   });
 
+  test('受保护页面重定向到登录页时清除过期会话', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.cookieJar.saveFromResponse(
+      Uri.parse('https://rule34video.com/'),
+      [Cookie('PHPSESSID', 'expired')..path = '/'],
+    );
+    await harness.sessionStore.authenticate('2421071');
+
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter(
+        (_) => ResponseBody.fromString(
+          '',
+          302,
+          headers: {
+            HttpHeaders.locationHeader: ['/?login'],
+          },
+        ),
+      ),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      api.loadFavorites(1),
+      throwsA(
+        isA<SessionExpiredException>().having(
+          (error) => error.message,
+          'message',
+          '登录状态已过期，请重新登录。',
+        ),
+      ),
+    );
+
+    expect(harness.sessionStore.isLoggedIn, isFalse);
+    expect(
+      await harness.sessionStore.cookieHeaderFor(
+        Uri.parse('https://rule34video.com/'),
+      ),
+      isNull,
+    );
+  });
+
+  test('已登录请求收到 403 时清除过期会话', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter(
+        (_) => ResponseBody.fromString('Forbidden', 403),
+      ),
+    );
+    addTearDown(api.close);
+    const video = VideoItem(id: '4505897', title: 'Example', slug: 'example');
+
+    await expectLater(
+      api.toggleFavorite(video: video, add: true),
+      throwsA(isA<SessionExpiredException>()),
+    );
+
+    expect(harness.sessionStore.isLoggedIn, isFalse);
+  });
+
+  test('网络异常文本不会暴露临时媒体凭据', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        throw DioException(
+          requestOptions: options,
+          message:
+              'failed https://rule34video.com/get_file/video.mp4?v-acctoken=secret-token Cookie: PHPSESSID=secret-cookie',
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      api.loadFeed(FeedKind.newest, 1),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.message, 'message', contains('<redacted>'))
+            .having(
+              (error) => error.message,
+              'message',
+              isNot(contains('secret-token')),
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              isNot(contains('secret-cookie')),
+            ),
+      ),
+    );
+  });
+
   test('账号媒体库接口使用正确的分页路径', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);

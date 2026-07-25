@@ -179,6 +179,8 @@ final class DownloadRepository {
 
   Future<bool> retry(DownloadRecord record) async {
     _requireOwnedRecord(record);
+    final userId = record.userId;
+    final taskId = record.taskId ?? record.id;
     final video = VideoItem(
       id: record.videoId,
       title: record.title,
@@ -186,6 +188,7 @@ final class DownloadRepository {
     );
     try {
       final details = await _api.loadVideoDetails(video);
+      _requireCurrentUser(userId);
       final source = details.sources.cast<VideoSource?>().firstWhere(
         (candidate) => candidate?.label.trim() == record.quality.trim(),
         orElse: () => null,
@@ -194,11 +197,13 @@ final class DownloadRepository {
         throw DownloadException('刷新后已找不到 ${record.quality} 下载源。');
       }
       await _platformService.delete(
-        taskId: record.taskId ?? record.id,
-        directory: _directoryForUser(record.userId),
+        taskId: taskId,
+        directory: _directoryForUser(userId),
         filePath: record.filePath,
       );
+      _requireCurrentUser(userId);
       final cookie = await _api.sessionCookieHeader();
+      _requireCurrentUser(userId);
       final headers = <String, String>{
         'Referer': 'https://rule34video.com/',
         'User-Agent': 'Flule34 Android/0.1',
@@ -210,7 +215,7 @@ final class DownloadRepository {
       await _database.saveDownloadRecord(
         DownloadRecordsCompanion(
           id: Value(record.id),
-          userId: Value(record.userId),
+          userId: Value(userId),
           videoId: Value(record.videoId),
           title: Value(details.video.title),
           quality: Value(record.quality),
@@ -219,22 +224,23 @@ final class DownloadRepository {
           totalBytes: const Value(null),
           filePath: const Value(null),
           errorMessage: const Value(null),
-          taskId: Value(record.taskId ?? record.id),
+          taskId: Value(taskId),
           createdAt: Value(record.createdAt),
           updatedAt: Value(now),
           completedAt: const Value(null),
         ),
       );
+      _requireCurrentUser(userId);
       final enqueued = await _platformService.enqueue(
         DownloadRequest(
-          id: record.taskId ?? record.id,
+          id: taskId,
           url: source.url,
           filename: _filename(details.video, record.quality),
-          directory: _directoryForUser(record.userId),
+          directory: _directoryForUser(userId),
           displayName: details.video.title,
           metadata: jsonEncode({
             'recordId': record.id,
-            'userId': record.userId,
+            'userId': userId,
             'videoId': record.videoId,
             'quality': record.quality,
           }),
@@ -242,6 +248,17 @@ final class DownloadRepository {
           requiresWiFi: _settingsRepository.settings.wifiOnlyDownloads,
         ),
       );
+      if (_sessionStore.currentUserId != userId) {
+        if (enqueued) {
+          await _platformService.cancel(taskId);
+        }
+        await _database.updateDownloadStatus(
+          id: record.id,
+          state: DownloadTaskState.canceled.storageValue,
+          errorMessage: '账号已切换，任务已取消。',
+        );
+        return false;
+      }
       if (!enqueued) {
         throw const DownloadException('系统未能重新加入下载任务。');
       }
