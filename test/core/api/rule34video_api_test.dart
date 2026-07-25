@@ -400,7 +400,7 @@ void main() {
     expect(requests[2].queryParameters.containsKey('term'), isFalse);
   });
 
-  test('评分、元数据投票、播放列表、订阅和评论使用已验证协议', () async {
+  test('评分、元数据投票、播放列表和订阅使用已验证协议', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -433,8 +433,6 @@ void main() {
       item: category,
       subscribe: false,
     );
-    await api.postComment(video: video, comment: 'Useful comment');
-
     expect(requests.map((request) => request.uri.path).toSet(), {
       '/video/4505897/example/',
     });
@@ -454,9 +452,6 @@ void main() {
       'action': 'unsubscribe',
       'unsubscribe_category_id': '199',
     });
-    expect(requests.last.data, isA<FormData>());
-    expect(bodies.last['comment'], 'Useful comment');
-    expect(requests.last.headers['X-Requested-With'], 'XMLHttpRequest');
   });
 }
 

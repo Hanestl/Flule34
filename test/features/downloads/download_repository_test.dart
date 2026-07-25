@@ -13,24 +13,20 @@ import 'package:flule34/features/settings/data/app_settings_store.dart';
 import '../../helpers/test_session_harness.dart';
 
 void main() {
-  test('下载任务按账号入队并将平台进度写入数据库', () async {
+  test('未登录也可将视频直接加入公共目录下载', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('2421071');
-
     final platform = _FakeDownloadPlatformService();
-    final api = _FakeRule34VideoApi(harness.sessionStore);
     final settings = await _createSettings(wifiOnlyDownloads: true);
-    addTearDown(settings.dispose);
     final repository = DownloadRepository(
       harness.database,
-      harness.sessionStore,
-      api,
+      _FakeRule34VideoApi(harness.sessionStore),
       platform,
       settings,
     );
     addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
     await repository.initialize();
 
     final id = await repository.enqueueVideo(
@@ -38,13 +34,71 @@ void main() {
       source: _details.sources.single,
     );
 
+    expect(id, 'flule34_4505897_720p');
+    expect(platform.defaultDirectoryPicks, 1);
     expect(platform.requests, hasLength(1));
-    expect(platform.requests.single.directory, 'downloads/2421071');
+    expect(
+      platform.requests.single.directoryUri,
+      Uri.parse('content://downloads/Flule34'),
+    );
     expect(platform.requests.single.requiresWiFi, isTrue);
     expect(platform.requests.single.headers['Cookie'], 'PHPSESSID=test-cookie');
+    expect(settings.settings.downloadDirectoryLabel, 'Downloads/Flule34');
+  });
+
+  test('已保存目录会先恢复授权再下载', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    await settings.setDownloadDirectory(
+      uri: 'content://custom/videos',
+      label: 'Movies / Flule34',
+    );
+    final repository = DownloadRepository(
+      harness.database,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
+    await repository.initialize();
+
+    await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+
+    expect(platform.activatedDirectories, [
+      Uri.parse('content://custom/videos'),
+    ]);
+    expect(platform.defaultDirectoryPicks, 0);
     expect(
-      platform.requests.single.headers['Referer'],
-      'https://rule34video.com/',
+      platform.requests.single.directoryUri,
+      Uri.parse('content://custom/videos'),
+    );
+  });
+
+  test('平台进度和完成文件 URI 会写入数据库', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    final repository = DownloadRepository(
+      harness.database,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
     );
 
     platform.emit(
@@ -54,65 +108,35 @@ void main() {
       DownloadStatusEvent(
         taskId: id,
         state: DownloadTaskState.complete,
-        filePath: 'downloads/2421071/video.mp4',
+        filePath: 'content://downloads/Flule34/video.mp4',
       ),
     );
     await _waitFor(() async {
-      final record = await harness.database.findDownloadRecord(id);
-      return record?.state == 'complete';
+      return (await harness.database.findDownloadRecord(id))?.state ==
+          'complete';
     });
 
     final record = await harness.database.findDownloadRecord(id);
     expect(record?.bytesDownloaded, 512);
     expect(record?.totalBytes, 1024);
-    expect(record?.filePath, 'downloads/2421071/video.mp4');
+    expect(record?.filePath, 'content://downloads/Flule34/video.mp4');
     expect(record?.completedAt, isNotNull);
   });
 
-  test('退出登录会取消原账号的活动下载', () async {
+  test('通知权限被拒绝或目录授权失效时不会入队', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('2421071');
-
-    final platform = _FakeDownloadPlatformService();
+    final platform = _FakeDownloadPlatformService()..permissionGranted = false;
     final settings = await _createSettings();
-    addTearDown(settings.dispose);
     final repository = DownloadRepository(
       harness.database,
-      harness.sessionStore,
       _FakeRule34VideoApi(harness.sessionStore),
       platform,
       settings,
     );
     addTearDown(repository.dispose);
-    await repository.initialize();
-    final id = await repository.enqueueVideo(
-      details: _details,
-      source: _details.sources.single,
-    );
-
-    await harness.sessionStore.clear();
-    await _waitFor(() async => platform.canceledIds.contains(id));
-
-    expect(platform.canceledIds, contains(id));
-  });
-
-  test('未登录或通知权限被拒绝时不会入队', () async {
-    final harness = TestSessionHarness.create();
-    addTearDown(harness.dispose);
-    await harness.sessionStore.load();
-    final platform = _FakeDownloadPlatformService();
-    final settings = await _createSettings();
     addTearDown(settings.dispose);
-    final repository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      _FakeRule34VideoApi(harness.sessionStore),
-      platform,
-      settings,
-    );
-    addTearDown(repository.dispose);
     await repository.initialize();
 
     await expectLater(
@@ -124,8 +148,12 @@ void main() {
     );
     expect(platform.requests, isEmpty);
 
-    await harness.sessionStore.authenticate('2421071');
-    platform.permissionGranted = false;
+    platform.permissionGranted = true;
+    await settings.setDownloadDirectory(
+      uri: 'content://expired/path',
+      label: '失效目录',
+    );
+    platform.activationSucceeds = false;
     await expectLater(
       repository.enqueueVideo(
         details: _details,
@@ -136,22 +164,20 @@ void main() {
     expect(platform.requests, isEmpty);
   });
 
-  test('删除下载会先清理平台文件再删除数据库记录', () async {
+  test('完成文件可以播放并从公共目录删除', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('2421071');
     final platform = _FakeDownloadPlatformService();
     final settings = await _createSettings();
-    addTearDown(settings.dispose);
     final repository = DownloadRepository(
       harness.database,
-      harness.sessionStore,
       _FakeRule34VideoApi(harness.sessionStore),
       platform,
       settings,
     );
     addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
     await repository.initialize();
     final id = await repository.enqueueVideo(
       details: _details,
@@ -161,268 +187,20 @@ void main() {
       DownloadStatusEvent(
         taskId: id,
         state: DownloadTaskState.complete,
-        filePath: 'downloads/2421071/video.mp4',
+        filePath: 'content://downloads/Flule34/video.mp4',
       ),
     );
     await _waitFor(() async {
-      final record = await harness.database.findDownloadRecord(id);
-      return record?.state == 'complete';
+      return (await harness.database.findDownloadRecord(id))?.state ==
+          'complete';
     });
-
     final record = (await harness.database.findDownloadRecord(id))!;
+
+    expect(await repository.open(record), isTrue);
+    expect(platform.openedUris, ['content://downloads/Flule34/video.mp4']);
     expect(await repository.delete(record), isTrue);
-
-    expect(platform.deletedIds, contains(id));
-    expect(platform.deletedDirectories[id], 'downloads/2421071');
-    expect(platform.deletedPaths[id], 'downloads/2421071/video.mp4');
+    expect(platform.deletedUris[id], 'content://downloads/Flule34/video.mp4');
     expect(await harness.database.findDownloadRecord(id), isNull);
-  });
-
-  test('已完成下载可以导出到公共下载目录', () async {
-    final harness = TestSessionHarness.create();
-    addTearDown(harness.dispose);
-    await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('2421071');
-    final platform = _FakeDownloadPlatformService();
-    final settings = await _createSettings();
-    addTearDown(settings.dispose);
-    final repository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      _FakeRule34VideoApi(harness.sessionStore),
-      platform,
-      settings,
-    );
-    addTearDown(repository.dispose);
-    await repository.initialize();
-    final id = await repository.enqueueVideo(
-      details: _details,
-      source: _details.sources.single,
-    );
-    platform.emit(
-      DownloadStatusEvent(
-        taskId: id,
-        state: DownloadTaskState.complete,
-        filePath: 'downloads/2421071/video.mp4',
-      ),
-    );
-    await _waitFor(() async {
-      final record = await harness.database.findDownloadRecord(id);
-      return record?.state == 'complete';
-    });
-
-    final record = (await harness.database.findDownloadRecord(id))!;
-    final exportedPath = await repository.export(record);
-    expect(exportedPath, 'Downloads/Flule34/video.mp4');
-    expect(await repository.openExported(exportedPath!), isTrue);
-    expect(platform.openedPaths, ['Downloads/Flule34/video.mp4']);
-    expect(
-      (await harness.database.findDownloadRecord(id))?.filePath,
-      'downloads/2421071/video.mp4',
-    );
-  });
-
-  test('清理当前账号本地数据会删除下载和播放进度但保留账号', () async {
-    final harness = TestSessionHarness.create();
-    addTearDown(harness.dispose);
-    await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('2421071');
-    final platform = _FakeDownloadPlatformService();
-    final settings = await _createSettings();
-    addTearDown(settings.dispose);
-    final repository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      _FakeRule34VideoApi(harness.sessionStore),
-      platform,
-      settings,
-    );
-    addTearDown(repository.dispose);
-    await repository.initialize();
-    final id = await repository.enqueueVideo(
-      details: _details,
-      source: _details.sources.single,
-    );
-    await harness.database.savePlaybackPosition(
-      userId: '2421071',
-      videoId: _details.video.id,
-      positionMs: 12000,
-    );
-
-    final result = await repository.clearCurrentUserData();
-
-    expect(result.deletedDownloads, 1);
-    expect(result.failedDownloads, 0);
-    expect(await harness.database.findDownloadRecord(id), isNull);
-    expect(
-      await harness.database.findPlaybackPosition(
-        userId: '2421071',
-        videoId: _details.video.id,
-      ),
-      isNull,
-    );
-    expect(await harness.database.findAccount('2421071'), isNotNull);
-  });
-
-  test('令牌失效失败会刷新详情并自动重建下载任务', () async {
-    final harness = TestSessionHarness.create();
-    addTearDown(harness.dispose);
-    await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('2421071');
-    final platform = _FakeDownloadPlatformService();
-    final api = _FakeRule34VideoApi(harness.sessionStore);
-    final settings = await _createSettings();
-    addTearDown(settings.dispose);
-    final repository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      api,
-      platform,
-      settings,
-    );
-    addTearDown(repository.dispose);
-    await repository.initialize();
-    final id = await repository.enqueueVideo(
-      details: _details,
-      source: _details.sources.single,
-    );
-
-    platform.emit(
-      DownloadStatusEvent(
-        taskId: id,
-        state: DownloadTaskState.failed,
-        errorMessage: 'HTTP response 403 Forbidden',
-      ),
-    );
-    await _waitFor(() async => platform.requests.length == 2);
-
-    expect(api.detailLoads, 2);
-    expect(platform.deletedIds, contains(id));
-    expect(platform.requests.last.url, contains('token=2'));
-    final record = await harness.database.findDownloadRecord(id);
-    expect(record?.state, 'queued');
-    expect(record?.errorMessage, isNull);
-  });
-
-  test('下载并发设置会同步到后台队列', () async {
-    final harness = TestSessionHarness.create();
-    addTearDown(harness.dispose);
-    await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('2421071');
-    final platform = _FakeDownloadPlatformService();
-    final settings = await _createSettings();
-    addTearDown(settings.dispose);
-    final repository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      _FakeRule34VideoApi(harness.sessionStore),
-      platform,
-      settings,
-    );
-    addTearDown(repository.dispose);
-    await repository.initialize();
-
-    await settings.setDownloadConcurrentTasks(3);
-    await _waitFor(() async => platform.maxConcurrentValues.contains(3));
-
-    expect(platform.maxConcurrentValues, containsAllInOrder([2, 3]));
-  });
-
-  test('刷新下载地址期间切换账号不会把任务串到其他账号', () async {
-    final harness = TestSessionHarness.create();
-    addTearDown(harness.dispose);
-    await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('1001');
-    final platform = _FakeDownloadPlatformService();
-    final api = _BlockingRule34VideoApi(harness.sessionStore);
-    final settings = await _createSettings();
-    addTearDown(settings.dispose);
-    final repository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      api,
-      platform,
-      settings,
-    );
-    addTearDown(repository.dispose);
-    await repository.initialize();
-
-    final enqueue = repository.enqueueVideo(
-      details: _details,
-      source: _details.sources.single,
-    );
-    await api.requestStarted.future;
-    await harness.sessionStore.authenticate('2002');
-    api.details.complete(_details);
-
-    await expectLater(enqueue, throwsA(isA<DownloadException>()));
-    expect(platform.requests, isEmpty);
-    expect(
-      await harness.database.findVideoDownload(
-        userId: '1001',
-        videoId: _details.video.id,
-        quality: _details.sources.single.label,
-      ),
-      isNull,
-    );
-    expect(
-      await harness.database.findVideoDownload(
-        userId: '2002',
-        videoId: _details.video.id,
-        quality: _details.sources.single.label,
-      ),
-      isNull,
-    );
-  });
-
-  test('重试下载刷新地址期间切换账号不会重新入队', () async {
-    final harness = TestSessionHarness.create();
-    addTearDown(harness.dispose);
-    await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('1001');
-
-    final initialSettings = await _createSettings();
-    addTearDown(initialSettings.dispose);
-    final initialRepository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      _FakeRule34VideoApi(harness.sessionStore),
-      _FakeDownloadPlatformService(),
-      initialSettings,
-    );
-    await initialRepository.initialize();
-    final id = await initialRepository.enqueueVideo(
-      details: _details,
-      source: _details.sources.single,
-    );
-    initialRepository.dispose();
-    final record = (await harness.database.findDownloadRecord(id))!;
-
-    final platform = _FakeDownloadPlatformService();
-    final api = _BlockingRule34VideoApi(harness.sessionStore);
-    final settings = await _createSettings();
-    addTearDown(settings.dispose);
-    final repository = DownloadRepository(
-      harness.database,
-      harness.sessionStore,
-      api,
-      platform,
-      settings,
-    );
-    addTearDown(repository.dispose);
-    await repository.initialize();
-
-    final retry = repository.retry(record);
-    await api.requestStarted.future;
-    await harness.sessionStore.authenticate('2002');
-    api.details.complete(_details);
-
-    expect(await retry, isFalse);
-    expect(platform.requests, isEmpty);
-    expect(
-      (await harness.database.findDownloadRecord(id))?.state,
-      isNot('queued'),
-    );
   });
 }
 
@@ -486,10 +264,10 @@ final class _FakeRule34VideoApi extends Rule34VideoApi {
   _FakeRule34VideoApi(SessionStore sessionStore)
     : super(sessionStore: sessionStore);
 
+  var detailLoads = 0;
+
   @override
   Future<String?> sessionCookieHeader() async => 'PHPSESSID=test-cookie';
-
-  int detailLoads = 0;
 
   @override
   Future<VideoDetails> loadVideoDetails(VideoItem video) async {
@@ -514,38 +292,17 @@ final class _FakeRule34VideoApi extends Rule34VideoApi {
   void close() {}
 }
 
-final class _BlockingRule34VideoApi extends Rule34VideoApi {
-  _BlockingRule34VideoApi(SessionStore sessionStore)
-    : super(sessionStore: sessionStore);
-
-  final Completer<void> requestStarted = Completer<void>();
-  final Completer<VideoDetails> details = Completer<VideoDetails>();
-
-  @override
-  Future<VideoDetails> loadVideoDetails(VideoItem video) {
-    if (!requestStarted.isCompleted) {
-      requestStarted.complete();
-    }
-    return details.future;
-  }
-
-  @override
-  void close() {}
-}
-
 final class _FakeDownloadPlatformService implements DownloadPlatformService {
   final StreamController<DownloadPlatformEvent> _events =
       StreamController<DownloadPlatformEvent>.broadcast();
-
   final List<DownloadRequest> requests = [];
-  final Set<String> canceledIds = {};
-  final Set<String> deletedIds = {};
-  final Map<String, String> deletedDirectories = {};
-  final Map<String, String?> deletedPaths = {};
+  final List<Uri> activatedDirectories = [];
+  final List<String> openedUris = [];
+  final Map<String, String?> deletedUris = {};
   final List<int> maxConcurrentValues = [];
-  final List<String> openedPaths = [];
-  bool permissionGranted = true;
-  String? exportedPath = 'Downloads/Flule34/video.mp4';
+  var defaultDirectoryPicks = 0;
+  var permissionGranted = true;
+  var activationSucceeds = true;
 
   @override
   Stream<DownloadPlatformEvent> get events => _events.stream;
@@ -564,6 +321,29 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   Future<bool> ensureNotificationPermission() async => permissionGranted;
 
   @override
+  Future<DownloadDirectorySelection?> pickDefaultDirectory() async {
+    defaultDirectoryPicks += 1;
+    return DownloadDirectorySelection(
+      uri: Uri.parse('content://downloads/Flule34'),
+      label: 'Downloads/Flule34',
+    );
+  }
+
+  @override
+  Future<DownloadDirectorySelection?> pickCustomDirectory() async {
+    return DownloadDirectorySelection(
+      uri: Uri.parse('content://custom/videos'),
+      label: '自定义目录',
+    );
+  }
+
+  @override
+  Future<Uri?> activateDirectory(Uri uri) async {
+    activatedDirectories.add(uri);
+    return activationSucceeds ? uri : null;
+  }
+
+  @override
   Future<bool> enqueue(DownloadRequest request) async {
     requests.add(request);
     return true;
@@ -576,29 +356,17 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   Future<bool> resume(String taskId) async => true;
 
   @override
-  Future<bool> cancel(String taskId) async {
-    canceledIds.add(taskId);
+  Future<bool> cancel(String taskId) async => true;
+
+  @override
+  Future<bool> openFile(String fileUri) async {
+    openedUris.add(fileUri);
     return true;
   }
 
   @override
-  Future<bool> openFile(String filePath) async {
-    openedPaths.add(filePath);
-    return true;
-  }
-
-  @override
-  Future<String?> exportToDownloads(String taskId) async => exportedPath;
-
-  @override
-  Future<bool> delete({
-    required String taskId,
-    required String directory,
-    String? filePath,
-  }) async {
-    deletedIds.add(taskId);
-    deletedDirectories[taskId] = directory;
-    deletedPaths[taskId] = filePath;
+  Future<bool> delete({required String taskId, String? fileUri}) async {
+    deletedUris[taskId] = fileUri;
     return true;
   }
 

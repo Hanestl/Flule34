@@ -18,7 +18,7 @@ import 'package:flule34/features/video/video_player_page.dart';
 import '../../helpers/test_session_harness.dart';
 
 void main() {
-  testWidgets('播放器支持跳转、倍速和全屏切换', (tester) async {
+  testWidgets('播放器保持 16:9 且不再暴露冗余控制按钮', (tester) async {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (_) async => null,
@@ -69,56 +69,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.byTooltip('播放'), findsOneWidget);
-    expect(find.byTooltip('前进 10 秒'), findsOneWidget);
-    expect(find.byTooltip('播放选项'), findsOneWidget);
-    expect(find.byTooltip('全屏'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('播放'));
-    await tester.pump();
-    expect(platform.playCount, 1);
-
-    await tester.tap(find.byTooltip('前进 10 秒'));
-    await tester.pump();
-    expect(platform.position, const Duration(seconds: 10));
-
-    await tester.tap(find.byTooltip('播放选项'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('1.5x'));
-    await tester.pump();
-    expect(platform.speed, 1.5);
-
-    await tester.tap(find.byTooltip('全屏'));
-    await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
-
-    final contentSize = tester.getSize(
-      find.byKey(const ValueKey('video-content-aspect-ratio')),
-    );
+    final playerFinder = find.byKey(const ValueKey('inline-video-player'));
+    expect(playerFinder, findsOneWidget);
+    final contentSize = tester.getSize(playerFinder);
     expect(contentSize.width / contentSize.height, closeTo(16 / 9, 0.001));
-
-    final playerRect = tester.getRect(
-      find.byKey(const ValueKey('video-content-aspect-ratio')),
-    );
-    await tester.tapAt(playerRect.center);
-    await tester.pump(const Duration(milliseconds: 400));
-    final hiddenControls = tester.widget<AnimatedOpacity>(
-      find
-          .ancestor(
-            of: find.byIcon(Icons.fullscreen_exit),
-            matching: find.byType(AnimatedOpacity),
-          )
-          .first,
-    );
-    expect(hiddenControls.opacity, 0);
-
-    await tester.tapAt(playerRect.center);
-    await tester.pump(const Duration(milliseconds: 400));
-
-    await tester.tap(find.byIcon(Icons.fullscreen_exit));
-    await tester.pumpAndSettle();
-    expect(find.byTooltip('全屏'), findsOneWidget);
+    expect(find.byTooltip('前进 10 秒'), findsNothing);
+    expect(find.byTooltip('后退 10 秒'), findsNothing);
+    expect(find.byTooltip('静音'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

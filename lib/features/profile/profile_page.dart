@@ -36,6 +36,12 @@ class ProfilePage extends StatelessWidget {
             const SizedBox(height: 24),
             _SectionTitle(title: '偏好设置'),
             _SettingsTile(
+              icon: Icons.downloading_outlined,
+              title: '下载管理',
+              subtitle: '查看进度、暂停、重试、播放或删除下载',
+              onTap: () => context.pushNamed(AppRouteNames.downloadManagement),
+            ),
+            _SettingsTile(
               icon: Icons.palette_outlined,
               title: '外观设置',
               subtitle: '浅色、深色或跟随系统',
@@ -56,7 +62,7 @@ class ProfilePage extends StatelessWidget {
             _SettingsTile(
               icon: Icons.download_outlined,
               title: '下载设置',
-              subtitle: '清晰度、Wi-Fi、并发数与存储说明',
+              subtitle: '目录、清晰度、Wi-Fi 与并发数',
               onTap: () => context.pushNamed(AppRouteNames.downloadSettings),
             ),
             const SizedBox(height: 16),
@@ -159,7 +165,7 @@ class _AccountCardState extends State<_AccountCard> {
                         Text(
                           widget.loggedIn
                               ? '用户 ID：${widget.api.sessionStore.currentUserId}'
-                              : '登录后同步媒体库并使用下载功能。',
+                              : '登录后同步收藏、稍后观看和历史记录。',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         if (widget.loggedIn) ...[

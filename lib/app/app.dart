@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/onboarding/adult_gate.dart';
+import '../features/settings/presentation/startup_update_gate.dart';
 import '../features/settings/domain/app_settings.dart';
 import 'providers.dart';
 import 'router/app_router.dart';
@@ -31,7 +31,7 @@ class Flule34App extends ConsumerWidget {
           },
           routerConfig: router,
           builder: (context, child) {
-            return AdultGate(child: child ?? const SizedBox.shrink());
+            return StartupUpdateGate(child: child ?? const SizedBox.shrink());
           },
         );
       },

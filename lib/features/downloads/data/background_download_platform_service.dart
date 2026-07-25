@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
 
@@ -8,18 +7,17 @@ import '../domain/download_models.dart';
 
 final class BackgroundDownloadPlatformService
     implements DownloadPlatformService {
-  BackgroundDownloadPlatformService({
-    FileDownloader? downloader,
-    int maxConcurrent = 2,
-  }) : _downloader = downloader ?? FileDownloader(),
-       _maxConcurrent = maxConcurrent.clamp(1, 4);
+  BackgroundDownloadPlatformService({int maxConcurrent = 2})
+    : this._(maxConcurrent);
 
-  static const _group = 'flule34_downloads';
+  BackgroundDownloadPlatformService._(this._maxConcurrent);
 
-  final FileDownloader _downloader;
-  int _maxConcurrent;
+  static const _group = 'flule34-downloads';
+
+  final FileDownloader _downloader = FileDownloader();
   final StreamController<DownloadPlatformEvent> _events =
       StreamController<DownloadPlatformEvent>.broadcast();
+  int _maxConcurrent;
   bool _initialized = false;
 
   @override
@@ -79,15 +77,54 @@ final class BackgroundDownloadPlatformService
   }
 
   @override
+  Future<DownloadDirectorySelection?> pickDefaultDirectory() async {
+    final parent = await _downloader.uri.pickDirectory(
+      startLocation: SharedStorage.downloads,
+      persistedUriPermission: true,
+    );
+    if (parent == null) {
+      return null;
+    }
+    final directory = await _downloader.uri.createDirectory(
+      parent,
+      'Flule34',
+      persistedUriPermission: true,
+    );
+    return DownloadDirectorySelection(
+      uri: directory,
+      label: 'Downloads/Flule34',
+    );
+  }
+
+  @override
+  Future<DownloadDirectorySelection?> pickCustomDirectory() async {
+    final directory = await _downloader.uri.pickDirectory(
+      startLocation: SharedStorage.downloads,
+      persistedUriPermission: true,
+    );
+    if (directory == null) {
+      return null;
+    }
+    return DownloadDirectorySelection(
+      uri: directory,
+      label: _directoryLabel(directory),
+    );
+  }
+
+  @override
+  Future<Uri?> activateDirectory(Uri uri) {
+    return _downloader.uri.activate(uri);
+  }
+
+  @override
   Future<bool> enqueue(DownloadRequest request) {
     return _downloader.enqueue(
-      DownloadTask(
+      UriDownloadTask(
         taskId: request.id,
         url: request.url,
         filename: request.filename,
         headers: request.headers,
-        directory: request.directory,
-        baseDirectory: BaseDirectory.applicationDocuments,
+        directoryUri: request.directoryUri,
         group: _group,
         updates: Updates.statusAndProgress,
         requiresWiFi: request.requiresWiFi,
@@ -120,90 +157,28 @@ final class BackgroundDownloadPlatformService
   }
 
   @override
-  Future<bool> openFile(String filePath) {
-    return _downloader.openFile(filePath: filePath, mimeType: 'video/mp4');
+  Future<bool> openFile(String fileUri) {
+    return _downloader.uri.openFile(Uri.parse(fileUri), mimeType: 'video/mp4');
   }
 
   @override
-  Future<String?> exportToDownloads(String taskId) async {
+  Future<bool> delete({required String taskId, String? fileUri}) async {
     final record = await _downloader.database.recordForId(taskId);
     final task = record?.task;
-    if (task is! DownloadTask) {
-      return null;
-    }
-    final source = File(await task.filePath());
-    if (!await source.exists()) {
-      return null;
-    }
-    final exportDirectory = Directory(
-      '${source.parent.path}${Platform.pathSeparator}.flule34-export-${DateTime.now().microsecondsSinceEpoch}',
-    );
-    final temporaryCopy = File(
-      '${exportDirectory.path}${Platform.pathSeparator}${task.filename}',
-    );
-    try {
-      await exportDirectory.create();
-      await source.copy(temporaryCopy.path);
-      return await _downloader.moveFileToSharedStorage(
-        temporaryCopy.path,
-        SharedStorage.downloads,
-        directory: 'Flule34',
-        mimeType: 'video/mp4',
-      );
-    } on FileSystemException {
-      return null;
-    } finally {
-      try {
-        if (await temporaryCopy.exists()) {
-          await temporaryCopy.delete();
-        }
-        if (await exportDirectory.exists()) {
-          await exportDirectory.delete();
-        }
-      } on FileSystemException {
-        // 临时目录位于 App 私有目录；清理失败不会影响原始下载文件。
-      }
-    }
-  }
-
-  @override
-  Future<bool> delete({
-    required String taskId,
-    required String directory,
-    String? filePath,
-  }) async {
-    final record = await _downloader.database.recordForId(taskId);
-    final task = record?.task;
-    if (task != null && _normalize(task.directory) != _normalize(directory)) {
-      return false;
-    }
-
     await _downloader.cancelTaskWithId(taskId);
-    final resolvedPath = filePath ?? await task?.filePath();
-    if (resolvedPath != null) {
-      final normalizedPath = _normalize(resolvedPath);
-      final normalizedDirectory = _normalize(directory);
-      final isInsideDirectory =
-          normalizedPath.startsWith('$normalizedDirectory/') ||
-          normalizedPath.contains('/$normalizedDirectory/');
-      if (!isInsideDirectory) {
-        return false;
-      }
-      final file = File(resolvedPath);
+    final resolvedUri =
+        fileUri ?? (task is UriDownloadTask ? task.fileUri?.toString() : null);
+    if (resolvedUri != null) {
       try {
-        if (await file.exists()) {
-          await file.delete();
+        if (!await _downloader.uri.deleteFile(Uri.parse(resolvedUri))) {
+          return false;
         }
-      } on FileSystemException {
+      } on Exception {
         return false;
       }
     }
     await _downloader.database.deleteRecordWithId(taskId);
     return true;
-  }
-
-  String _normalize(String value) {
-    return value.replaceAll('\\', '/').replaceAll(RegExp(r'^/+|/+$'), '');
   }
 
   void _onStatus(TaskStatusUpdate update) {
@@ -212,14 +187,15 @@ final class BackgroundDownloadPlatformService
 
   Future<void> _emitStatus(TaskStatusUpdate update) async {
     final state = _mapStatus(update.status);
-    final filePath = state == DownloadTaskState.complete
-        ? await update.task.filePath()
+    final fileUri =
+        state == DownloadTaskState.complete && update.task is UriDownloadTask
+        ? (update.task as UriDownloadTask).fileUri?.toString()
         : null;
     _events.add(
       DownloadStatusEvent(
         taskId: update.task.taskId,
         state: state,
-        filePath: filePath,
+        filePath: fileUri,
         errorMessage: update.exception == null
             ? null
             : redactSensitiveText(update.exception),
@@ -251,6 +227,16 @@ final class BackgroundDownloadPlatformService
     TaskStatus.waitingToRetry => DownloadTaskState.waitingToRetry,
     TaskStatus.paused => DownloadTaskState.paused,
   };
+
+  String _directoryLabel(Uri uri) {
+    if (uri.pathSegments.isEmpty) {
+      return '自定义目录';
+    }
+    final decoded = Uri.decodeComponent(uri.pathSegments.last);
+    final name = decoded.contains(':') ? decoded.split(':').last : decoded;
+    final normalized = name.replaceAll('/', ' / ').trim();
+    return normalized.isEmpty ? '自定义目录' : normalized;
+  }
 
   @override
   void dispose() {

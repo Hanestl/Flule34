@@ -79,6 +79,7 @@ final class AppSettings {
     required this.loopPlayback,
     required this.rememberPlaybackProgress,
     required this.keepScreenAwake,
+    required this.backgroundPlayback,
     required this.fullscreenOrientation,
     required this.defaultOrientation,
     required this.hiddenKeywords,
@@ -90,6 +91,8 @@ final class AppSettings {
     required this.downloadConcurrentTasks,
     required this.saveSearchHistory,
     required this.updateChannel,
+    required this.downloadDirectoryUri,
+    required this.downloadDirectoryLabel,
   });
 
   static const defaults = AppSettings(
@@ -100,6 +103,7 @@ final class AppSettings {
     loopPlayback: false,
     rememberPlaybackProgress: true,
     keepScreenAwake: true,
+    backgroundPlayback: false,
     fullscreenOrientation: FullscreenOrientationPreference.landscape,
     defaultOrientation: ContentOrientation.all,
     hiddenKeywords: '',
@@ -111,6 +115,8 @@ final class AppSettings {
     downloadConcurrentTasks: 2,
     saveSearchHistory: true,
     updateChannel: UpdateChannel.stable,
+    downloadDirectoryUri: '',
+    downloadDirectoryLabel: 'Downloads/Flule34',
   );
 
   final AppThemePreference theme;
@@ -120,6 +126,7 @@ final class AppSettings {
   final bool loopPlayback;
   final bool rememberPlaybackProgress;
   final bool keepScreenAwake;
+  final bool backgroundPlayback;
   final FullscreenOrientationPreference fullscreenOrientation;
   final ContentOrientation defaultOrientation;
   final String hiddenKeywords;
@@ -131,6 +138,8 @@ final class AppSettings {
   final int downloadConcurrentTasks;
   final bool saveSearchHistory;
   final UpdateChannel updateChannel;
+  final String downloadDirectoryUri;
+  final String downloadDirectoryLabel;
 
   AppSettings copyWith({
     AppThemePreference? theme,
@@ -140,6 +149,7 @@ final class AppSettings {
     bool? loopPlayback,
     bool? rememberPlaybackProgress,
     bool? keepScreenAwake,
+    bool? backgroundPlayback,
     FullscreenOrientationPreference? fullscreenOrientation,
     ContentOrientation? defaultOrientation,
     String? hiddenKeywords,
@@ -151,6 +161,8 @@ final class AppSettings {
     int? downloadConcurrentTasks,
     bool? saveSearchHistory,
     UpdateChannel? updateChannel,
+    String? downloadDirectoryUri,
+    String? downloadDirectoryLabel,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
@@ -162,6 +174,7 @@ final class AppSettings {
       rememberPlaybackProgress:
           rememberPlaybackProgress ?? this.rememberPlaybackProgress,
       keepScreenAwake: keepScreenAwake ?? this.keepScreenAwake,
+      backgroundPlayback: backgroundPlayback ?? this.backgroundPlayback,
       fullscreenOrientation:
           fullscreenOrientation ?? this.fullscreenOrientation,
       defaultOrientation: defaultOrientation ?? this.defaultOrientation,
@@ -175,6 +188,9 @@ final class AppSettings {
           downloadConcurrentTasks ?? this.downloadConcurrentTasks,
       saveSearchHistory: saveSearchHistory ?? this.saveSearchHistory,
       updateChannel: updateChannel ?? this.updateChannel,
+      downloadDirectoryUri: downloadDirectoryUri ?? this.downloadDirectoryUri,
+      downloadDirectoryLabel:
+          downloadDirectoryLabel ?? this.downloadDirectoryLabel,
     );
   }
 }

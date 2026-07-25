@@ -290,9 +290,7 @@ class VideoDetails {
     required this.isFavorite,
     this.description,
     this.metadataItems = const [],
-    this.comments = const [],
     this.relatedVideos = const [],
-    this.commentCount = 0,
     this.ratingVotes,
   });
 
@@ -304,9 +302,7 @@ class VideoDetails {
   final List<VideoSource> sources;
   final bool isFavorite;
   final List<VideoMetadataItem> metadataItems;
-  final List<VideoComment> comments;
   final List<VideoItem> relatedVideos;
-  final int commentCount;
   final int? ratingVotes;
 }
 
@@ -332,24 +328,6 @@ class VideoMetadataItem {
 
   ContentCollectionItem get collection =>
       ContentCollectionItem(id: id, title: title, path: path, kind: kind);
-}
-
-class VideoComment {
-  const VideoComment({
-    required this.id,
-    required this.author,
-    required this.text,
-    this.dateLabel,
-    this.memberPath,
-    this.avatarUrl,
-  });
-
-  final String id;
-  final String author;
-  final String text;
-  final String? dateLabel;
-  final String? memberPath;
-  final String? avatarUrl;
 }
 
 class TagSuggestion {

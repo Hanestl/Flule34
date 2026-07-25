@@ -5,8 +5,6 @@ import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../shared/video_feed.dart';
 import '../auth/login_sheet.dart';
-import '../downloads/data/download_repository.dart';
-import '../downloads/presentation/downloads_list.dart';
 import '../playback/data/playback_repository.dart';
 import 'continue_watching_list.dart';
 import 'playlists_list.dart';
@@ -28,7 +26,6 @@ class LibraryPage extends ConsumerWidget {
         return _SignedIn(
           key: ValueKey(api.sessionStore.currentUserId),
           api: api,
-          downloads: ref.watch(downloadRepositoryProvider),
           playback: ref.watch(playbackRepositoryProvider),
         );
       },
@@ -58,7 +55,7 @@ class _SignedOut extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              '收藏、稍后观看、播放列表、观看历史和下载均与网站账号绑定。',
+              '收藏、稍后观看、播放列表和观看历史均与网站账号绑定。',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -75,21 +72,15 @@ class _SignedOut extends StatelessWidget {
 }
 
 class _SignedIn extends StatelessWidget {
-  const _SignedIn({
-    super.key,
-    required this.api,
-    required this.downloads,
-    required this.playback,
-  });
+  const _SignedIn({super.key, required this.api, required this.playback});
 
   final Rule34VideoApi api;
-  final DownloadRepository downloads;
   final PlaybackRepository playback;
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 7,
+      length: 6,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -110,7 +101,6 @@ class _SignedIn extends StatelessWidget {
               Tab(text: '历史'),
               Tab(text: '播放列表'),
               Tab(text: '订阅'),
-              Tab(text: '下载'),
             ],
           ),
           Expanded(
@@ -131,7 +121,6 @@ class _SignedIn extends StatelessWidget {
                 ),
                 PlaylistsList(api: api),
                 SubscriptionsList(api: api),
-                DownloadsList(repository: downloads),
               ],
             ),
           ),

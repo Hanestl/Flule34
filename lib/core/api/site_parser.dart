@@ -138,20 +138,10 @@ class SiteParser {
       sources: _sources(source),
       isFavorite: document.querySelector('a.delete.button_fav') != null,
       metadataItems: metadataItems,
-      comments: _videoComments(document),
       relatedVideos: videoList(source)
           .where((item) => item.id != fallback.id)
           .take(12)
           .toList(growable: false),
-      commentCount:
-          _number(
-            RegExp(r'Comments\s*\(([\d,]+)\)', caseSensitive: false)
-                .firstMatch(
-                  document.querySelector('a[href="#tab_comments"]')?.text ?? '',
-                )
-                ?.group(1),
-          ) ??
-          0,
       ratingVotes: _number(
         RegExp(r'\(([\d,]+)\)')
             .firstMatch(document.querySelector('.voters.count')?.text ?? '')
@@ -192,39 +182,6 @@ class SiteParser {
       );
     }
     return result.values.toList(growable: false);
-  }
-
-  static List<VideoComment> _videoComments(dom.Document document) {
-    final comments = <VideoComment>[];
-    for (final item in document.querySelectorAll(
-      '#video_comments_video_comments_items .item[data-comment-id]',
-    )) {
-      final id = _clean(item.attributes['data-comment-id']);
-      final text = _clean(item.querySelector('.coment-text')?.text);
-      if (id == null || text == null) {
-        continue;
-      }
-      final authorLink = item.querySelector(
-        '.comment-info .inner a[href*="/members/"]',
-      );
-      final author = _clean(authorLink?.text) ?? '匿名用户';
-      final memberHref = authorLink?.attributes['href'];
-      comments.add(
-        VideoComment(
-          id: id,
-          author: author,
-          text: text,
-          dateLabel: _clean(item.querySelector('.date span')?.text),
-          memberPath: memberHref == null
-              ? null
-              : Uri.parse(_baseUri).resolve(memberHref).path,
-          avatarUrl: _url(
-            item.querySelector('.user-logo img')?.attributes['src'],
-          ),
-        ),
-      );
-    }
-    return comments;
   }
 
   static List<TagSuggestion> tagSuggestions(String source) {

@@ -109,12 +109,12 @@ class HelpFeedbackPage extends StatelessWidget {
           const _InfoCard(
             icon: Icons.account_circle_outlined,
             title: '账号与媒体库',
-            text: '收藏、稍后观看、历史、播放列表和下载都以登录账号为边界。切换账号后不会混用本地数据。',
+            text: '收藏、稍后观看、历史和播放列表以登录账号为边界。切换账号后不会混用本地数据。',
           ),
           const _InfoCard(
             icon: Icons.download_outlined,
-            title: '下载与导出',
-            text: '下载默认进入 App 私有目录；完成后可从下载管理复制到 Downloads/Flule34，并使用外部播放器打开。',
+            title: '下载文件',
+            text: '视频直接写入所选公共目录；默认目录为 Downloads/Flule34，可在下载设置中改为其他目录。',
           ),
           const _InfoCard(
             icon: Icons.play_circle_outline,

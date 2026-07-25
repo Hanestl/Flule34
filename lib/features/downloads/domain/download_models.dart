@@ -33,7 +33,7 @@ final class DownloadRequest {
     required this.id,
     required this.url,
     required this.filename,
-    required this.directory,
+    required this.directoryUri,
     required this.displayName,
     required this.metadata,
     required this.headers,
@@ -43,11 +43,18 @@ final class DownloadRequest {
   final String id;
   final String url;
   final String filename;
-  final String directory;
+  final Uri directoryUri;
   final String displayName;
   final String metadata;
   final Map<String, String> headers;
   final bool requiresWiFi;
+}
+
+final class DownloadDirectorySelection {
+  const DownloadDirectorySelection({required this.uri, required this.label});
+
+  final Uri uri;
+  final String label;
 }
 
 sealed class DownloadPlatformEvent {
@@ -89,6 +96,12 @@ abstract interface class DownloadPlatformService {
 
   Future<bool> ensureNotificationPermission();
 
+  Future<DownloadDirectorySelection?> pickDefaultDirectory();
+
+  Future<DownloadDirectorySelection?> pickCustomDirectory();
+
+  Future<Uri?> activateDirectory(Uri uri);
+
   Future<bool> enqueue(DownloadRequest request);
 
   Future<bool> pause(String taskId);
@@ -97,15 +110,9 @@ abstract interface class DownloadPlatformService {
 
   Future<bool> cancel(String taskId);
 
-  Future<bool> openFile(String filePath);
+  Future<bool> openFile(String fileUri);
 
-  Future<String?> exportToDownloads(String taskId);
-
-  Future<bool> delete({
-    required String taskId,
-    required String directory,
-    String? filePath,
-  });
+  Future<bool> delete({required String taskId, String? fileUri});
 
   void dispose();
 }

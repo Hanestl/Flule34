@@ -16,6 +16,7 @@ final class AppSettingsRepository extends ChangeNotifier {
   static const _rememberPlaybackProgressKey =
       'flule34.settings.remember_playback_progress';
   static const _keepScreenAwakeKey = 'flule34.settings.keep_screen_awake';
+  static const _backgroundPlaybackKey = 'flule34.settings.background_playback';
   static const _fullscreenOrientationKey =
       'flule34.settings.fullscreen_orientation';
   static const _defaultOrientationKey =
@@ -30,6 +31,10 @@ final class AppSettingsRepository extends ChangeNotifier {
       'flule34.settings.download_concurrent_tasks';
   static const _saveSearchHistoryKey = 'flule34.settings.save_search_history';
   static const _updateChannelKey = 'flule34.settings.update_channel';
+  static const _downloadDirectoryUriKey =
+      'flule34.settings.download_directory_uri';
+  static const _downloadDirectoryLabelKey =
+      'flule34.settings.download_directory_label';
 
   final AppSettingsStore _store;
   AppSettings _settings = AppSettings.defaults;
@@ -50,6 +55,7 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readBool(_loopPlaybackKey),
       _readBool(_rememberPlaybackProgressKey),
       _readBool(_keepScreenAwakeKey),
+      _readBool(_backgroundPlaybackKey),
       _readString(_fullscreenOrientationKey),
       _readString(_defaultOrientationKey),
       _readString(_hiddenKeywordsKey),
@@ -61,6 +67,8 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_downloadConcurrentTasksKey),
       _readBool(_saveSearchHistoryKey),
       _readString(_updateChannelKey),
+      _readString(_downloadDirectoryUriKey),
+      _readString(_downloadDirectoryLabelKey),
     ]);
     _settings = AppSettings(
       theme: _themeValue(values[0] as String?),
@@ -80,45 +88,51 @@ final class AppSettingsRepository extends ChangeNotifier {
           values[5] as bool? ?? AppSettings.defaults.rememberPlaybackProgress,
       keepScreenAwake:
           values[6] as bool? ?? AppSettings.defaults.keepScreenAwake,
+      backgroundPlayback:
+          values[7] as bool? ?? AppSettings.defaults.backgroundPlayback,
       fullscreenOrientation: _enumValue(
         FullscreenOrientationPreference.values,
-        values[7] as String?,
+        values[8] as String?,
         AppSettings.defaults.fullscreenOrientation,
       ),
       defaultOrientation: _enumValue(
         ContentOrientation.values,
-        values[8] as String?,
+        values[9] as String?,
         AppSettings.defaults.defaultOrientation,
       ),
       hiddenKeywords:
-          values[9] as String? ?? AppSettings.defaults.hiddenKeywords,
+          values[10] as String? ?? AppSettings.defaults.hiddenKeywords,
       videoPreviewPolicy: _enumValue(
         VideoPreviewPolicy.values,
-        values[10] as String?,
+        values[11] as String?,
         AppSettings.defaults.videoPreviewPolicy,
       ),
       blurThumbnails:
-          values[11] as bool? ?? AppSettings.defaults.blurThumbnails,
+          values[12] as bool? ?? AppSettings.defaults.blurThumbnails,
       askDownloadQuality:
-          values[12] as bool? ?? AppSettings.defaults.askDownloadQuality,
+          values[13] as bool? ?? AppSettings.defaults.askDownloadQuality,
       downloadQuality: _enumValue(
         VideoQualityPreference.values,
-        values[13] as String?,
+        values[14] as String?,
         AppSettings.defaults.downloadQuality,
       ),
       wifiOnlyDownloads:
-          values[14] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
+          values[15] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
       downloadConcurrentTasks:
-          (int.tryParse(values[15] as String? ?? '') ??
+          (int.tryParse(values[16] as String? ?? '') ??
                   AppSettings.defaults.downloadConcurrentTasks)
               .clamp(1, 4),
       saveSearchHistory:
-          values[16] as bool? ?? AppSettings.defaults.saveSearchHistory,
+          values[17] as bool? ?? AppSettings.defaults.saveSearchHistory,
       updateChannel: _enumValue(
         UpdateChannel.values,
-        values[17] as String?,
+        values[18] as String?,
         AppSettings.defaults.updateChannel,
       ),
+      downloadDirectoryUri:
+          values[19] as String? ?? AppSettings.defaults.downloadDirectoryUri,
+      downloadDirectoryLabel:
+          values[20] as String? ?? AppSettings.defaults.downloadDirectoryLabel,
     );
     _loaded = true;
     notifyListeners();
@@ -157,6 +171,11 @@ final class AppSettingsRepository extends ChangeNotifier {
   Future<void> setKeepScreenAwake(bool value) async {
     await _store.writeBool(_keepScreenAwakeKey, value);
     _update(_settings.copyWith(keepScreenAwake: value));
+  }
+
+  Future<void> setBackgroundPlayback(bool value) async {
+    await _store.writeBool(_backgroundPlaybackKey, value);
+    _update(_settings.copyWith(backgroundPlayback: value));
   }
 
   Future<void> setFullscreenOrientation(
@@ -224,6 +243,22 @@ final class AppSettingsRepository extends ChangeNotifier {
   Future<void> setUpdateChannel(UpdateChannel value) async {
     await _store.writeString(_updateChannelKey, value.name);
     _update(_settings.copyWith(updateChannel: value));
+  }
+
+  Future<void> setDownloadDirectory({
+    required String uri,
+    required String label,
+  }) async {
+    await Future.wait([
+      _store.writeString(_downloadDirectoryUriKey, uri),
+      _store.writeString(_downloadDirectoryLabelKey, label),
+    ]);
+    _update(
+      _settings.copyWith(
+        downloadDirectoryUri: uri,
+        downloadDirectoryLabel: label,
+      ),
+    );
   }
 
   void _update(AppSettings value) {

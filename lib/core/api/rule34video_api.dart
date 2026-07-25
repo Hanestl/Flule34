@@ -403,40 +403,6 @@ class Rule34VideoApi {
     _subscriptionCacheUserId = null;
   }
 
-  Future<void> postComment({
-    required VideoItem video,
-    required String comment,
-  }) async {
-    _requireLogin();
-    final text = comment.trim();
-    if (text.isEmpty) {
-      throw const ApiException('评论内容不能为空。');
-    }
-    await _postMultipart(
-      video.detailPath,
-      query: const <String, String>{'mode': 'async'},
-      data: <String, dynamic>{'comment': text, 'anonymous_username': ''},
-    );
-  }
-
-  Future<void> voteComment({
-    required VideoItem video,
-    required VideoComment comment,
-    required bool upvote,
-  }) async {
-    _requireLogin();
-    await _post(
-      video.detailPath,
-      query: const <String, String>{'mode': 'async'},
-      data: <String, String>{
-        'action': 'vote_comment',
-        'vote': upvote ? '1' : '-1',
-        'comment_id': comment.id,
-      },
-      ajax: true,
-    );
-  }
-
   Future<List<VideoItem>> _videoList(
     String path, {
     Map<String, String>? query,
@@ -526,35 +492,6 @@ class Rule34VideoApi {
       );
       final actionError = SiteParser.asyncActionError(body);
       if (ajax && actionError != null) {
-        throw ApiException(actionError);
-      }
-      return body;
-    } on SessionExpiredException {
-      await _clearExpiredSession();
-      rethrow;
-    } on DioException catch (error) {
-      throw ApiException(_networkMessage(error));
-    }
-  }
-
-  Future<String> _postMultipart(
-    String path, {
-    required Map<String, dynamic> data,
-    Map<String, String>? query,
-  }) async {
-    try {
-      final response = await _dio.post<String>(
-        path,
-        queryParameters: query,
-        data: FormData.fromMap(data),
-        options: Options(
-          followRedirects: false,
-          headers: const {'X-Requested-With': 'XMLHttpRequest'},
-        ),
-      );
-      final body = _readResponse(response);
-      final actionError = SiteParser.asyncActionError(body);
-      if (actionError != null) {
         throw ApiException(actionError);
       }
       return body;

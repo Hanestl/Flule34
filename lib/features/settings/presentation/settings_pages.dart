@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/api/rule34video_api.dart';
 import '../../../core/models/video_models.dart';
-import '../../downloads/data/download_repository.dart';
+import '../../playback/data/playback_repository.dart';
 import '../../search/data/search_history_repository.dart';
 import '../data/app_settings_repository.dart';
 import '../domain/app_settings.dart';
@@ -100,6 +100,15 @@ class PlaybackSettingsPage extends ConsumerWidget {
           value: settings.keepScreenAwake,
           onChanged: (value) {
             unawaited(_save(context, repository.setKeepScreenAwake(value)));
+          },
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('后台播放'),
+          subtitle: const Text('开启后，切换应用或关闭屏幕时继续播放声音。'),
+          value: settings.backgroundPlayback,
+          onChanged: (value) {
+            unawaited(_save(context, repository.setBackgroundPlayback(value)));
           },
         ),
         ListTile(
@@ -258,10 +267,26 @@ class DownloadSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(appSettingsRepositoryProvider);
+    final downloads = ref.watch(downloadRepositoryProvider);
     return _SettingsScaffold(
       title: '下载设置',
       repository: repository,
       builder: (context, settings) => [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.folder_outlined),
+          title: const Text('下载目录'),
+          subtitle: Text(settings.downloadDirectoryLabel),
+          trailing: const Icon(Icons.edit_outlined),
+          onTap: () async {
+            final selected = await downloads.chooseDownloadDirectory();
+            if (selected != null && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('下载目录已改为 ${selected.label}。')),
+              );
+            }
+          },
+        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('每次下载前询问清晰度'),
@@ -310,7 +335,7 @@ class DownloadSettingsPage extends ConsumerWidget {
         const _InfoCard(
           icon: Icons.folder_outlined,
           text:
-              '下载文件默认保存在 App 私有目录并按用户 ID 隔离；完成后可从下载管理复制到公共 Downloads/Flule34，并交给外部播放器打开。',
+              '默认目录为 Downloads/Flule34。首次下载时需要授权 Downloads 目录；视频会直接写入所选公共目录，不保留 App 私有副本。',
         ),
       ],
     );
@@ -332,9 +357,9 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final downloads = ref.watch(downloadRepositoryProvider);
     final settingsRepository = ref.watch(appSettingsRepositoryProvider);
     final searchHistory = ref.watch(searchHistoryRepositoryProvider);
+    final playback = ref.watch(playbackRepositoryProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('隐私与数据')),
       body: ListenableBuilder(
@@ -346,7 +371,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
             children: [
               const _InfoCard(
                 icon: Icons.lock_outline,
-                text: '收藏、观看进度、搜索历史、下载记录和文件均按登录后的稳定用户 ID 隔离；未登录状态不创建匿名媒体库。',
+                text: '收藏、观看进度和搜索历史按登录账号管理；下载是本机功能，文件保存在用户选择的公共目录。',
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -389,11 +414,11 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                       : const Icon(Icons.delete_sweep_outlined),
                   title: const Text('清理当前账号本地数据'),
                   subtitle: const Text(
-                    '删除搜索历史、观看进度、下载任务、App 私有下载和对应记录；已导出的公共副本与网站收藏不会受影响。',
+                    '删除当前账号的搜索历史与观看进度；公共目录中的下载文件和下载任务不会受影响。',
                   ),
                   enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
                   onTap: widget.api.sessionStore.isLoggedIn && !_clearing
-                      ? () => _clearAccountData(downloads, searchHistory)
+                      ? () => _clearAccountData(playback, searchHistory)
                       : null,
                 ),
               ),
@@ -483,7 +508,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
   }
 
   Future<void> _clearAccountData(
-    DownloadRepository repository,
+    PlaybackRepository playback,
     SearchHistoryRepository searchHistory,
   ) async {
     final confirmed = await showDialog<bool>(
@@ -491,7 +516,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
       builder: (context) => AlertDialog(
         title: const Text('清理本地数据？'),
         content: const Text(
-          '这会取消当前账号的活动下载，并删除观看进度、App 私有下载和下载记录。已导出的公共副本、网站收藏与账号资料不会改变。此操作无法撤销。',
+          '这会删除当前账号在本机保存的观看进度和搜索历史。下载文件、下载任务、网站收藏与账号资料不会改变。此操作无法撤销。',
         ),
         actions: [
           TextButton(
@@ -511,17 +536,14 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
 
     setState(() => _clearing = true);
     try {
-      final result = await repository.clearCurrentUserData();
+      await playback.clearCurrentAccount();
       await searchHistory.clear();
       if (!mounted) {
         return;
       }
-      final message = result.isComplete
-          ? '本地数据已清理，共删除 ${result.deletedDownloads} 条下载。'
-          : '已删除 ${result.deletedDownloads} 条下载，${result.failedDownloads} 条因文件系统错误而保留。';
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ).showSnackBar(const SnackBar(content: Text('当前账号的本地数据已清理。')));
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -638,7 +660,7 @@ Future<void> _confirmLogout(BuildContext context, Rule34VideoApi api) async {
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('退出登录？'),
-      content: const Text('活动下载会被取消；已完成文件和记录会保留，并在重新登录该账号后显示。'),
+      content: const Text('下载属于本机功能，退出登录不会取消下载或删除公共目录中的文件。'),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),

@@ -32,8 +32,8 @@ Set-Location ..
 
 ```powershell
 $flutter = 'D:\tools\flutter\bin\flutter.bat'
-$version = '1.0.0'
-$buildNumber = '1'
+$version = '1.1.0'
+$buildNumber = '2'
 $commit = git rev-parse HEAD
 $buildTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 
@@ -91,14 +91,14 @@ Windows 生成单行 Base64：
 ) | Set-Clipboard
 ```
 
-推送形如 `v1.0.0` 的已审核标签后，工作流会运行测试、构建分 ABI APK、生成 SHA256、生成公开仓库构建证明并创建 GitHub Release。符号文件只作为 Actions artifact 保存，不上传到公开 Release。
+推送形如 `v1.1.0` 的已审核标签后，工作流会运行测试、构建分 ABI APK、生成 SHA256、生成公开仓库构建证明并创建 GitHub Release。若 `docs/releases/<标签>.md` 存在，工作流会把它作为逐条 Release 说明。符号文件只作为 Actions artifact 保存，不上传到公开 Release。
 
 ## 5. 发布前验收
 
 1. `dart format`、`flutter analyze` 和全部测试通过；
 2. Drift 生成文件与仓库一致；
 3. 三个 Release APK 均通过 `apksigner verify`；
-4. 在 Android 10、12、14、16 至少各完成一次安装/升级、登录、播放、下载、导出和退出回归；
+4. 在 Android 10、12、14、16 至少各完成一次安装/升级、登录、播放、公共目录下载和退出回归；
 5. 从旧版本覆盖安装后数据库迁移成功，账号数据没有串用；
 6. 更新页指向当前仓库，Release APK、SHA256、版本号和签名指纹一致；
 7. 检查 Release 中不包含密钥库、`key.properties`、Cookie、真实账号或符号文件。

@@ -5,6 +5,20 @@ import 'package:flutter/material.dart';
 import '../../../core/database/app_database.dart';
 import '../data/download_repository.dart';
 
+class DownloadManagementPage extends StatelessWidget {
+  const DownloadManagementPage({super.key, required this.repository});
+
+  final DownloadRepository repository;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('下载管理')),
+      body: DownloadsList(repository: repository),
+    );
+  }
+}
+
 class DownloadsList extends StatelessWidget {
   const DownloadsList({super.key, required this.repository});
 
@@ -152,9 +166,9 @@ class _DownloadCardState extends State<_DownloadCard> {
                           ),
                         if (record.state == 'complete')
                           IconButton(
-                            tooltip: '复制到下载目录',
-                            onPressed: _export,
-                            icon: const Icon(Icons.save_alt),
+                            tooltip: '播放文件',
+                            onPressed: _open,
+                            icon: const Icon(Icons.play_circle_outline),
                           ),
                         IconButton(
                           tooltip: '删除',
@@ -177,9 +191,7 @@ class _DownloadCardState extends State<_DownloadCard> {
       builder: (context) => AlertDialog(
         title: const Text('删除下载？'),
         content: Text(
-          active
-              ? '当前任务会被取消，临时文件、App 私有下载和记录都会删除。已导出的公共副本不受影响。'
-              : 'App 私有下载和任务记录都会删除；已导出的公共副本会保留。此操作无法撤销。',
+          active ? '当前任务会被取消，未完成文件和任务记录都会删除。' : '公共目录中的视频文件和任务记录都会删除。此操作无法撤销。',
         ),
         actions: [
           TextButton(
@@ -201,56 +213,30 @@ class _DownloadCardState extends State<_DownloadCard> {
     }
   }
 
-  Future<void> _export() async {
+  Future<void> _open() async {
     if (_busy) {
       return;
     }
     setState(() => _busy = true);
     try {
-      final path = await widget.repository.export(widget.record);
+      final opened = await widget.repository.open(widget.record);
       if (!mounted) {
         return;
       }
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            path == null ? '复制失败，请检查存储权限。' : '已复制到公共下载目录的 Flule34 文件夹。',
-          ),
-          action: path == null
-              ? null
-              : SnackBarAction(
-                  label: '打开',
-                  onPressed: () => unawaited(_openExported(path)),
-                ),
-        ),
-      );
+      if (!opened) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('没有找到可播放此 MP4 的应用。')));
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text('打开下载失败：$error')));
       }
     } finally {
       if (mounted) {
         setState(() => _busy = false);
-      }
-    }
-  }
-
-  Future<void> _openExported(String path) async {
-    try {
-      final opened = await widget.repository.openExported(path);
-      if (!opened && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('没有找到可打开此 MP4 的应用。')));
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('打开导出文件失败：$error')));
       }
     }
   }

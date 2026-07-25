@@ -7,6 +7,7 @@ import '../../features/discover/discover_page.dart';
 import '../../features/discover/collection_page.dart';
 import '../../features/discover/discovery_directory_page.dart';
 import '../../features/discover/rankings_page.dart';
+import '../../features/downloads/presentation/downloads_list.dart';
 import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
 import '../../features/library/playlist_page.dart';
@@ -101,6 +102,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'downloads',
                     name: AppRouteNames.downloadSettings,
                     builder: (context, state) => const DownloadSettingsPage(),
+                  ),
+                  GoRoute(
+                    path: 'download-management',
+                    name: AppRouteNames.downloadManagement,
+                    builder: (context, state) => DownloadManagementPage(
+                      repository: ref.read(downloadRepositoryProvider),
+                    ),
                   ),
                   GoRoute(
                     path: 'privacy',

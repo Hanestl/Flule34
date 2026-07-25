@@ -186,21 +186,13 @@ void main() {
     );
 
     expect(details.ratingVotes, 1234);
-    expect(details.commentCount, 2);
     expect(details.metadataItems, hasLength(2));
     expect(details.metadataItems.first.id, '199');
     expect(details.metadataItems.first.upScore, 8);
     expect(details.categories, ['3D']);
     expect(details.models, ['Example Artist']);
-    expect(details.comments.single.id, '77');
-    expect(details.comments.single.author, 'Tester');
-    expect(details.comments.single.memberPath, '/members/42/');
     expect(details.video.publishedLabel, '2026-07-24');
     expect(details.relatedVideos.single.id, '456');
-    expect(
-      details.comments.single.avatarUrl,
-      'https://rule34video.com/avatar.jpg',
-    );
   });
 
   test('识别 HTTP 200 异步操作中的服务端错误', () {

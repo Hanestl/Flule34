@@ -130,9 +130,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          NOTES_FILE="docs/releases/$GITHUB_REF_NAME.md"
+          if [ -f "$NOTES_FILE" ]; then
+            NOTES_ARGS=(--notes-file "$NOTES_FILE")
+          else
+            NOTES_ARGS=(--generate-notes)
+          fi
           gh release create "$GITHUB_REF_NAME" \
             release/*.apk \
             release/SHA256SUMS.txt \
             --verify-tag \
-            --generate-notes \
+            "${NOTES_ARGS[@]}" \
             --title "Flule34 ${GITHUB_REF_NAME#v}"

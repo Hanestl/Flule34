@@ -88,7 +88,6 @@ final downloadPlatformServiceProvider = Provider<DownloadPlatformService>((
 final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
   final repository = DownloadRepository(
     ref.watch(appDatabaseProvider),
-    ref.watch(sessionStoreProvider),
     ref.watch(rule34VideoApiProvider),
     ref.watch(downloadPlatformServiceProvider),
     ref.watch(appSettingsRepositoryProvider),

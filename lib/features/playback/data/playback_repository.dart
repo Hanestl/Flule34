@@ -96,4 +96,11 @@ final class PlaybackRepository {
         ? Stream.value(const <PlaybackPosition>[])
         : _database.watchContinueWatching(userId);
   }
+
+  Future<void> clearCurrentAccount() async {
+    final userId = _sessionStore.currentUserId;
+    if (userId != null) {
+      await _database.deletePlaybackPositionsForUser(userId);
+    }
+  }
 }

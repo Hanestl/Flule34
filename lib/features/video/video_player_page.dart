@@ -1,9 +1,9 @@
 import 'dart:async';
 
+import 'package:better_player_plus/better_player_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
@@ -37,7 +37,8 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
 
 class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
-  VideoPlayerController? _controller;
+  BetterPlayerController? _controller;
+  ValueNotifier<VideoPlayerValue>? _videoController;
   late final PlaybackRepository _playback;
   late final String? _playbackUserId;
   late final ScreenWakeLockService _wakeLock;
@@ -51,11 +52,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _lastKnownPlaying = false;
   var _wakeLockEnabled = false;
   var _resumeMessageShown = false;
-  var _fullscreen = false;
-  var _controlsVisible = true;
   var _playbackSpeed = 1.0;
-  Timer? _controlsTimer;
-  final ValueNotifier<int> _fullscreenRevision = ValueNotifier<int>(0);
   String? _error;
 
   @override
@@ -80,7 +77,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       network = NetworkClass.other;
     }
     final quality = switch (settings.networkPlaybackPolicy) {
-      NetworkPlaybackPolicy.automatic when network == NetworkClass.mobile =>
+      NetworkPlaybackPolicy.automatic
+          when network == NetworkClass.mobile &&
+              settings.playbackQuality == VideoQualityPreference.automatic =>
         VideoQualityPreference.p480,
       NetworkPlaybackPolicy.dataSaver when network == NetworkClass.mobile =>
         VideoQualityPreference.p360,
@@ -98,46 +97,89 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     await _setSource(
       _selectedSource,
       resumeAt: resumePosition,
-      shouldPlay:
-          widget.autoplay ??
-          ref.read(appSettingsRepositoryProvider).settings.autoplay,
+      shouldPlay: widget.autoplay ?? settings.autoplay,
     );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controlsTimer?.cancel();
     _operation += 1;
-    final controller = _controller;
-    if (controller != null) {
-      controller.removeListener(_onControllerChanged);
-      unawaited(_persist(controller.value));
-      unawaited(controller.dispose());
+    final value = _videoController?.value;
+    _unbindVideoController();
+    if (value != null) {
+      unawaited(_persist(value));
     }
+    _controller?.dispose(forceDispose: true);
     unawaited(_updateWakeLock(false));
-    unawaited(_restoreSystemUi());
-    _fullscreenRevision.dispose();
     super.dispose();
-  }
-
-  void _bumpFullscreenRevision() {
-    if (mounted) {
-      _fullscreenRevision.value += 1;
-    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
+        state == AppLifecycleState.detached) {
+      return;
+    }
+    final backgroundPlayback = ref
+        .read(appSettingsRepositoryProvider)
+        .settings
+        .backgroundPlayback;
+    if (!backgroundPlayback &&
+        (state == AppLifecycleState.paused ||
+            state == AppLifecycleState.hidden)) {
       final controller = _controller;
-      if (controller != null && controller.value.isInitialized) {
+      final value = _videoController?.value;
+      if (controller != null && value?.initialized == true) {
         unawaited(controller.pause());
-        unawaited(_persist(controller.value));
+        unawaited(_persist(value!));
       }
     }
+  }
+
+  BetterPlayerController _createController() {
+    final settings = ref.read(appSettingsRepositoryProvider).settings;
+    final orientations =
+        settings.fullscreenOrientation ==
+            FullscreenOrientationPreference.landscape
+        ? const [
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ]
+        : const <DeviceOrientation>[];
+    return BetterPlayerController(
+      BetterPlayerConfiguration(
+        autoPlay: false,
+        looping: settings.loopPlayback,
+        aspectRatio: 16 / 9,
+        fit: BoxFit.contain,
+        expandToFill: false,
+        handleLifecycle: false,
+        autoDispose: false,
+        useRootNavigator: true,
+        allowedScreenSleep: !settings.keepScreenAwake,
+        deviceOrientationsOnFullScreen: orientations,
+        deviceOrientationsAfterFullScreen: const [],
+        systemOverlaysAfterFullScreen: SystemUiOverlay.values,
+        controlsConfiguration: BetterPlayerControlsConfiguration(
+          playerTheme: BetterPlayerTheme.custom,
+          controlsHideTime: const Duration(seconds: 3),
+          customControlsBuilder: (controller, onVisibilityChanged, _) {
+            return _FluleVideoControls(
+              controller: controller,
+              sources: _sources,
+              selectedSource: _selectedSource,
+              onSourceChanged: _changeSource,
+              onVisibilityChanged: onVisibilityChanged,
+            );
+          },
+        ),
+        errorBuilder: (context, message) => _PlayerError(
+          message: redactSensitiveText(message),
+          onRetry: _manualRetry,
+        ),
+      ),
+    )..addEventsListener(_onBetterPlayerEvent);
   }
 
   Future<bool> _setSource(
@@ -147,86 +189,101 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     bool allowRefresh = true,
   }) async {
     final operation = ++_operation;
+    final previousValue = _videoController?.value;
+    final targetPosition = resumeAt ?? previousValue?.position ?? Duration.zero;
+    final continuePlaying =
+        shouldPlay ?? previousValue?.isPlaying ?? _lastKnownPlaying;
+    final targetSpeed = previousValue?.speed ?? _playbackSpeed;
     if (mounted) {
       setState(() {
         _selectedSource = source;
         _initializing = true;
         _error = null;
       });
-      _bumpFullscreenRevision();
-    }
-
-    final previous = _controller;
-    final previousValue = previous?.value;
-    final targetPosition = resumeAt ?? previousValue?.position ?? Duration.zero;
-    final continuePlaying = shouldPlay ?? previousValue?.isPlaying ?? false;
-    final targetVolume = previousValue?.volume ?? 1.0;
-    final targetSpeed = previousValue?.playbackSpeed ?? _playbackSpeed;
-    _controller = null;
-    if (previous != null) {
-      previous.removeListener(_onControllerChanged);
-      await _persist(previous.value);
-      await previous.dispose();
     }
 
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/0.1',
+      'User-Agent': 'Flule34 Android/1.1',
     };
     final cookie = await widget.api.sessionCookieHeader();
     if (cookie != null) {
       headers['Cookie'] = cookie;
     }
-    final controller = VideoPlayerController.networkUrl(
-      Uri.parse(source.url),
-      httpHeaders: headers,
+    final settings = ref.read(appSettingsRepositoryProvider).settings;
+    final controller = _controller ??= _createController();
+    final dataSource = BetterPlayerDataSource.network(
+      source.url,
+      headers: headers,
+      cacheConfiguration: BetterPlayerCacheConfiguration(
+        useCache: true,
+        maxCacheSize: 1024 * 1024 * 1024,
+        maxCacheFileSize: 512 * 1024 * 1024,
+        preCacheSize: 32 * 1024 * 1024,
+        key: _cacheKey(source),
+      ),
+      bufferingConfiguration: const BetterPlayerBufferingConfiguration(
+        minBufferMs: 30000,
+        maxBufferMs: 120000,
+        bufferForPlaybackMs: 1500,
+        bufferForPlaybackAfterRebufferMs: 3000,
+      ),
+      notificationConfiguration: BetterPlayerNotificationConfiguration(
+        showNotification: settings.backgroundPlayback,
+        title: widget.video.title,
+        author: 'Flule34',
+        imageUrl: widget.video.thumbnailUrl,
+        notificationChannelName: 'Flule34 后台播放',
+        activityName: 'MainActivity',
+      ),
     );
     try {
-      await controller.initialize();
+      await controller.setupDataSource(dataSource);
       if (!mounted || operation != _operation) {
-        await controller.dispose();
         return false;
       }
-      final settings = ref.read(appSettingsRepositoryProvider).settings;
-      await controller.setLooping(settings.loopPlayback);
-      await controller.setVolume(targetVolume);
-      await controller.setPlaybackSpeed(targetSpeed);
-      final safeTarget = targetPosition < controller.value.duration
+      _bindVideoController();
+      final video = _videoController;
+      final duration = video?.value.duration;
+      if (video == null || duration == null) {
+        throw StateError('播放器初始化后未提供视频时长。');
+      }
+      final safeTarget = targetPosition < duration
           ? targetPosition
           : Duration(
-              milliseconds: (controller.value.duration.inMilliseconds - 1000)
-                  .clamp(0, controller.value.duration.inMilliseconds),
+              milliseconds: (duration.inMilliseconds - 1000).clamp(
+                0,
+                duration.inMilliseconds,
+              ),
             );
+      await controller.setLooping(settings.loopPlayback);
+      await controller.setSpeed(targetSpeed);
       if (safeTarget > Duration.zero) {
         await controller.seekTo(safeTarget);
       }
-      _controller = controller;
-      controller.addListener(_onControllerChanged);
+      if (continuePlaying) {
+        await controller.play();
+      }
       _lastSavedSecond = safeTarget.inSeconds;
+      _lastKnownPlaying = continuePlaying;
       _playbackSpeed = targetSpeed;
       setState(() {
         _selectedSource = source;
         _initializing = false;
         _error = null;
       });
-      _bumpFullscreenRevision();
-      if (continuePlaying) {
-        await controller.play();
-        _scheduleControlsHide();
+      if (!mounted) {
+        return false;
       }
-      _lastKnownPlaying = continuePlaying;
       if (!_resumeMessageShown &&
           targetPosition >= const Duration(seconds: 5)) {
         _resumeMessageShown = true;
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('已从 ${_time(safeTarget)} 继续播放。')),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已从 ${_time(safeTarget)} 继续播放。')),
+        );
       }
       return true;
     } catch (error) {
-      await controller.dispose();
       if (!mounted || operation != _operation) {
         return false;
       }
@@ -241,25 +298,57 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _initializing = false;
         _error = '无法播放此视频源：${redactSensitiveText(error)}';
       });
-      _bumpFullscreenRevision();
       return false;
     }
   }
 
-  void _onControllerChanged() {
-    final controller = _controller;
-    if (controller == null || !mounted) {
+  String _cacheKey(VideoSource source) {
+    final quality = source.label.replaceAll(RegExp(r'[^0-9A-Za-z]+'), '_');
+    return 'flule34_${widget.video.id}_$quality';
+  }
+
+  void _bindVideoController() {
+    final next = _controller?.videoPlayerController;
+    if (identical(next, _videoController)) {
       return;
     }
-    final value = controller.value;
-    if (value.hasError && !_refreshingSource) {
-      unawaited(
-        _refreshSources(
-          failedSource: _selectedSource,
-          resumeAt: value.position,
-          shouldPlay: _lastKnownPlaying,
-        ),
-      );
+    _unbindVideoController();
+    _videoController = next;
+    _videoController?.addListener(_onVideoValueChanged);
+  }
+
+  void _unbindVideoController() {
+    _videoController?.removeListener(_onVideoValueChanged);
+    _videoController = null;
+  }
+
+  void _onBetterPlayerEvent(BetterPlayerEvent event) {
+    if (!mounted) {
+      return;
+    }
+    switch (event.betterPlayerEventType) {
+      case BetterPlayerEventType.initialized:
+      case BetterPlayerEventType.setupDataSource:
+        _bindVideoController();
+      case BetterPlayerEventType.exception:
+        final value = _videoController?.value;
+        if (!_refreshingSource && value != null) {
+          unawaited(
+            _refreshSources(
+              failedSource: _selectedSource,
+              resumeAt: value.position,
+              shouldPlay: _lastKnownPlaying,
+            ),
+          );
+        }
+      default:
+        break;
+    }
+  }
+
+  void _onVideoValueChanged() {
+    final value = _videoController?.value;
+    if (value == null || !mounted) {
       return;
     }
     _lastKnownPlaying = value.isPlaying;
@@ -270,14 +359,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       unawaited(_updateWakeLock(keepAwake));
     }
     final second = value.position.inSeconds;
-    if (value.isInitialized &&
+    if (value.initialized &&
         second >= 0 &&
         (second - _lastSavedSecond).abs() >= 5) {
       _lastSavedSecond = second;
       unawaited(_persist(value));
     }
     setState(() {});
-    _bumpFullscreenRevision();
   }
 
   Future<void> _updateWakeLock(bool enabled) async {
@@ -308,7 +396,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _initializing = true;
         _error = null;
       });
-      _bumpFullscreenRevision();
     }
     try {
       final details = await widget.api.loadVideoDetails(widget.video);
@@ -320,7 +407,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           _initializing = false;
           _error = '刷新后仍未找到可播放的视频源。';
         });
-        _bumpFullscreenRevision();
         return false;
       }
       _sources = List.of(details.sources);
@@ -338,10 +424,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           _initializing = false;
           _error = '视频地址刷新后仍不可用，请稍后重试。';
         });
-        _bumpFullscreenRevision();
         return false;
       }
-      return await _setSource(
+      return _setSource(
         nextSource,
         resumeAt: resumeAt,
         shouldPlay: shouldPlay,
@@ -353,7 +438,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           _initializing = false;
           _error = '刷新视频地址失败：${redactSensitiveText(error)}';
         });
-        _bumpFullscreenRevision();
       }
       return false;
     } finally {
@@ -363,147 +447,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   Future<void> _manualRetry() async {
     _failedUrls.clear();
-    final controller = _controller;
+    final value = _videoController?.value;
     await _refreshSources(
       failedSource: _selectedSource,
-      resumeAt: controller?.value.position ?? Duration.zero,
+      resumeAt: value?.position ?? Duration.zero,
       shouldPlay: _lastKnownPlaying,
       force: true,
     );
-  }
-
-  Future<void> _togglePlayback() async {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) {
-      return;
-    }
-    if (controller.value.isPlaying) {
-      await controller.pause();
-      _controlsTimer?.cancel();
-      if (mounted) {
-        setState(() => _controlsVisible = true);
-      }
-    } else {
-      await controller.play();
-      _scheduleControlsHide();
-    }
-  }
-
-  Future<void> _seekRelative(Duration delta) async {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) {
-      return;
-    }
-    final value = controller.value;
-    final targetMs = (value.position + delta).inMilliseconds.clamp(
-      0,
-      value.duration.inMilliseconds,
-    );
-    await controller.seekTo(Duration(milliseconds: targetMs));
-    _showControls();
-  }
-
-  Future<void> _setPlaybackSpeed(double speed) async {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) {
-      return;
-    }
-    try {
-      await controller.setPlaybackSpeed(speed);
-      if (mounted) {
-        setState(() => _playbackSpeed = speed);
-        _bumpFullscreenRevision();
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法切换播放速度：${redactSensitiveText(error)}')),
-        );
-      }
-    }
-  }
-
-  void _showControls() {
-    _controlsTimer?.cancel();
-    if (mounted && !_controlsVisible) {
-      setState(() => _controlsVisible = true);
-    }
-    _scheduleControlsHide();
-  }
-
-  void _toggleControls() {
-    _controlsTimer?.cancel();
-    if (!mounted) {
-      return;
-    }
-    setState(() => _controlsVisible = !_controlsVisible);
-    if (_controlsVisible) {
-      _scheduleControlsHide();
-    }
-  }
-
-  void _scheduleControlsHide() {
-    _controlsTimer?.cancel();
-    final controller = _controller;
-    if (controller == null || !controller.value.isPlaying) {
-      return;
-    }
-    _controlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && _controller?.value.isPlaying == true) {
-        setState(() => _controlsVisible = false);
-      }
-    });
-  }
-
-  Future<void> _setFullscreen(bool value) async {
-    if (!value) {
-      if (_fullscreen && mounted) {
-        await Navigator.of(context, rootNavigator: true).maybePop();
-      }
-      return;
-    }
-    if (_fullscreen) {
-      return;
-    }
-    try {
-      final orientation = ref
-          .read(appSettingsRepositoryProvider)
-          .settings
-          .fullscreenOrientation;
-      await SystemChrome.setPreferredOrientations(
-        orientation == FullscreenOrientationPreference.landscape
-            ? const [
-                DeviceOrientation.landscapeLeft,
-                DeviceOrientation.landscapeRight,
-              ]
-            : const [],
-      );
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      if (!mounted) {
-        return;
-      }
-      setState(() => _fullscreen = true);
-      await Navigator.of(context, rootNavigator: true).push<void>(
-        MaterialPageRoute<void>(
-          fullscreenDialog: true,
-          builder: (_) => _FullscreenPlayerHost(owner: this),
-        ),
-      );
-    } finally {
-      await _restoreSystemUi();
-      if (mounted) {
-        setState(() {
-          _fullscreen = false;
-          _controlsVisible = true;
-        });
-        _scheduleControlsHide();
-      }
-    }
-  }
-
-  Future<void> _restoreSystemUi() async {
-    await SystemChrome.setPreferredOrientations(const []);
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   void _changeSource(VideoSource source) {
@@ -513,483 +463,347 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   Future<void> _persist(VideoPlayerValue value) {
-    if (!value.isInitialized) {
+    final duration = value.duration;
+    if (!value.initialized || duration == null) {
       return Future.value();
     }
     return _playback.savePositionForAccount(
       userId: _playbackUserId,
       video: widget.video,
       position: value.position,
-      duration: value.duration,
+      duration: duration,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _controller;
-    final player = _buildInline(controller);
+    final player = _buildPlayer();
     if (widget.embedded) {
       return player;
     }
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: Text(
-          widget.video.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
+      appBar: AppBar(title: Text(widget.video.title)),
       body: Center(child: player),
     );
   }
 
-  Widget _buildInline(VideoPlayerController? controller) {
+  Widget _buildPlayer() {
     return AspectRatio(
       key: const ValueKey('inline-video-player'),
       aspectRatio: 16 / 9,
-      child: Material(
+      child: ColoredBox(
         color: Colors.black,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _toggleControls,
-              onDoubleTapDown: (details) {
-                final width = MediaQuery.sizeOf(context).width;
-                final delta = details.localPosition.dx < width / 2
-                    ? const Duration(seconds: -10)
-                    : const Duration(seconds: 10);
-                unawaited(_seekRelative(delta));
-              },
-              child: Center(child: _buildPlayerState(controller)),
-            ),
-            if (controller != null && controller.value.isInitialized)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: IgnorePointer(
-                  ignoring: !_controlsVisible,
-                  child: AnimatedOpacity(
-                    opacity: _controlsVisible ? 1 : 0,
-                    duration: const Duration(milliseconds: 180),
-                    child: _Controls(
-                      controller: controller,
-                      fullscreen: false,
-                      sources: _sources,
-                      selectedSource: _selectedSource,
-                      playbackSpeed: _playbackSpeed,
-                      onTogglePlayback: _togglePlayback,
-                      onSeekBack: () =>
-                          _seekRelative(const Duration(seconds: -10)),
-                      onSeekForward: () =>
-                          _seekRelative(const Duration(seconds: 10)),
-                      onSpeedChanged: _setPlaybackSpeed,
-                      onSourceChanged: _changeSource,
-                      onFullscreenChanged: () => _setFullscreen(true),
-                    ),
+            if (_controller != null)
+              BetterPlayer(controller: _controller!)
+            else
+              const SizedBox.shrink(),
+            if (_initializing)
+              ColoredBox(
+                color: Colors.black54,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(color: Colors.white),
+                      if (_refreshingSource) ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          '正在刷新视频地址…',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
+            if (_error != null)
+              _PlayerError(message: _error!, onRetry: _manualRetry),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildPlayerState(VideoPlayerController? controller) {
-    if (_initializing) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          if (_refreshingSource) ...[
-            const SizedBox(height: 12),
-            const Text('正在刷新视频地址…', style: TextStyle(color: Colors.white)),
-          ],
-        ],
-      );
-    }
-    if (_error != null) {
-      return _PlayerError(message: _error!, onRetry: _manualRetry);
-    }
-    if (controller == null) {
-      return const SizedBox.shrink();
-    }
-    return _PlayerSurface(
-      controller: controller,
-      onTogglePlayback: _togglePlayback,
-    );
-  }
 }
 
-class _PlayerSurface extends StatelessWidget {
-  const _PlayerSurface({
+class _FluleVideoControls extends StatefulWidget {
+  const _FluleVideoControls({
     required this.controller,
-    required this.onTogglePlayback,
+    required this.sources,
+    required this.selectedSource,
+    required this.onSourceChanged,
+    required this.onVisibilityChanged,
   });
 
-  final VideoPlayerController controller;
-  final VoidCallback onTogglePlayback;
+  final BetterPlayerController controller;
+  final List<VideoSource> sources;
+  final VideoSource selectedSource;
+  final ValueChanged<VideoSource> onSourceChanged;
+  final ValueChanged<bool> onVisibilityChanged;
 
   @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      key: const ValueKey('video-content-aspect-ratio'),
-      aspectRatio: controller.value.aspectRatio,
-      child: Stack(
-        fit: StackFit.expand,
-        alignment: Alignment.center,
-        children: [
-          VideoPlayer(controller),
-          if (controller.value.isBuffering)
-            const Center(child: CircularProgressIndicator()),
-          if (!controller.value.isPlaying && !controller.value.isBuffering)
-            Center(
-              child: IconButton(
-                tooltip: '播放视频',
-                onPressed: onTogglePlayback,
-                iconSize: 64,
-                color: Colors.white70,
-                icon: const Icon(Icons.play_circle_fill),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  State<_FluleVideoControls> createState() => _FluleVideoControlsState();
 }
 
-class _FullscreenPlayerHost extends StatefulWidget {
-  const _FullscreenPlayerHost({required this.owner});
-
-  final _VideoPlayerPageState owner;
-
-  @override
-  State<_FullscreenPlayerHost> createState() => _FullscreenPlayerHostState();
-}
-
-class _FullscreenPlayerHostState extends State<_FullscreenPlayerHost> {
-  bool _controlsVisible = true;
+class _FluleVideoControlsState extends State<_FluleVideoControls> {
+  static const _speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
+  ValueNotifier<VideoPlayerValue>? _videoController;
   Timer? _hideTimer;
+  var _visible = true;
+  Duration? _dragPosition;
 
   @override
   void initState() {
     super.initState();
+    widget.controller.addEventsListener(_onPlayerEvent);
+    _bindVideoController();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scheduleHide());
+  }
+
+  @override
+  void didUpdateWidget(covariant _FluleVideoControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeEventsListener(_onPlayerEvent);
+      widget.controller.addEventsListener(_onPlayerEvent);
+      _bindVideoController();
+    }
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
+    widget.controller.removeEventsListener(_onPlayerEvent);
+    _videoController?.removeListener(_onValueChanged);
     super.dispose();
+  }
+
+  void _onPlayerEvent(BetterPlayerEvent event) {
+    if (!mounted) {
+      return;
+    }
+    switch (event.betterPlayerEventType) {
+      case BetterPlayerEventType.initialized:
+      case BetterPlayerEventType.setupDataSource:
+      case BetterPlayerEventType.changedResolution:
+      case BetterPlayerEventType.openFullscreen:
+      case BetterPlayerEventType.hideFullscreen:
+        _bindVideoController();
+        setState(() {});
+      default:
+        break;
+    }
+  }
+
+  void _bindVideoController() {
+    final next = widget.controller.videoPlayerController;
+    if (identical(next, _videoController)) {
+      return;
+    }
+    _videoController?.removeListener(_onValueChanged);
+    _videoController = next;
+    _videoController?.addListener(_onValueChanged);
+  }
+
+  void _onValueChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    if (_videoController?.value.isPlaying == true && _visible) {
+      _scheduleHide();
+    }
   }
 
   void _toggleControls() {
     _hideTimer?.cancel();
-    setState(() => _controlsVisible = !_controlsVisible);
-    if (_controlsVisible) {
+    setState(() => _visible = !_visible);
+    widget.onVisibilityChanged(_visible);
+    if (_visible) {
       _scheduleHide();
     }
   }
 
   void _showControls() {
-    _hideTimer?.cancel();
-    if (!_controlsVisible) {
-      setState(() => _controlsVisible = true);
+    if (!_visible) {
+      setState(() => _visible = true);
+      widget.onVisibilityChanged(true);
     }
     _scheduleHide();
   }
 
   void _scheduleHide() {
     _hideTimer?.cancel();
-    if (!mounted || widget.owner._controller?.value.isPlaying != true) {
+    if (_videoController?.value.isPlaying != true) {
       return;
     }
     _hideTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && widget.owner._controller?.value.isPlaying == true) {
-        setState(() => _controlsVisible = false);
+      if (mounted && _videoController?.value.isPlaying == true) {
+        setState(() => _visible = false);
+        widget.onVisibilityChanged(false);
       }
     });
   }
 
-  void _exit() {
-    Navigator.of(context).pop();
+  Future<void> _togglePlayback() async {
+    if (_videoController?.value.isPlaying == true) {
+      await widget.controller.pause();
+      _hideTimer?.cancel();
+      _showControls();
+    } else {
+      await widget.controller.play();
+      _scheduleHide();
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: ValueListenableBuilder<int>(
-        valueListenable: widget.owner._fullscreenRevision,
-        builder: (context, _, _) {
-          final controller = widget.owner._controller;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _toggleControls,
-                onDoubleTapDown: (details) {
-                  final width = MediaQuery.sizeOf(context).width;
-                  final delta = details.localPosition.dx < width / 2
-                      ? const Duration(seconds: -10)
-                      : const Duration(seconds: 10);
-                  unawaited(widget.owner._seekRelative(delta));
-                  _showControls();
-                },
-                child: Center(
-                  child: widget.owner._buildPlayerState(controller),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: SafeArea(
-                  child: IgnorePointer(
-                    ignoring: !_controlsVisible,
-                    child: AnimatedOpacity(
-                      opacity: _controlsVisible ? 1 : 0,
-                      duration: const Duration(milliseconds: 180),
-                      child: IconButton.filledTonal(
-                        tooltip: '退出全屏',
-                        onPressed: _exit,
-                        icon: const Icon(Icons.arrow_back),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (controller != null && controller.value.isInitialized)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: SafeArea(
-                    top: false,
-                    child: IgnorePointer(
-                      ignoring: !_controlsVisible,
-                      child: AnimatedOpacity(
-                        opacity: _controlsVisible ? 1 : 0,
-                        duration: const Duration(milliseconds: 180),
-                        child: _Controls(
-                          controller: controller,
-                          fullscreen: true,
-                          sources: widget.owner._sources,
-                          selectedSource: widget.owner._selectedSource,
-                          playbackSpeed: widget.owner._playbackSpeed,
-                          onTogglePlayback: () {
-                            unawaited(
-                              widget.owner._togglePlayback().whenComplete(
-                                _scheduleHide,
-                              ),
-                            );
-                          },
-                          onSeekBack: () {
-                            unawaited(
-                              widget.owner._seekRelative(
-                                const Duration(seconds: -10),
-                              ),
-                            );
-                            _showControls();
-                          },
-                          onSeekForward: () {
-                            unawaited(
-                              widget.owner._seekRelative(
-                                const Duration(seconds: 10),
-                              ),
-                            );
-                            _showControls();
-                          },
-                          onSpeedChanged: widget.owner._setPlaybackSpeed,
-                          onSourceChanged: widget.owner._changeSource,
-                          onFullscreenChanged: _exit,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
+  Future<void> _seekRelative(Duration delta) async {
+    final value = _videoController?.value;
+    final duration = value?.duration;
+    if (value == null || duration == null) {
+      return;
+    }
+    final target = Duration(
+      milliseconds: (value.position + delta).inMilliseconds.clamp(
+        0,
+        duration.inMilliseconds,
       ),
     );
+    await widget.controller.seekTo(target);
+    _showControls();
   }
-}
-
-class _Controls extends StatelessWidget {
-  const _Controls({
-    required this.controller,
-    required this.fullscreen,
-    required this.sources,
-    required this.selectedSource,
-    required this.playbackSpeed,
-    required this.onTogglePlayback,
-    required this.onSeekBack,
-    required this.onSeekForward,
-    required this.onSpeedChanged,
-    required this.onSourceChanged,
-    required this.onFullscreenChanged,
-  });
-
-  final VideoPlayerController controller;
-  final bool fullscreen;
-  final List<VideoSource> sources;
-  final VideoSource selectedSource;
-  final double playbackSpeed;
-  final VoidCallback onTogglePlayback;
-  final VoidCallback onSeekBack;
-  final VoidCallback onSeekForward;
-  final ValueChanged<double> onSpeedChanged;
-  final ValueChanged<VideoSource> onSourceChanged;
-  final VoidCallback onFullscreenChanged;
 
   @override
   Widget build(BuildContext context) {
-    final value = controller.value;
-    final foreground = fullscreen ? Colors.white : null;
-    return Material(
-      color: fullscreen
-          ? Colors.black87
-          : Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(8, 4, 8, fullscreen ? 4 : 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            VideoProgressIndicator(
-              controller,
-              allowScrubbing: true,
-              colors: VideoProgressColors(
-                playedColor: Theme.of(context).colorScheme.primary,
-                bufferedColor: Colors.white38,
-                backgroundColor: fullscreen
-                    ? Colors.white24
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+    final value = _videoController?.value;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _toggleControls,
+          onDoubleTapDown: (details) {
+            final width = MediaQuery.sizeOf(context).width;
+            unawaited(
+              _seekRelative(
+                details.localPosition.dx < width / 2
+                    ? const Duration(seconds: -10)
+                    : const Duration(seconds: 10),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 8),
+            );
+          },
+          child: const SizedBox.expand(),
+        ),
+        IgnorePointer(
+          ignoring: !_visible,
+          child: AnimatedOpacity(
+            opacity: _visible ? 1 : 0,
+            duration: const Duration(milliseconds: 160),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: value == null || !value.initialized
+                  ? const SizedBox.shrink()
+                  : _buildControlRow(context, value),
             ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final showSeekButtons =
-                    fullscreen || constraints.maxWidth >= 340;
-                final showVolume = fullscreen || constraints.maxWidth >= 440;
-                return Row(
-                  children: [
-                    IconButton(
-                      tooltip: value.isPlaying ? '暂停' : '播放',
-                      color: foreground,
-                      onPressed: onTogglePlayback,
-                      icon: Icon(
-                        value.isPlaying ? Icons.pause : Icons.play_arrow,
-                      ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildControlRow(BuildContext context, VideoPlayerValue value) {
+    final duration = value.duration ?? Duration.zero;
+    final position = _dragPosition ?? value.position;
+    final foreground = Colors.white;
+    final textStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+      color: foreground,
+      fontSize: 10,
+      height: 1,
+      shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+    );
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(4, 0, 4, 2),
+      child: SizedBox(
+        height: 48,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            SizedBox(
+              width: 52,
+              height: 48,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  Positioned(
+                    top: 1,
+                    left: 0,
+                    right: 0,
+                    child: Text(
+                      '${_time(position)} / ${_time(duration)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      textAlign: TextAlign.center,
+                      style: textStyle,
                     ),
-                    if (showSeekButtons) ...[
-                      IconButton(
-                        tooltip: '后退 10 秒',
-                        color: foreground,
-                        onPressed: onSeekBack,
-                        icon: const Icon(Icons.replay_10),
-                      ),
-                      IconButton(
-                        tooltip: '前进 10 秒',
-                        color: foreground,
-                        onPressed: onSeekForward,
-                        icon: const Icon(Icons.forward_10),
-                      ),
-                    ],
-                    Flexible(
-                      child: Text(
-                        '${_time(value.position)} / ${_time(value.duration)}',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: foreground),
-                      ),
-                    ),
-                    const Spacer(),
-                    if (showVolume)
-                      IconButton(
-                        tooltip: value.volume == 0 ? '恢复声音' : '静音',
-                        color: foreground,
-                        onPressed: () =>
-                            controller.setVolume(value.volume == 0 ? 1 : 0),
-                        icon: Icon(
-                          value.volume == 0
-                              ? Icons.volume_off
-                              : Icons.volume_up,
-                        ),
-                      ),
-                    PopupMenuButton<_PlayerMenuOption>(
-                      tooltip: '播放选项',
-                      color: fullscreen
-                          ? const Color(0xff242529)
-                          : Theme.of(context).colorScheme.surfaceContainerHigh,
-                      onSelected: (option) {
-                        switch (option) {
-                          case _SpeedMenuOption(:final speed):
-                            onSpeedChanged(speed);
-                          case _SourceMenuOption(:final source):
-                            onSourceChanged(source);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem<_PlayerMenuOption>(
-                          enabled: false,
-                          height: 32,
-                          child: Text('播放速度'),
-                        ),
-                        for (final speed in const [0.5, 1.0, 1.25, 1.5, 2.0])
-                          PopupMenuItem<_PlayerMenuOption>(
-                            value: _SpeedMenuOption(speed),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 28,
-                                  child: speed == playbackSpeed
-                                      ? const Icon(Icons.check, size: 18)
-                                      : null,
-                                ),
-                                Text('${speed}x'),
-                              ],
-                            ),
-                          ),
-                        const PopupMenuDivider(),
-                        const PopupMenuItem<_PlayerMenuOption>(
-                          enabled: false,
-                          height: 32,
-                          child: Text('清晰度'),
-                        ),
-                        for (final source in sources)
-                          PopupMenuItem<_PlayerMenuOption>(
-                            value: _SourceMenuOption(source),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 28,
-                                  child: source == selectedSource
-                                      ? const Icon(Icons.check, size: 18)
-                                      : null,
-                                ),
-                                Text(source.label),
-                              ],
-                            ),
-                          ),
-                      ],
-                      icon: Icon(Icons.more_vert, color: foreground),
-                    ),
-                    IconButton(
-                      tooltip: fullscreen ? '退出全屏' : '全屏',
-                      color: foreground,
-                      onPressed: onFullscreenChanged,
-                      icon: Icon(
-                        fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
-                      ),
-                    ),
-                  ],
-                );
-              },
+                  ),
+                  _CompactIconButton(
+                    tooltip: value.isPlaying ? '暂停' : '播放',
+                    onPressed: _togglePlayback,
+                    icon: value.isPlaying ? Icons.pause : Icons.play_arrow,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 2),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: _VideoProgressBar(
+                  value: value,
+                  dragPosition: _dragPosition,
+                  onDragStart: (position) {
+                    _hideTimer?.cancel();
+                    setState(() => _dragPosition = position);
+                  },
+                  onDragUpdate: (position) {
+                    setState(() => _dragPosition = position);
+                  },
+                  onDragEnd: (position) async {
+                    setState(() => _dragPosition = null);
+                    await widget.controller.seekTo(position);
+                    _showControls();
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 2),
+            _CompactPopup<VideoSource>(
+              tooltip: '清晰度',
+              label: widget.selectedSource.label,
+              values: widget.sources,
+              selected: widget.selectedSource,
+              labelFor: (source) => source.label,
+              onSelected: widget.onSourceChanged,
+            ),
+            _CompactPopup<double>(
+              tooltip: '播放速度',
+              label: '${value.speed}x',
+              values: _speeds,
+              selected: value.speed,
+              labelFor: (speed) => '${speed}x',
+              onSelected: (speed) =>
+                  unawaited(widget.controller.setSpeed(speed)),
+            ),
+            _CompactIconButton(
+              tooltip: widget.controller.isFullScreen ? '退出全屏' : '全屏',
+              onPressed: widget.controller.isFullScreen
+                  ? widget.controller.exitFullScreen
+                  : widget.controller.enterFullScreen,
+              icon: widget.controller.isFullScreen
+                  ? Icons.fullscreen_exit
+                  : Icons.fullscreen,
             ),
           ],
         ),
@@ -998,29 +812,219 @@ class _Controls extends StatelessWidget {
   }
 }
 
-sealed class _PlayerMenuOption {
-  const _PlayerMenuOption();
-}
+class _CompactIconButton extends StatelessWidget {
+  const _CompactIconButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+  });
 
-final class _SpeedMenuOption extends _PlayerMenuOption {
-  const _SpeedMenuOption(this.speed);
+  final String tooltip;
+  final VoidCallback onPressed;
+  final IconData icon;
 
-  final double speed;
-}
-
-final class _SourceMenuOption extends _PlayerMenuOption {
-  const _SourceMenuOption(this.source);
-
-  final VideoSource source;
-}
-
-String _time(Duration value) {
-  final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
-  final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
-  if (value.inHours > 0) {
-    return '${value.inHours}:$minutes:$seconds';
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 38, height: 36),
+      visualDensity: VisualDensity.compact,
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: Icon(
+        icon,
+        color: Colors.white,
+        size: 24,
+        shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
+      ),
+    );
   }
-  return '$minutes:$seconds';
+}
+
+class _CompactPopup<T> extends StatelessWidget {
+  const _CompactPopup({
+    required this.tooltip,
+    required this.label,
+    required this.values,
+    required this.selected,
+    required this.labelFor,
+    required this.onSelected,
+  });
+
+  final String tooltip;
+  final String label;
+  final List<T> values;
+  final T selected;
+  final String Function(T value) labelFor;
+  final ValueChanged<T> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<T>(
+      tooltip: tooltip,
+      initialValue: selected,
+      onSelected: onSelected,
+      color: const Color(0xff242529),
+      constraints: const BoxConstraints(minWidth: 92, maxWidth: 150),
+      itemBuilder: (context) => values
+          .map(
+            (value) => PopupMenuItem<T>(
+              value: value,
+              height: 42,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 22,
+                    child: value == selected
+                        ? const Icon(Icons.check, size: 17)
+                        : null,
+                  ),
+                  Text(labelFor(value)),
+                ],
+              ),
+            ),
+          )
+          .toList(growable: false),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 42, minHeight: 36),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Center(
+            child: Text(
+              label,
+              maxLines: 1,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                shadows: [Shadow(color: Colors.black, blurRadius: 5)],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoProgressBar extends StatelessWidget {
+  const _VideoProgressBar({
+    required this.value,
+    required this.dragPosition,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+  });
+
+  final VideoPlayerValue value;
+  final Duration? dragPosition;
+  final ValueChanged<Duration> onDragStart;
+  final ValueChanged<Duration> onDragUpdate;
+  final ValueChanged<Duration> onDragEnd;
+
+  Duration _positionFor(double dx, double width) {
+    final duration = value.duration ?? Duration.zero;
+    if (width <= 0 || duration <= Duration.zero) {
+      return Duration.zero;
+    }
+    return Duration(
+      milliseconds: (duration.inMilliseconds * (dx / width).clamp(0.0, 1.0))
+          .round(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (details) => onDragEnd(
+          _positionFor(details.localPosition.dx, constraints.maxWidth),
+        ),
+        onHorizontalDragStart: (details) => onDragStart(
+          _positionFor(details.localPosition.dx, constraints.maxWidth),
+        ),
+        onHorizontalDragUpdate: (details) => onDragUpdate(
+          _positionFor(details.localPosition.dx, constraints.maxWidth),
+        ),
+        onHorizontalDragEnd: (_) => onDragEnd(dragPosition ?? value.position),
+        child: CustomPaint(
+          painter: _ProgressPainter(
+            duration: value.duration ?? Duration.zero,
+            position: dragPosition ?? value.position,
+            buffered: value.buffered
+                .map((range) => (start: range.start, end: range.end))
+                .toList(growable: false),
+            playedColor: Theme.of(context).colorScheme.primary,
+          ),
+          child: const SizedBox(height: 28),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressPainter extends CustomPainter {
+  const _ProgressPainter({
+    required this.duration,
+    required this.position,
+    required this.buffered,
+    required this.playedColor,
+  });
+
+  final Duration duration;
+  final Duration position;
+  final List<({Duration start, Duration end})> buffered;
+  final Color playedColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerY = size.height / 2;
+    final background = Paint()
+      ..color = Colors.white30
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    final cached = Paint()
+      ..color = Colors.white60
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    final played = Paint()
+      ..color = playedColor
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(0, centerY),
+      Offset(size.width, centerY),
+      background,
+    );
+    if (duration > Duration.zero) {
+      for (final range in buffered) {
+        final start = range.start.inMilliseconds / duration.inMilliseconds;
+        final end = range.end.inMilliseconds / duration.inMilliseconds;
+        canvas.drawLine(
+          Offset(size.width * start.clamp(0.0, 1.0), centerY),
+          Offset(size.width * end.clamp(0.0, 1.0), centerY),
+          cached,
+        );
+      }
+      final fraction = (position.inMilliseconds / duration.inMilliseconds)
+          .clamp(0.0, 1.0);
+      final x = size.width * fraction;
+      canvas.drawLine(Offset(0, centerY), Offset(x, centerY), played);
+      canvas.drawCircle(Offset(x, centerY), 5, Paint()..color = playedColor);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProgressPainter oldDelegate) {
+    return oldDelegate.duration != duration ||
+        oldDelegate.position != position ||
+        oldDelegate.buffered != buffered ||
+        oldDelegate.playedColor != playedColor;
+  }
 }
 
 class _PlayerError extends StatelessWidget {
@@ -1031,29 +1035,34 @@ class _PlayerError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 52, color: Colors.white),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white),
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white70, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
+            ],
           ),
-          const SizedBox(height: 16),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white70),
-            ),
-            onPressed: onRetry,
-            child: const Text('刷新并重试'),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+String _time(Duration value) {
+  final hours = value.inHours;
+  final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
 }
