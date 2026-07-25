@@ -75,16 +75,9 @@ class VideoCard extends ConsumerWidget {
                             ),
                           ),
                         ),
-                      const Center(
-                        child: Icon(
-                          Icons.play_circle_fill,
-                          size: 54,
-                          color: Colors.white70,
-                        ),
-                      ),
                       if (video.duration != null)
                         Positioned(
-                          right: 8,
+                          left: 8,
                           bottom: 8,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
@@ -123,19 +116,32 @@ class VideoCard extends ConsumerWidget {
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 12,
+                      Row(
                         children: [
-                          if (video.views != null)
-                            _Meta(
-                              icon: Icons.visibility_outlined,
-                              text: formatCount(video.views!),
+                          Expanded(
+                            child: _MetaText(
+                              text: video.publishedLabel ?? '',
+                              alignment: TextAlign.left,
                             ),
-                          if (video.rating != null)
-                            _Meta(
-                              icon: Icons.thumb_up_alt_outlined,
-                              text: '${video.rating}%',
+                          ),
+                          Expanded(
+                            child: _MetaText(
+                              text: video.rating == null
+                                  ? ''
+                                  : video.ratingVotes == null
+                                  ? '${video.rating}%'
+                                  : '${video.rating}% (${formatCount(video.ratingVotes!)})',
+                              alignment: TextAlign.center,
                             ),
+                          ),
+                          Expanded(
+                            child: _MetaText(
+                              text: video.views == null
+                                  ? ''
+                                  : formatCount(video.views!),
+                              alignment: TextAlign.right,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -172,35 +178,37 @@ class _Thumbnail extends StatelessWidget {
   }
 }
 
-class _Meta extends StatelessWidget {
-  const _Meta({required this.icon, required this.text});
+class _MetaText extends StatelessWidget {
+  const _MetaText({required this.text, required this.alignment});
 
-  final IconData icon;
   final String text;
+  final TextAlign alignment;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 15,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(width: 4),
-        Text(text, style: Theme.of(context).textTheme.labelMedium),
-      ],
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: alignment,
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
 
 String formatCount(int value) {
   if (value >= 1000000) {
-    return '${(value / 1000000).toStringAsFixed(1)}M';
+    return _compact(value / 1000000, 'M');
   }
   if (value >= 1000) {
-    return '${(value / 1000).toStringAsFixed(1)}K';
+    return _compact(value / 1000, 'K');
   }
   return value.toString();
+}
+
+String _compact(double value, String suffix) {
+  final digits = value >= 10 || value == value.roundToDouble() ? 0 : 1;
+  return '${value.toStringAsFixed(digits)}$suffix';
 }

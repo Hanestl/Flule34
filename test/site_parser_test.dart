@@ -13,7 +13,13 @@ void main() {
             <img class="thumb" data-original="/thumbnail.jpg" alt="Example video">
           </div>
         </a>
-        <div class="thumb_title">2:34</div>
+        <div class="time">2:34</div>
+        <div class="thumb_title">Example video</div>
+        <div class="thumb_info">
+          <div class="added">23 minutes ago</div>
+          <div class="rating">100% (2)</div>
+          <div class="views">1.2K</div>
+        </div>
       </div>
     ''';
 
@@ -25,6 +31,11 @@ void main() {
     expect(videos.single.title, 'Example video');
     expect(videos.single.thumbnailUrl, 'https://rule34video.com/thumbnail.jpg');
     expect(videos.single.previewUrl, 'https://rule34video.com/preview.mp4');
+    expect(videos.single.duration, '2:34');
+    expect(videos.single.publishedLabel, '23 minutes ago');
+    expect(videos.single.rating, 100);
+    expect(videos.single.ratingVotes, 2);
+    expect(videos.single.views, 1200);
   });
 
   test('从页面上下文解析稳定用户 ID', () {

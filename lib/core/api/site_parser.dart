@@ -25,10 +25,10 @@ class SiteParser {
 
       final image = card.querySelector('img.thumb');
       final title =
+          _clean(card.querySelector('.thumb_title')?.text) ??
           _clean(link?.attributes['title']) ??
           _clean(image?.attributes['alt']) ??
           '未命名视频';
-      final text = card.text.replaceAll(RegExp(r'\s+'), ' ');
       final thumbnail = _url(
         image?.attributes['data-webp'] ?? image?.attributes['data-original'],
       );
@@ -42,14 +42,21 @@ class SiteParser {
         title: title,
         thumbnailUrl: thumbnail,
         previewUrl: preview,
-        duration: _clean(card.querySelector('.thumb_title')?.text),
-        views: _number(
-          RegExp(
-            r'([\d,]+)\s*views?',
-            caseSensitive: false,
-          ).firstMatch(text)?.group(1),
+        duration: _clean(card.querySelector('.time')?.text),
+        publishedLabel: _clean(card.querySelector('.thumb_info .added')?.text),
+        views: _compactNumber(
+          _clean(card.querySelector('.thumb_info .views')?.text),
         ),
-        rating: _number(RegExp(r'(\d{1,3})\s*%').firstMatch(text)?.group(1)),
+        rating: _number(
+          RegExp(r'(\d{1,3})\s*%')
+              .firstMatch(card.querySelector('.thumb_info .rating')?.text ?? '')
+              ?.group(1),
+        ),
+        ratingVotes: _compactNumber(
+          RegExp(r'\(([\d,.]+\s*[KMB]?)\)', caseSensitive: false)
+              .firstMatch(card.querySelector('.thumb_info .rating')?.text ?? '')
+              ?.group(1),
+        ),
       );
     }
 
@@ -610,5 +617,29 @@ class SiteParser {
 
   static int? _number(String? value) {
     return int.tryParse((value ?? '').replaceAll(RegExp(r'[^0-9]'), ''));
+  }
+
+  static int? _compactNumber(String? value) {
+    final normalized = _clean(value)?.replaceAll(',', '').toUpperCase();
+    if (normalized == null) {
+      return null;
+    }
+    final match = RegExp(
+      r'([0-9]+(?:\.[0-9]+)?)\s*([KMB])?',
+    ).firstMatch(normalized);
+    if (match == null) {
+      return null;
+    }
+    final number = double.tryParse(match.group(1)!);
+    if (number == null) {
+      return null;
+    }
+    final multiplier = switch (match.group(2)) {
+      'K' => 1000,
+      'M' => 1000000,
+      'B' => 1000000000,
+      _ => 1,
+    };
+    return (number * multiplier).round();
   }
 }

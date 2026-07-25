@@ -223,8 +223,10 @@ class VideoItem {
     this.thumbnailUrl,
     this.previewUrl,
     this.duration,
+    this.publishedLabel,
     this.views,
     this.rating,
+    this.ratingVotes,
   });
 
   final String id;
@@ -233,8 +235,10 @@ class VideoItem {
   final String? thumbnailUrl;
   final String? previewUrl;
   final String? duration;
+  final String? publishedLabel;
   final int? views;
   final int? rating;
+  final int? ratingVotes;
 
   String get detailPath => '/video/$id/$slug/';
 
@@ -244,8 +248,10 @@ class VideoItem {
     String? thumbnailUrl,
     String? previewUrl,
     String? duration,
+    String? publishedLabel,
     int? views,
     int? rating,
+    int? ratingVotes,
   }) {
     return VideoItem(
       id: id,
@@ -254,8 +260,10 @@ class VideoItem {
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       previewUrl: previewUrl ?? this.previewUrl,
       duration: duration ?? this.duration,
+      publishedLabel: publishedLabel ?? this.publishedLabel,
       views: views ?? this.views,
       rating: rating ?? this.rating,
+      ratingVotes: ratingVotes ?? this.ratingVotes,
     );
   }
 }
