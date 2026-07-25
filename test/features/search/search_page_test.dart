@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
@@ -21,15 +23,22 @@ void main() {
     final settings = AppSettingsRepository(_MemorySettingsStore());
     addTearDown(settings.dispose);
     await settings.load();
+    final container = ProviderContainer(
+      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+    );
+    addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: SearchPage(
-          api: api,
-          historyRepository: SearchHistoryRepository(
-            harness.database,
-            harness.sessionStore,
-            settings,
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: SearchPage(
+            api: api,
+            historyRepository: SearchHistoryRepository(
+              harness.database,
+              harness.sessionStore,
+              settings,
+            ),
           ),
         ),
       ),
@@ -57,15 +66,22 @@ void main() {
     final settings = AppSettingsRepository(_MemorySettingsStore());
     addTearDown(settings.dispose);
     await settings.load();
+    final container = ProviderContainer(
+      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+    );
+    addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: SearchPage(
-          api: api,
-          historyRepository: SearchHistoryRepository(
-            harness.database,
-            harness.sessionStore,
-            settings,
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: SearchPage(
+            api: api,
+            historyRepository: SearchHistoryRepository(
+              harness.database,
+              harness.sessionStore,
+              settings,
+            ),
           ),
         ),
       ),
