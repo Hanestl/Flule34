@@ -611,14 +611,21 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (controller == null) {
       return const SizedBox.shrink();
     }
-    return _PlayerSurface(controller: controller);
+    return _PlayerSurface(
+      controller: controller,
+      onTogglePlayback: _togglePlayback,
+    );
   }
 }
 
 class _PlayerSurface extends StatelessWidget {
-  const _PlayerSurface({required this.controller});
+  const _PlayerSurface({
+    required this.controller,
+    required this.onTogglePlayback,
+  });
 
   final VideoPlayerController controller;
+  final VoidCallback onTogglePlayback;
 
   @override
   Widget build(BuildContext context) {
@@ -633,11 +640,13 @@ class _PlayerSurface extends StatelessWidget {
           if (controller.value.isBuffering)
             const Center(child: CircularProgressIndicator()),
           if (!controller.value.isPlaying && !controller.value.isBuffering)
-            const Center(
-              child: Icon(
-                Icons.play_circle_fill,
+            Center(
+              child: IconButton(
+                tooltip: '播放视频',
+                onPressed: onTogglePlayback,
+                iconSize: 64,
                 color: Colors.white70,
-                size: 64,
+                icon: const Icon(Icons.play_circle_fill),
               ),
             ),
         ],
@@ -856,110 +865,124 @@ class _Controls extends StatelessWidget {
               ),
               padding: const EdgeInsets.symmetric(vertical: 8),
             ),
-            Row(
-              children: [
-                IconButton(
-                  tooltip: value.isPlaying ? '暂停' : '播放',
-                  color: foreground,
-                  onPressed: onTogglePlayback,
-                  icon: Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
-                ),
-                IconButton(
-                  tooltip: '后退 10 秒',
-                  color: foreground,
-                  onPressed: onSeekBack,
-                  icon: const Icon(Icons.replay_10),
-                ),
-                IconButton(
-                  tooltip: '前进 10 秒',
-                  color: foreground,
-                  onPressed: onSeekForward,
-                  icon: const Icon(Icons.forward_10),
-                ),
-                Flexible(
-                  child: Text(
-                    '${_time(value.position)} / ${_time(value.duration)}',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: foreground),
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: value.volume == 0 ? '恢复声音' : '静音',
-                  color: foreground,
-                  onPressed: () =>
-                      controller.setVolume(value.volume == 0 ? 1 : 0),
-                  icon: Icon(
-                    value.volume == 0 ? Icons.volume_off : Icons.volume_up,
-                  ),
-                ),
-                PopupMenuButton<_PlayerMenuOption>(
-                  tooltip: '播放选项',
-                  color: fullscreen
-                      ? const Color(0xff242529)
-                      : Theme.of(context).colorScheme.surfaceContainerHigh,
-                  onSelected: (option) {
-                    switch (option) {
-                      case _SpeedMenuOption(:final speed):
-                        onSpeedChanged(speed);
-                      case _SourceMenuOption(:final source):
-                        onSourceChanged(source);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem<_PlayerMenuOption>(
-                      enabled: false,
-                      height: 32,
-                      child: Text('播放速度'),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final showSeekButtons =
+                    fullscreen || constraints.maxWidth >= 340;
+                final showVolume = fullscreen || constraints.maxWidth >= 440;
+                return Row(
+                  children: [
+                    IconButton(
+                      tooltip: value.isPlaying ? '暂停' : '播放',
+                      color: foreground,
+                      onPressed: onTogglePlayback,
+                      icon: Icon(
+                        value.isPlaying ? Icons.pause : Icons.play_arrow,
+                      ),
                     ),
-                    for (final speed in const [0.5, 1.0, 1.25, 1.5, 2.0])
-                      PopupMenuItem<_PlayerMenuOption>(
-                        value: _SpeedMenuOption(speed),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 28,
-                              child: speed == playbackSpeed
-                                  ? const Icon(Icons.check, size: 18)
-                                  : null,
-                            ),
-                            Text('${speed}x'),
-                          ],
+                    if (showSeekButtons) ...[
+                      IconButton(
+                        tooltip: '后退 10 秒',
+                        color: foreground,
+                        onPressed: onSeekBack,
+                        icon: const Icon(Icons.replay_10),
+                      ),
+                      IconButton(
+                        tooltip: '前进 10 秒',
+                        color: foreground,
+                        onPressed: onSeekForward,
+                        icon: const Icon(Icons.forward_10),
+                      ),
+                    ],
+                    Flexible(
+                      child: Text(
+                        '${_time(value.position)} / ${_time(value.duration)}',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: foreground),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (showVolume)
+                      IconButton(
+                        tooltip: value.volume == 0 ? '恢复声音' : '静音',
+                        color: foreground,
+                        onPressed: () =>
+                            controller.setVolume(value.volume == 0 ? 1 : 0),
+                        icon: Icon(
+                          value.volume == 0
+                              ? Icons.volume_off
+                              : Icons.volume_up,
                         ),
                       ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem<_PlayerMenuOption>(
-                      enabled: false,
-                      height: 32,
-                      child: Text('清晰度'),
-                    ),
-                    for (final source in sources)
-                      PopupMenuItem<_PlayerMenuOption>(
-                        value: _SourceMenuOption(source),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 28,
-                              child: source == selectedSource
-                                  ? const Icon(Icons.check, size: 18)
-                                  : null,
-                            ),
-                            Text(source.label),
-                          ],
+                    PopupMenuButton<_PlayerMenuOption>(
+                      tooltip: '播放选项',
+                      color: fullscreen
+                          ? const Color(0xff242529)
+                          : Theme.of(context).colorScheme.surfaceContainerHigh,
+                      onSelected: (option) {
+                        switch (option) {
+                          case _SpeedMenuOption(:final speed):
+                            onSpeedChanged(speed);
+                          case _SourceMenuOption(:final source):
+                            onSourceChanged(source);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem<_PlayerMenuOption>(
+                          enabled: false,
+                          height: 32,
+                          child: Text('播放速度'),
                         ),
+                        for (final speed in const [0.5, 1.0, 1.25, 1.5, 2.0])
+                          PopupMenuItem<_PlayerMenuOption>(
+                            value: _SpeedMenuOption(speed),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 28,
+                                  child: speed == playbackSpeed
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                ),
+                                Text('${speed}x'),
+                              ],
+                            ),
+                          ),
+                        const PopupMenuDivider(),
+                        const PopupMenuItem<_PlayerMenuOption>(
+                          enabled: false,
+                          height: 32,
+                          child: Text('清晰度'),
+                        ),
+                        for (final source in sources)
+                          PopupMenuItem<_PlayerMenuOption>(
+                            value: _SourceMenuOption(source),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 28,
+                                  child: source == selectedSource
+                                      ? const Icon(Icons.check, size: 18)
+                                      : null,
+                                ),
+                                Text(source.label),
+                              ],
+                            ),
+                          ),
+                      ],
+                      icon: Icon(Icons.more_vert, color: foreground),
+                    ),
+                    IconButton(
+                      tooltip: fullscreen ? '退出全屏' : '全屏',
+                      color: foreground,
+                      onPressed: onFullscreenChanged,
+                      icon: Icon(
+                        fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
                       ),
+                    ),
                   ],
-                  icon: Icon(Icons.more_vert, color: foreground),
-                ),
-                IconButton(
-                  tooltip: fullscreen ? '退出全屏' : '全屏',
-                  color: foreground,
-                  onPressed: onFullscreenChanged,
-                  icon: Icon(
-                    fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ],
         ),

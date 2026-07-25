@@ -93,6 +93,45 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+
+  testWidgets('视频详情加载失败后可原位重试且不会因重建重复请求', (tester) async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final api = _RetryVideoApi(harness.sessionStore);
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(harness.database),
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        downloadPlatformServiceProvider.overrideWithValue(
+          _FakeDownloadPlatformService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: VideoDetailPage(api: api, video: _video),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('详情暂时不可用'), findsOneWidget);
+    expect(api.detailLoads, 1);
+    await tester.pump();
+    expect(api.detailLoads, 1);
+
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('测试视频'), findsOneWidget);
+    expect(find.text('此视频未提供可直接播放的 MP4 源。'), findsOneWidget);
+    expect(api.detailLoads, 2);
+  });
 }
 
 final class _FakeNetworkStatusService implements NetworkStatusService {
@@ -163,6 +202,31 @@ class _FakeVideoApi extends Rule34VideoApi {
     required bool upvote,
   }) async {
     votedCommentId = comment.id;
+  }
+
+  @override
+  void close() {}
+}
+
+class _RetryVideoApi extends Rule34VideoApi {
+  _RetryVideoApi(SessionStore sessionStore) : super(sessionStore: sessionStore);
+
+  int detailLoads = 0;
+
+  @override
+  Future<VideoDetails> loadVideoDetails(VideoItem video) async {
+    detailLoads += 1;
+    if (detailLoads == 1) {
+      throw const ApiException('详情暂时不可用');
+    }
+    return const VideoDetails(
+      video: _video,
+      sources: [],
+      categories: [],
+      tags: [],
+      models: [],
+      isFavorite: false,
+    );
   }
 
   @override

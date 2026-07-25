@@ -70,11 +70,14 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
         return;
       }
       setState(() {
-        _videos.addAll(
-          page.where((item) => !_videos.any((saved) => saved.id == item.id)),
-        );
+        final newItems = page
+            .where((item) => !_videos.any((saved) => saved.id == item.id))
+            .toList(growable: false);
+        _videos.addAll(newItems);
         _page += 1;
-        _hasMore = page.length >= 30;
+        // 网站不同列表的分页数量并不完全一致。只要本页仍返回了新内容，
+        // 就允许再探测一页；最后一页之后的空响应会可靠地结束分页。
+        _hasMore = page.isNotEmpty && newItems.isNotEmpty;
       });
     } catch (error) {
       if (!mounted) {
@@ -126,9 +129,11 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       );
     }
     if (visibleVideos.isEmpty && !_loading) {
-      return const _StateMessage(
+      return _StateMessage(
         icon: Icons.visibility_off_outlined,
-        message: '当前加载的视频已被隐藏标题关键词过滤。',
+        message: _hasMore ? '当前加载的视频都被隐藏标题关键词过滤了。' : '所有已加载视频都被隐藏标题关键词过滤了。',
+        actionLabel: _hasMore ? '继续查找未隐藏内容' : null,
+        onAction: _hasMore ? () => _load(reset: false) : null,
       );
     }
 
@@ -150,15 +155,37 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
               ),
             );
           }
+          if (_loading) {
+            return const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (_error != null) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                children: [
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _load(reset: false),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('重试加载下一页'),
+                  ),
+                ],
+              ),
+            );
+          }
           return Padding(
             padding: const EdgeInsets.all(20),
-            child: Center(
-              child: _loading
-                  ? const CircularProgressIndicator()
-                  : _hasMore
-                  ? const Text('继续向下滚动以加载更多')
-                  : const Text('已经到底了'),
-            ),
+            child: Center(child: Text(_hasMore ? '继续向下滚动以加载更多' : '已经到底了')),
           );
         },
       ),

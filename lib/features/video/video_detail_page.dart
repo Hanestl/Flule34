@@ -15,41 +15,93 @@ import '../settings/data/app_settings_repository.dart';
 import '../settings/domain/quality_selection.dart';
 import 'video_player_page.dart';
 
-class VideoDetailPage extends ConsumerWidget {
+class VideoDetailPage extends ConsumerStatefulWidget {
   const VideoDetailPage({super.key, required this.api, required this.video});
 
   final Rule34VideoApi api;
   final VideoItem video;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<VideoDetailPage> createState() => _VideoDetailPageState();
+}
+
+class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
+  late Future<VideoDetails> _detailsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _detailsFuture = widget.api.loadVideoDetails(widget.video);
+  }
+
+  @override
+  void didUpdateWidget(covariant VideoDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api || oldWidget.video.id != widget.video.id) {
+      _detailsFuture = widget.api.loadVideoDetails(widget.video);
+    }
+  }
+
+  void _reload() {
+    setState(() {
+      _detailsFuture = widget.api.loadVideoDetails(widget.video);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('视频详情')),
       body: FutureBuilder<VideoDetails>(
-        future: api.loadVideoDetails(video),
+        future: _detailsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  snapshot.error.toString(),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            return _DetailLoadError(
+              message: snapshot.error.toString(),
+              onRetry: _reload,
             );
           }
           return _VideoDetailsBody(
-            api: api,
+            api: widget.api,
             details: snapshot.requireData,
             downloads: ref.watch(downloadRepositoryProvider),
             settings: ref.watch(appSettingsRepositoryProvider),
             shareService: ref.watch(shareServiceProvider),
           );
         },
+      ),
+    );
+  }
+}
+
+class _DetailLoadError extends StatelessWidget {
+  const _DetailLoadError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 48),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -532,7 +584,12 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
             aspectRatio: 16 / 9,
             child: ColoredBox(
               color: Colors.black,
-              child: Center(child: Text('此视频未提供可直接播放的 MP4 源。')),
+              child: Center(
+                child: Text(
+                  '此视频未提供可直接播放的 MP4 源。',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
             ),
           ),
         Padding(

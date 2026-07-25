@@ -52,6 +52,7 @@ void main() {
     );
     expect(durationPosition.left, 8);
     expect(durationPosition.right, isNull);
+    expect(tester.widget<Text>(find.text('2:34')).style?.color, Colors.white);
   });
 }
 

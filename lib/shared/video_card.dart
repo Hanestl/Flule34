@@ -315,7 +315,10 @@ class VideoCard extends ConsumerWidget {
                               ),
                               child: Text(
                                 video.duration!,
-                                style: const TextStyle(fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ),
