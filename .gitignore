@@ -40,6 +40,10 @@ migrate_working_dir/
 *.pem
 *.p12
 *.pfx
+*.jks
+*.keystore
+/android/key.properties
+/android/app/release-keystore.jks
 
 # Symbolication related
 app.*.symbols

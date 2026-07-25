@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.44.8
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+
+      - name: 配置 Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: 安装固定版本 Flutter
+        shell: bash
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: 输出工具版本
+        run: flutter --version
+
+      - name: 获取依赖
+        run: flutter pub get
+
+      - name: 检查格式
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: 校验生成代码
+        shell: bash
+        run: |
+          dart run build_runner build
+          git diff --exit-code -- lib/core/database/app_database.g.dart
+
+      - name: 静态分析
+        run: flutter analyze --no-pub
+
+      - name: 扫描敏感文件
+        run: dart run tool/check_sensitive_files.dart
+
+      - name: 全量测试
+        run: flutter test --no-pub
+
+      - name: 构建 Debug APK
+        shell: bash
+        run: |
+          flutter build apk --debug --no-pub \
+            --dart-define=FLULE34_FLUTTER_VERSION="$FLUTTER_VERSION" \
+            --dart-define=GIT_COMMIT="$GITHUB_SHA" \
+            --dart-define=BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
+
+      - name: 上传 Debug 构建
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: flule34-debug-${{ github.sha }}
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            build/app/outputs/flutter-apk/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

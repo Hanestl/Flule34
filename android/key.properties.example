@@ -1,0 +1,4 @@
+storePassword=replace-with-a-strong-password
+keyPassword=replace-with-a-strong-password
+keyAlias=flule34
+storeFile=release-keystore.jks

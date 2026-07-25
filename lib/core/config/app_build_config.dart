@@ -2,7 +2,7 @@ abstract final class AppBuildConfig {
   static const updateApiUrl = String.fromEnvironment('FLULE34_UPDATE_API_URL');
   static const repositoryUrl = String.fromEnvironment('FLULE34_REPOSITORY_URL');
   static const flutterVersion = String.fromEnvironment(
-    'FLUTTER_VERSION',
+    'FLULE34_FLUTTER_VERSION',
     defaultValue: '未注入',
   );
   static const gitCommit = String.fromEnvironment(

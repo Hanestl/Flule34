@@ -1,0 +1,56 @@
+name: Bug 报告
+description: 报告可复现的 Flule34 问题
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 请先移除账号、Cookie、下载令牌、邮箱和成人内容截图中的敏感信息。安全漏洞请使用私密安全报告。
+  - type: input
+    id: version
+    attributes:
+      label: Flule34 版本
+      placeholder: 1.0.0+1
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备与 Android 版本
+      placeholder: Pixel 8 / Android 16
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请给出最小且稳定的复现流程。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 脱敏诊断信息
+      description: 可从“我的 → App 设置 → 诊断信息”复制，发送前请再次检查。
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我没有提交真实凭据、Cookie、私钥或未脱敏的个人信息。
+          required: true
+        - label: 这不是需要私密披露的安全漏洞。
+          required: true

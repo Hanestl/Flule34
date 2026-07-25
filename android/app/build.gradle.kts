@@ -1,7 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+val releaseSigningConfigured = keystorePropertiesFile.exists()
+
+if (releaseSigningConfigured) {
+    keystorePropertiesFile.inputStream().use(keystoreProperties::load)
+    listOf("storeFile", "storePassword", "keyAlias", "keyPassword").forEach { name ->
+        require(!keystoreProperties.getProperty(name).isNullOrBlank()) {
+            "android/key.properties 缺少必填项：$name"
+        }
+    }
 }
 
 android {
@@ -15,21 +30,43 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.hanestl.flule34"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (releaseSigningConfigured) {
+                signingConfigs.getByName("release")
+            } else {
+                null
+            }
+        }
+    }
+}
+
+tasks.matching { task ->
+    task.name == "assembleRelease" || task.name == "bundleRelease"
+}.configureEach {
+    doFirst {
+        if (!releaseSigningConfigured) {
+            throw GradleException(
+                "Release 构建需要 android/key.properties；请参考 android/key.properties.example 和 docs/release.md。",
+            )
         }
     }
 }

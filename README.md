@@ -32,6 +32,8 @@ Flule34 是基于 Flutter 的 Android 原生侧载客户端，直接使用网站
 - 已登录账号资料、头像、个人主页与网站安全管理入口；
 - 帮助反馈、脱敏诊断报告、运行时版本与开源许可页面；
 - 可配置 GitHub Releases 更新源、稳定/预发布通道与语义版本比较；
+- 中性 Flule34 品牌图标、Android 12 启动画面和可重复生成的品牌资源；
+- Release 签名门禁、分 ABI APK、SHA256、构建证明和固定 Action SHA 的 CI/CD；
 - 持久化主题、播放、内容与下载偏好，并接入实际业务行为；
 - 账号绑定的播放进度恢复、节流保存与视频地址失效自动刷新；
 - 完整媒体库页签：继续观看、收藏、稍后观看、网站历史、播放列表、订阅和下载；
@@ -67,12 +69,14 @@ APK 输出位置：`build\app\outputs\flutter-apk\app-debug.apk`。
 & 'D:\tools\flutter\bin\flutter.bat' build apk --release `
   --dart-define=FLULE34_UPDATE_API_URL=https://api.github.com/repos/OWNER/REPOSITORY/releases `
   --dart-define=FLULE34_REPOSITORY_URL=https://github.com/OWNER/REPOSITORY `
-  --dart-define=FLUTTER_VERSION=3.44.8 `
+  --dart-define=FLULE34_FLUTTER_VERSION=3.44.8 `
   --dart-define=GIT_COMMIT=<commit> `
   --dart-define=BUILD_TIME=<ISO-8601>
 ```
 
 仓库尚未确定前不要提交占位地址；未配置的构建会在 App 中明确显示“未配置更新源”。
+
+正式签名、分 ABI 构建、GitHub Secrets、证书和 SHA256 校验见 [`docs/release.md`](docs/release.md)。仓库协作、安全和隐私规则分别见 [`CONTRIBUTING.md`](CONTRIBUTING.md)、[`SECURITY.md`](SECURITY.md) 与 [`PRIVACY.md`](PRIVACY.md)。
 
 ## Drift schema 工作流
 
@@ -93,4 +97,4 @@ APK 输出位置：`build\app\outputs\flutter-apk\app-debug.apk`。
 - 播放器真机旋转、令牌过期和复杂网络切换回归仍待完成；
 - 成员资料依赖公开页面 `.channel_logo` 结构，页面变化时需更新 Parser fixture；
 - 新建播放列表、评论分页/投票和稍后观看写操作仍待可靠接口证据；
-- Release 签名、CI 和 GitHub 开源交付尚未完成；更新检查仅在构建时配置 GitHub Releases 源后启用。
+- 主开源许可证仍需项目所有者明确选择；正式签名私钥也必须由项目所有者离线生成并妥善备份。

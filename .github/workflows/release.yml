@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.44.8
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: 检出标签
+        uses: actions/checkout@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: 安装固定版本 Flutter
+        shell: bash
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: 写入 Release 签名
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release-keystore.jks
+          {
+            printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD"
+            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'storeFile=release-keystore.jks\n'
+          } > android/key.properties
+
+      - name: 获取依赖并验证
+        shell: bash
+        run: |
+          flutter pub get
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze --no-pub
+          flutter test --no-pub
+          dart run tool/check_sensitive_files.dart
+
+      - name: 构建分 ABI Release APK
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          flutter build apk --release --split-per-abi --obfuscate \
+            --split-debug-info=build/symbols \
+            --build-name="$VERSION" \
+            --build-number="$GITHUB_RUN_NUMBER" \
+            --dart-define=FLULE34_UPDATE_API_URL="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases" \
+            --dart-define=FLULE34_REPOSITORY_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --dart-define=FLULE34_FLUTTER_VERSION="$FLUTTER_VERSION" \
+            --dart-define=GIT_COMMIT="$GITHUB_SHA" \
+            --dart-define=BUILD_TIME="$BUILD_TIME"
+          mkdir -p release
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "release/Flule34-$VERSION-armeabi-v7a.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "release/Flule34-$VERSION-arm64-v8a.apk"
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk "release/Flule34-$VERSION-x86_64.apk"
+          (cd release && sha256sum ./*.apk > SHA256SUMS.txt)
+
+      - name: 上传 Release 与符号文件
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: flule34-release-${{ github.ref_name }}
+          path: |
+            release/
+            build/symbols/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: 生成公开仓库构建证明
+        if: github.event.repository.visibility == 'public'
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: 'release/*.apk'
+
+      - name: 创建 GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release/*.apk \
+            release/SHA256SUMS.txt \
+            --verify-tag \
+            --generate-notes \
+            --title "Flule34 ${GITHUB_REF_NAME#v}"
