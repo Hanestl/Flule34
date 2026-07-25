@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/config/app_build_config.dart';
@@ -41,18 +42,22 @@ final class AppUpdateResult {
 }
 
 typedef PackageInfoLoader = Future<PackageInfo> Function();
+typedef AbiLoader = Future<List<String>> Function();
 
 final class AppUpdateService {
   AppUpdateService({
     Dio? client,
     PackageInfoLoader? packageInfoLoader,
+    AbiLoader? abiLoader,
     Uri? updateApiUri,
   }) : _client = client ?? Dio(),
        _packageInfoLoader = packageInfoLoader ?? PackageInfo.fromPlatform,
+       _abiLoader = abiLoader ?? _loadSupportedAbis,
        _updateApiUri = updateApiUri ?? AppBuildConfig.updateApiUri;
 
   final Dio _client;
   final PackageInfoLoader _packageInfoLoader;
+  final AbiLoader _abiLoader;
   final Uri? _updateApiUri;
 
   Uri? get configuredSource => _updateApiUri;
@@ -77,7 +82,13 @@ final class AppUpdateService {
           headers: const {'Accept': 'application/vnd.github+json'},
         ),
       );
-      final release = _selectRelease(response.data, channel);
+      List<String> supportedAbis;
+      try {
+        supportedAbis = await _abiLoader();
+      } catch (_) {
+        supportedAbis = const [];
+      }
+      final release = _selectRelease(response.data, channel, supportedAbis);
       if (release == null) {
         return AppUpdateResult(
           status: AppUpdateStatus.failed,
@@ -115,7 +126,11 @@ final class AppUpdateService {
     return 0;
   }
 
-  AppRelease? _selectRelease(Object? data, UpdateChannel channel) {
+  AppRelease? _selectRelease(
+    Object? data,
+    UpdateChannel channel,
+    List<String> supportedAbis,
+  ) {
     final candidates = switch (data) {
       List<Object?> values => values,
       Map<Object?, Object?> value => <Object?>[value],
@@ -125,7 +140,7 @@ final class AppUpdateService {
       if (candidate is! Map) {
         continue;
       }
-      final release = _parseRelease(candidate);
+      final release = _parseRelease(candidate, supportedAbis);
       if (release == null || candidate['draft'] == true) {
         continue;
       }
@@ -137,24 +152,27 @@ final class AppUpdateService {
     return null;
   }
 
-  AppRelease? _parseRelease(Map<Object?, Object?> data) {
+  AppRelease? _parseRelease(
+    Map<Object?, Object?> data,
+    List<String> supportedAbis,
+  ) {
     final rawVersion = data['tag_name']?.toString().trim();
     final pageUri = _httpsUri(data['html_url']);
     if (rawVersion == null || rawVersion.isEmpty || pageUri == null) {
       return null;
     }
-    Uri? apkUri;
+    final apkAssets = <({String name, Uri uri})>[];
     final assets = data['assets'];
     if (assets is List) {
       for (final asset in assets.whereType<Map>()) {
         final name = asset['name']?.toString().toLowerCase() ?? '';
         final candidate = _httpsUri(asset['browser_download_url']);
         if (name.endsWith('.apk') && candidate != null) {
-          apkUri = candidate;
-          break;
+          apkAssets.add((name: name, uri: candidate));
         }
       }
     }
+    final apkUri = _selectApk(apkAssets, supportedAbis);
     return AppRelease(
       version: rawVersion.replaceFirst(RegExp(r'^[vV]'), ''),
       title: data['name']?.toString().trim().isNotEmpty == true
@@ -166,6 +184,30 @@ final class AppUpdateService {
       apkUri: apkUri,
       notes: data['body']?.toString().trim(),
     );
+  }
+
+  Uri? _selectApk(
+    List<({String name, Uri uri})> assets,
+    List<String> supportedAbis,
+  ) {
+    for (final abi in supportedAbis) {
+      final normalized = abi.toLowerCase();
+      for (final asset in assets) {
+        if (asset.name.contains(normalized)) {
+          return asset.uri;
+        }
+      }
+    }
+    for (final asset in assets) {
+      if (asset.name.contains('universal')) {
+        return asset.uri;
+      }
+    }
+    return assets.firstOrNull?.uri;
+  }
+
+  static Future<List<String>> _loadSupportedAbis() async {
+    return (await DeviceInfoPlugin().androidInfo).supportedAbis;
   }
 
   static List<int> _versionParts(String version) {

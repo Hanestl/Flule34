@@ -34,9 +34,14 @@ void main() {
           'draft': false,
           'assets': [
             {
+              'name': 'flule34-armeabi-v7a.apk',
+              'browser_download_url':
+                  'https://github.com/example/releases/download/v1.0.1/arm32.apk',
+            },
+            {
               'name': 'flule34-arm64-v8a.apk',
               'browser_download_url':
-                  'https://github.com/example/releases/download/v1.0.1/app.apk',
+                  'https://github.com/example/releases/download/v1.0.1/arm64.apk',
             },
           ],
         },
@@ -50,6 +55,7 @@ void main() {
         version: '1.0.0',
         buildNumber: '1',
       ),
+      abiLoader: () async => const ['arm64-v8a'],
     );
 
     final result = await service.check(UpdateChannel.stable);
@@ -57,6 +63,7 @@ void main() {
     expect(result.status, AppUpdateStatus.updateAvailable);
     expect(result.release?.version, '1.0.1');
     expect(result.release?.apkUri, isNotNull);
+    expect(result.release?.apkUri?.path, endsWith('/arm64.apk'));
   });
 }
 
