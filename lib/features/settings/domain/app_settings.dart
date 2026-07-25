@@ -1,7 +1,7 @@
 enum AppThemePreference {
   system('跟随系统'),
-  dark('深色'),
-  amoled('纯黑');
+  light('浅色'),
+  dark('深色');
 
   const AppThemePreference(this.label);
 
@@ -53,7 +53,7 @@ final class AppSettings {
   });
 
   static const defaults = AppSettings(
-    theme: AppThemePreference.dark,
+    theme: AppThemePreference.system,
     playbackQuality: VideoQualityPreference.automatic,
     autoplay: false,
     loopPlayback: false,

@@ -13,10 +13,10 @@ void main() {
     addTearDown(repository.dispose);
 
     await repository.load();
-    expect(repository.settings.theme, AppThemePreference.dark);
+    expect(repository.settings.theme, AppThemePreference.system);
     expect(repository.settings.askDownloadQuality, isTrue);
 
-    await repository.setTheme(AppThemePreference.amoled);
+    await repository.setTheme(AppThemePreference.light);
     await repository.setAutoplay(true);
     await repository.setRememberPlaybackProgress(false);
     await repository.setWifiOnlyDownloads(true);
@@ -25,11 +25,22 @@ void main() {
     final restored = AppSettingsRepository(store);
     addTearDown(restored.dispose);
     await restored.load();
-    expect(restored.settings.theme, AppThemePreference.amoled);
+    expect(restored.settings.theme, AppThemePreference.light);
     expect(restored.settings.autoplay, isTrue);
     expect(restored.settings.rememberPlaybackProgress, isFalse);
     expect(restored.settings.wifiOnlyDownloads, isTrue);
     expect(restored.settings.updateChannel, UpdateChannel.prerelease);
+  });
+
+  test('旧纯黑主题迁移为中性深色主题', () async {
+    final repository = AppSettingsRepository(
+      _MemorySettingsStore({'flule34.settings.theme': 'amoled'}),
+    );
+    addTearDown(repository.dispose);
+
+    await repository.load();
+
+    expect(repository.settings.theme, AppThemePreference.dark);
   });
 
   test('损坏或过时的枚举值回退到默认设置', () async {

@@ -1,60 +1,132 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+abstract interface class AdultConfirmationStore {
+  Future<bool?> readConfirmed();
+
+  Future<void> writeConfirmed(bool value);
+}
+
+final class SharedPreferencesAdultConfirmationStore
+    implements AdultConfirmationStore {
+  SharedPreferencesAdultConfirmationStore({SharedPreferencesAsync? preferences})
+    : _preferences = preferences ?? SharedPreferencesAsync();
+
+  static const _confirmedKey = 'flule34.onboarding.adult_confirmed';
+
+  final SharedPreferencesAsync _preferences;
+
+  @override
+  Future<bool?> readConfirmed() => _preferences.getBool(_confirmedKey);
+
+  @override
+  Future<void> writeConfirmed(bool value) {
+    return _preferences.setBool(_confirmedKey, value);
+  }
+}
+
 class AdultGate extends StatefulWidget {
-  const AdultGate({super.key, required this.child});
+  const AdultGate({super.key, required this.child, this.store});
 
   final Widget child;
+  final AdultConfirmationStore? store;
 
   @override
   State<AdultGate> createState() => _AdultGateState();
 }
 
 class _AdultGateState extends State<AdultGate> {
-  final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
-  late Future<bool> _confirmedFuture;
+  late final AdultConfirmationStore _store;
+  bool? _confirmed;
+  bool _saving = false;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
-    _confirmedFuture = _isConfirmed();
+    _store = widget.store ?? SharedPreferencesAdultConfirmationStore();
+    unawaited(_load());
   }
 
-  Future<bool> _isConfirmed() async {
-    return await _preferences.getBool('adult_confirmed') ?? false;
+  Future<void> _load() async {
+    try {
+      final confirmed = await _store.readConfirmed() ?? false;
+      if (mounted) {
+        setState(() => _confirmed = confirmed);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _confirmed = false;
+          _loadError = '无法读取年龄确认状态；你仍可继续，但下次启动可能需要再次确认。';
+        });
+      }
+    }
   }
 
-  Future<void> _confirm() async {
-    await _preferences.setBool('adult_confirmed', true);
-    if (mounted) {
-      setState(() => _confirmedFuture = Future<bool>.value(true));
+  void _confirm() {
+    if (_saving || _confirmed == true) {
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _confirmed = true;
+      _loadError = null;
+    });
+    unawaited(_persistConfirmation());
+  }
+
+  Future<void> _persistConfirmation() async {
+    try {
+      await _store.writeConfirmed(true);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('年龄确认未能保存；本次可继续使用，但下次启动需要重新确认。')),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _confirmedFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.data == true) {
-          return widget.child;
-        }
-        return _AgeConfirmation(onConfirm: _confirm);
-      },
+    if (_confirmed == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_confirmed == true) {
+      return widget.child;
+    }
+    return _AgeConfirmation(
+      onConfirm: _confirm,
+      saving: _saving,
+      errorMessage: _loadError,
     );
   }
 }
 
 class _AgeConfirmation extends StatelessWidget {
-  const _AgeConfirmation({required this.onConfirm});
+  const _AgeConfirmation({
+    required this.onConfirm,
+    required this.saving,
+    this.errorMessage,
+  });
 
-  final Future<void> Function() onConfirm;
+  final VoidCallback onConfirm;
+  final bool saving;
+  final String? errorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -85,10 +157,25 @@ class _AgeConfirmation extends StatelessWidget {
                     '本应用包含仅适合成年人的内容。继续即表示你已达到所在地区法定成年年龄，并同意遵守当地法律。',
                     textAlign: TextAlign.center,
                   ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 28),
                   FilledButton(
-                    onPressed: onConfirm,
-                    child: const Text('我已年满法定成年年龄'),
+                    onPressed: saving ? null : onConfirm,
+                    child: saving
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('我已年满法定成年年龄'),
                   ),
                   const SizedBox(height: 12),
                   TextButton(

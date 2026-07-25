@@ -23,13 +23,11 @@ class Flule34App extends ConsumerWidget {
           title: 'Flule34',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
-          darkTheme: preference == AppThemePreference.amoled
-              ? AppTheme.amoled
-              : AppTheme.dark,
+          darkTheme: AppTheme.dark,
           themeMode: switch (preference) {
             AppThemePreference.system => ThemeMode.system,
-            AppThemePreference.dark ||
-            AppThemePreference.amoled => ThemeMode.dark,
+            AppThemePreference.light => ThemeMode.light,
+            AppThemePreference.dark => ThemeMode.dark,
           },
           routerConfig: router,
           builder: (context, child) {

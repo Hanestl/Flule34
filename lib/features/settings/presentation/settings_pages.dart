@@ -38,7 +38,7 @@ class AppearanceSettingsPage extends ConsumerWidget {
         const SizedBox(height: 16),
         const _InfoCard(
           icon: Icons.contrast,
-          text: '纯黑主题会把主要背景改为黑色，适合 OLED 屏幕和低光环境。',
+          text: '浅色使用白色与浅灰背景；深色使用中性灰背景；跟随系统会随手机的夜间模式自动切换。',
         ),
       ],
     );

@@ -42,11 +42,7 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_updateChannelKey),
     ]);
     _settings = AppSettings(
-      theme: _enumValue(
-        AppThemePreference.values,
-        values[0] as String?,
-        AppSettings.defaults.theme,
-      ),
+      theme: _themeValue(values[0] as String?),
       playbackQuality: _enumValue(
         VideoQualityPreference.values,
         values[1] as String?,
@@ -157,5 +153,16 @@ final class AppSettingsRepository extends ChangeNotifier {
       }
     }
     return fallback;
+  }
+
+  AppThemePreference _themeValue(String? name) {
+    if (name == 'amoled') {
+      return AppThemePreference.dark;
+    }
+    return _enumValue(
+      AppThemePreference.values,
+      name,
+      AppSettings.defaults.theme,
+    );
   }
 }
