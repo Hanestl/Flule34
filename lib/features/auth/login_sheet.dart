@@ -27,6 +27,7 @@ class _LoginSheetState extends State<_LoginSheet> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   var _submitting = false;
+  var _obscurePassword = true;
   String? _error;
 
   @override
@@ -66,80 +67,100 @@ class _LoginSheetState extends State<_LoginSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(24, 24, 24, bottomInset + 24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('登录', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.username],
-              decoration: const InputDecoration(labelText: '注册邮箱'),
-              validator: (value) =>
-                  value == null || value.trim().isEmpty ? '请输入注册邮箱。' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _passwordController,
-              obscureText: true,
-              autofillHints: const [AutofillHints.password],
-              decoration: const InputDecoration(labelText: '密码'),
-              onFieldSubmitted: (_) => _submit(),
-              validator: (value) =>
-                  value == null || value.isEmpty ? '请输入密码。' : null,
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+      child: SafeArea(
+        top: false,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('登录', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.username],
+                decoration: const InputDecoration(labelText: '注册邮箱'),
+                validator: (value) =>
+                    value == null || value.trim().isEmpty ? '请输入注册邮箱。' : null,
               ),
-            ],
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _submitting ? null : _submit,
-              child: _submitting
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('登录'),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: _submitting
-                      ? null
-                      : () => _openWebsite(
-                          Uri.parse('https://rule34video.com/signup/'),
-                        ),
-                  child: const Text('注册账号'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                autofillHints: const [AutofillHints.password],
+                decoration: InputDecoration(
+                  labelText: '密码',
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                    onPressed: _submitting
+                        ? null
+                        : () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                  ),
                 ),
-                TextButton(
-                  onPressed: _submitting
-                      ? null
-                      : () => _openWebsite(
-                          Uri.parse('https://rule34video.com/reset-password/'),
-                        ),
-                  child: const Text('忘记密码'),
+                onFieldSubmitted: (_) => _submit(),
+                validator: (value) =>
+                    value == null || value.isEmpty ? '请输入密码。' : null,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '密码不会由应用保存；仅保存网站返回的加密会话信息。',
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('登录'),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: _submitting
+                        ? null
+                        : () => _openWebsite(
+                            Uri.parse('https://rule34video.com/signup/'),
+                          ),
+                    child: const Text('注册账号'),
+                  ),
+                  TextButton(
+                    onPressed: _submitting
+                        ? null
+                        : () => _openWebsite(
+                            Uri.parse(
+                              'https://rule34video.com/reset-password/',
+                            ),
+                          ),
+                    child: const Text('忘记密码'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '密码不会由应用保存；仅保存网站返回的加密会话信息。',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );

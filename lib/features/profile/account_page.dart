@@ -16,11 +16,33 @@ class AccountPage extends StatefulWidget {
 
 class _AccountPageState extends State<AccountPage> {
   Future<MemberProfile>? _profile;
+  String? _observedUserId;
 
   @override
   void initState() {
     super.initState();
+    _observedUserId = widget.api.sessionStore.currentUserId;
+    widget.api.sessionStore.addListener(_onSessionChanged);
     _reload();
+  }
+
+  @override
+  void dispose() {
+    widget.api.sessionStore.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
+  void _onSessionChanged() {
+    final nextUserId = widget.api.sessionStore.currentUserId;
+    if (!mounted || nextUserId == _observedUserId) {
+      return;
+    }
+    setState(() {
+      _observedUserId = nextUserId;
+      _profile = nextUserId == null
+          ? null
+          : widget.api.loadCurrentUserProfile();
+    });
   }
 
   void _reload() {

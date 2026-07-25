@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
+import 'package:flule34/core/database/app_database.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/features/search/data/search_history_repository.dart';
@@ -144,6 +145,48 @@ void main() {
       isEmpty,
     );
   });
+
+  testWidgets('搜索页打开期间登录会切换到当前账号历史流', (tester) async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final api = _FakeSearchApi(harness.sessionStore);
+    addTearDown(api.close);
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
+    final historyRepository = _TrackingSearchHistoryRepository(
+      harness.database,
+      harness.sessionStore,
+      settings,
+    );
+    final container = ProviderContainer(
+      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: SearchPage(api: api, historyRepository: historyRepository),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('登录后，搜索历史会按账号安全保存。'), findsOneWidget);
+
+    await harness.sessionStore.authenticate('1001');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('登录后，搜索历史会按账号安全保存。'), findsNothing);
+    expect(find.text('还没有搜索记录。'), findsOneWidget);
+    expect(historyRepository.watchCalls, 2);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 }
 
 final class _MemorySettingsStore implements AppSettingsStore {
@@ -198,4 +241,21 @@ class _FakeSearchApi extends Rule34VideoApi {
 
   @override
   void close() {}
+}
+
+final class _TrackingSearchHistoryRepository extends SearchHistoryRepository {
+  _TrackingSearchHistoryRepository(
+    AppDatabase database,
+    this.sessionStore,
+    AppSettingsRepository settings,
+  ) : super(database, sessionStore, settings);
+
+  final SessionStore sessionStore;
+  int watchCalls = 0;
+
+  @override
+  Stream<List<SearchHistory>> watch() {
+    watchCalls += 1;
+    return Stream.value(const []);
+  }
 }

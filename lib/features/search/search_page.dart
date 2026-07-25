@@ -29,8 +29,9 @@ class _SearchPageState extends State<SearchPage> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   Timer? _debounce;
-  late final Stream<List<SearchHistory>> _historyStream;
-  late final Future<List<ContentCollectionItem>> _popularTags;
+  late Stream<List<SearchHistory>> _historyStream;
+  late Future<List<ContentCollectionItem>> _popularTags;
+  String? _historyUserId;
 
   Map<SearchSuggestionKind, List<SearchSuggestion>> _suggestions = const {};
   SearchFilters _filters = const SearchFilters();
@@ -45,8 +46,14 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
-    _historyStream = widget.historyRepository.watch();
-    _popularTags = widget.api
+    _syncHistoryStream();
+    _popularTags = _loadPopularTags();
+    widget.api.sessionStore.addListener(_onSessionChanged);
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  Future<List<ContentCollectionItem>> _loadPopularTags() {
+    return widget.api
         .loadDiscoveryDirectory(
           const DiscoveryDirectorySpec(
             title: '热门标签',
@@ -55,12 +62,25 @@ class _SearchPageState extends State<SearchPage> {
           ),
         )
         .then((items) => items.take(12).toList(growable: false));
-    _focusNode.addListener(_onFocusChanged);
+  }
+
+  void _syncHistoryStream() {
+    _historyUserId = widget.api.sessionStore.currentUserId;
+    _historyStream = widget.historyRepository.watch();
+  }
+
+  void _onSessionChanged() {
+    final nextUserId = widget.api.sessionStore.currentUserId;
+    if (!mounted || nextUserId == _historyUserId) {
+      return;
+    }
+    setState(_syncHistoryStream);
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    widget.api.sessionStore.removeListener(_onSessionChanged);
     _focusNode
       ..removeListener(_onFocusChanged)
       ..dispose();
@@ -140,8 +160,20 @@ class _SearchPageState extends State<SearchPage> {
       _scope = SearchResultScope.overview;
       _searchRevision += 1;
     });
-    unawaited(widget.historyRepository.record(text));
+    unawaited(_recordHistory(text));
     unawaited(_loadSuggestions(text));
+  }
+
+  Future<void> _recordHistory(String text) async {
+    try {
+      await widget.historyRepository.record(text);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('搜索成功，但历史记录保存失败。')));
+      }
+    }
   }
 
   void _applyFilters(SearchFilters filters) {
@@ -413,8 +445,22 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               );
             }
-            if (snapshot.hasError || (snapshot.data?.isEmpty ?? true)) {
-              return const Text('热门标签暂时不可用。');
+            if (snapshot.hasError) {
+              return Row(
+                children: [
+                  const Expanded(child: Text('热门标签暂时不可用。')),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() => _popularTags = _loadPopularTags());
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('重试'),
+                  ),
+                ],
+              );
+            }
+            if (snapshot.data?.isEmpty ?? true) {
+              return const Text('暂时没有可展示的热门标签。');
             }
             return Wrap(
               spacing: 8,
@@ -473,7 +519,7 @@ class _SearchPageState extends State<SearchPage> {
                       (item) => InputChip(
                         label: Text(item.displayQuery),
                         onPressed: () => _search(item.displayQuery),
-                        onDeleted: () => widget.historyRepository.delete(item),
+                        onDeleted: () => unawaited(_deleteHistory(item)),
                       ),
                     )
                     .toList(growable: false),
@@ -697,7 +743,27 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
     if (confirmed == true) {
-      await widget.historyRepository.clear();
+      try {
+        await widget.historyRepository.clear();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('搜索历史清空失败，请稍后重试。')));
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteHistory(SearchHistory item) async {
+    try {
+      await widget.historyRepository.delete(item);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('搜索记录删除失败，请稍后重试。')));
+      }
     }
   }
 
