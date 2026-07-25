@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
@@ -14,6 +17,13 @@ import '../../helpers/test_session_harness.dart';
 
 void main() {
   testWidgets('视频详情将评分、播放列表和评论接入真实交互', (tester) async {
+    final originalPlatform = VideoPlayerPlatform.instance;
+    final platform = _FakeVideoPlayerPlatform();
+    VideoPlayerPlatform.instance = platform;
+    addTearDown(() async {
+      VideoPlayerPlatform.instance = originalPlatform;
+      await platform.close();
+    });
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -46,6 +56,8 @@ void main() {
     expect(find.text('不喜欢'), findsOneWidget);
     expect(find.text('播放列表'), findsOneWidget);
     expect(find.text('已有评论'), findsOneWidget);
+    expect(find.text('播放'), findsNothing);
+    expect(platform.playCount, 1);
 
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pump();
@@ -74,7 +86,13 @@ const _video = VideoItem(id: '123', title: '测试视频', slug: 'test-video');
 
 const _details = VideoDetails(
   video: _video,
-  sources: [],
+  sources: [
+    VideoSource(
+      label: '720p',
+      url: 'https://example.com/video.mp4',
+      isHd: true,
+    ),
+  ],
   categories: ['3D'],
   tags: ['example'],
   models: ['Artist'],
@@ -114,6 +132,80 @@ class _FakeVideoApi extends Rule34VideoApi {
 
   @override
   void close() {}
+}
+
+final class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
+  final StreamController<VideoEvent> _events =
+      StreamController<VideoEvent>.broadcast();
+
+  int playCount = 0;
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<int?> createWithOptions(VideoCreationOptions options) async {
+    Timer.run(() {
+      if (!_events.isClosed) {
+        _events.add(
+          VideoEvent(
+            eventType: VideoEventType.initialized,
+            duration: const Duration(minutes: 2),
+            size: const Size(1280, 720),
+          ),
+        );
+      }
+    });
+    return 1;
+  }
+
+  @override
+  Stream<VideoEvent> videoEventsFor(int playerId) => _events.stream;
+
+  @override
+  Widget buildViewWithOptions(VideoViewOptions options) {
+    return const ColoredBox(color: Colors.black);
+  }
+
+  @override
+  Future<void> play(int playerId) async {
+    playCount += 1;
+    _events.add(
+      VideoEvent(
+        eventType: VideoEventType.isPlayingStateUpdate,
+        isPlaying: true,
+      ),
+    );
+  }
+
+  @override
+  Future<void> pause(int playerId) async {}
+
+  @override
+  Future<void> seekTo(int playerId, Duration value) async {}
+
+  @override
+  Future<Duration> getPosition(int playerId) async => Duration.zero;
+
+  @override
+  Future<void> setVolume(int playerId, double value) async {}
+
+  @override
+  Future<void> setPlaybackSpeed(int playerId, double value) async {}
+
+  @override
+  Future<void> setLooping(int playerId, bool looping) async {}
+
+  @override
+  Future<void> setMixWithOthers(bool mixWithOthers) async {}
+
+  @override
+  Future<void> setAllowBackgroundPlayback(bool allowBackgroundPlayback) async {}
+
+  @override
+  Future<void> dispose(int playerId) async {}
+
+  Future<void> close() => _events.close();
 }
 
 final class _MemorySettingsStore implements AppSettingsStore {

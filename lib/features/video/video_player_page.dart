@@ -17,11 +17,15 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
     required this.api,
     required this.video,
     required this.sources,
+    this.embedded = false,
+    this.autoplay,
   });
 
   final Rule34VideoApi api;
   final VideoItem video;
   final List<VideoSource> sources;
+  final bool embedded;
+  final bool? autoplay;
 
   @override
   ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
@@ -44,6 +48,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _controlsVisible = true;
   var _playbackSpeed = 1.0;
   Timer? _controlsTimer;
+  final ValueNotifier<int> _fullscreenRevision = ValueNotifier<int>(0);
   String? _error;
 
   @override
@@ -65,7 +70,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     await _setSource(
       _selectedSource,
       resumeAt: resumePosition,
-      shouldPlay: ref.read(appSettingsRepositoryProvider).settings.autoplay,
+      shouldPlay:
+          widget.autoplay ??
+          ref.read(appSettingsRepositoryProvider).settings.autoplay,
     );
   }
 
@@ -81,7 +88,14 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       unawaited(controller.dispose());
     }
     unawaited(_restoreSystemUi());
+    _fullscreenRevision.dispose();
     super.dispose();
+  }
+
+  void _bumpFullscreenRevision() {
+    if (mounted) {
+      _fullscreenRevision.value += 1;
+    }
   }
 
   @override
@@ -110,6 +124,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _initializing = true;
         _error = null;
       });
+      _bumpFullscreenRevision();
     }
 
     final previous = _controller;
@@ -165,6 +180,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _initializing = false;
         _error = null;
       });
+      _bumpFullscreenRevision();
       if (continuePlaying) {
         await controller.play();
         _scheduleControlsHide();
@@ -196,6 +212,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _initializing = false;
         _error = '无法播放此视频源：$error';
       });
+      _bumpFullscreenRevision();
       return false;
     }
   }
@@ -225,6 +242,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       unawaited(_persist(value));
     }
     setState(() {});
+    _bumpFullscreenRevision();
   }
 
   Future<bool> _refreshSources({
@@ -244,6 +262,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _initializing = true;
         _error = null;
       });
+      _bumpFullscreenRevision();
     }
     try {
       final details = await widget.api.loadVideoDetails(widget.video);
@@ -255,6 +274,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           _initializing = false;
           _error = '刷新后仍未找到可播放的视频源。';
         });
+        _bumpFullscreenRevision();
         return false;
       }
       _sources = List.of(details.sources);
@@ -272,6 +292,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           _initializing = false;
           _error = '视频地址刷新后仍不可用，请稍后重试。';
         });
+        _bumpFullscreenRevision();
         return false;
       }
       return await _setSource(
@@ -286,6 +307,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           _initializing = false;
           _error = '刷新视频地址失败：$error';
         });
+        _bumpFullscreenRevision();
       }
       return false;
     } finally {
@@ -344,6 +366,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       await controller.setPlaybackSpeed(speed);
       if (mounted) {
         setState(() => _playbackSpeed = speed);
+        _bumpFullscreenRevision();
       }
     } catch (error) {
       if (mounted) {
@@ -362,40 +385,66 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _scheduleControlsHide();
   }
 
+  void _toggleControls() {
+    _controlsTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _controlsVisible = !_controlsVisible);
+    if (_controlsVisible) {
+      _scheduleControlsHide();
+    }
+  }
+
   void _scheduleControlsHide() {
     _controlsTimer?.cancel();
     final controller = _controller;
-    if (!_fullscreen || controller == null || !controller.value.isPlaying) {
+    if (controller == null || !controller.value.isPlaying) {
       return;
     }
     _controlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && _fullscreen && _controller?.value.isPlaying == true) {
+      if (mounted && _controller?.value.isPlaying == true) {
         setState(() => _controlsVisible = false);
       }
     });
   }
 
   Future<void> _setFullscreen(bool value) async {
-    if (_fullscreen == value) {
+    if (!value) {
+      if (_fullscreen && mounted) {
+        await Navigator.of(context, rootNavigator: true).maybePop();
+      }
       return;
     }
-    if (value) {
+    if (_fullscreen) {
+      return;
+    }
+    try {
       await SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    } else {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _fullscreen = true);
+      await Navigator.of(context, rootNavigator: true).push<void>(
+        MaterialPageRoute<void>(
+          fullscreenDialog: true,
+          builder: (_) => _FullscreenPlayerHost(owner: this),
+        ),
+      );
+    } finally {
       await _restoreSystemUi();
+      if (mounted) {
+        setState(() {
+          _fullscreen = false;
+          _controlsVisible = true;
+        });
+        _scheduleControlsHide();
+      }
     }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _fullscreen = value;
-      _controlsVisible = true;
-    });
-    _scheduleControlsHide();
   }
 
   Future<void> _restoreSystemUi() async {
@@ -423,123 +472,79 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
-    return PopScope(
-      canPop: !_fullscreen,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _fullscreen) {
-          unawaited(_setFullscreen(false));
-        }
-      },
-      child: Scaffold(
-        backgroundColor: _fullscreen ? Colors.black : null,
-        appBar: _fullscreen
-            ? null
-            : AppBar(
-                title: Text(
-                  widget.video.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-        body: _fullscreen
-            ? _buildFullscreen(controller)
-            : _buildInline(controller),
+    final player = _buildInline(controller);
+    if (widget.embedded) {
+      return player;
+    }
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text(
+          widget.video.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
+      body: Center(child: player),
     );
   }
 
   Widget _buildInline(VideoPlayerController? controller) {
-    return Column(
-      children: [
-        Expanded(child: Center(child: _buildPlayerState(controller))),
-        if (controller != null && controller.value.isInitialized)
-          _Controls(
-            controller: controller,
-            fullscreen: false,
-            sources: _sources,
-            selectedSource: _selectedSource,
-            playbackSpeed: _playbackSpeed,
-            onTogglePlayback: _togglePlayback,
-            onSeekBack: () => _seekRelative(const Duration(seconds: -10)),
-            onSeekForward: () => _seekRelative(const Duration(seconds: 10)),
-            onSpeedChanged: _setPlaybackSpeed,
-            onSourceChanged: _changeSource,
-            onFullscreenChanged: () => _setFullscreen(true),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildFullscreen(VideoPlayerController? controller) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              _controlsTimer?.cancel();
-              setState(() => _controlsVisible = !_controlsVisible);
-              if (_controlsVisible) {
-                _scheduleControlsHide();
-              }
-            },
-            onDoubleTapDown: (details) {
-              final width = MediaQuery.sizeOf(context).width;
-              final delta = details.localPosition.dx < width / 2
-                  ? const Duration(seconds: -10)
-                  : const Duration(seconds: 10);
-              unawaited(_seekRelative(delta));
-            },
-            child: Center(
-              child: _buildPlayerState(controller, fullscreen: true),
+    return AspectRatio(
+      key: const ValueKey('inline-video-player'),
+      aspectRatio: 16 / 9,
+      child: Material(
+        color: Colors.black,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleControls,
+              onDoubleTapDown: (details) {
+                final width = MediaQuery.sizeOf(context).width;
+                final delta = details.localPosition.dx < width / 2
+                    ? const Duration(seconds: -10)
+                    : const Duration(seconds: 10);
+                unawaited(_seekRelative(delta));
+              },
+              child: Center(child: _buildPlayerState(controller)),
             ),
-          ),
-        ),
-        if (_controlsVisible) ...[
-          Positioned(
-            top: 8,
-            left: 8,
-            child: SafeArea(
-              child: IconButton.filledTonal(
-                tooltip: '退出全屏',
-                onPressed: () => _setFullscreen(false),
-                icon: const Icon(Icons.arrow_back),
-              ),
-            ),
-          ),
-          if (controller != null && controller.value.isInitialized)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SafeArea(
-                top: false,
-                child: _Controls(
-                  controller: controller,
-                  fullscreen: true,
-                  sources: _sources,
-                  selectedSource: _selectedSource,
-                  playbackSpeed: _playbackSpeed,
-                  onTogglePlayback: _togglePlayback,
-                  onSeekBack: () => _seekRelative(const Duration(seconds: -10)),
-                  onSeekForward: () =>
-                      _seekRelative(const Duration(seconds: 10)),
-                  onSpeedChanged: _setPlaybackSpeed,
-                  onSourceChanged: _changeSource,
-                  onFullscreenChanged: () => _setFullscreen(false),
+            if (controller != null && controller.value.isInitialized)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  ignoring: !_controlsVisible,
+                  child: AnimatedOpacity(
+                    opacity: _controlsVisible ? 1 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: _Controls(
+                      controller: controller,
+                      fullscreen: false,
+                      sources: _sources,
+                      selectedSource: _selectedSource,
+                      playbackSpeed: _playbackSpeed,
+                      onTogglePlayback: _togglePlayback,
+                      onSeekBack: () =>
+                          _seekRelative(const Duration(seconds: -10)),
+                      onSeekForward: () =>
+                          _seekRelative(const Duration(seconds: 10)),
+                      onSpeedChanged: _setPlaybackSpeed,
+                      onSourceChanged: _changeSource,
+                      onFullscreenChanged: () => _setFullscreen(true),
+                    ),
+                  ),
                 ),
               ),
-            ),
-        ],
-      ],
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildPlayerState(
-    VideoPlayerController? controller, {
-    bool fullscreen = false,
-  }) {
+  Widget _buildPlayerState(VideoPlayerController? controller) {
     if (_initializing) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -547,7 +552,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           const CircularProgressIndicator(),
           if (_refreshingSource) ...[
             const SizedBox(height: 12),
-            const Text('正在刷新视频地址…'),
+            const Text('正在刷新视频地址…', style: TextStyle(color: Colors.white)),
           ],
         ],
       );
@@ -558,50 +563,194 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (controller == null) {
       return const SizedBox.shrink();
     }
-    return _PlayerSurface(
-      controller: controller,
-      fullscreen: fullscreen,
-      onTap: fullscreen ? _showControls : _togglePlayback,
-    );
+    return _PlayerSurface(controller: controller);
   }
 }
 
 class _PlayerSurface extends StatelessWidget {
-  const _PlayerSurface({
-    required this.controller,
-    required this.fullscreen,
-    required this.onTap,
-  });
+  const _PlayerSurface({required this.controller});
 
   final VideoPlayerController controller;
-  final bool fullscreen;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: fullscreen
-            ? const BoxConstraints.expand()
-            : const BoxConstraints(),
-        child: AspectRatio(
-          aspectRatio: controller.value.aspectRatio,
-          child: Stack(
-            alignment: Alignment.center,
+    return AspectRatio(
+      key: const ValueKey('video-content-aspect-ratio'),
+      aspectRatio: controller.value.aspectRatio,
+      child: Stack(
+        fit: StackFit.expand,
+        alignment: Alignment.center,
+        children: [
+          VideoPlayer(controller),
+          if (controller.value.isBuffering)
+            const Center(child: CircularProgressIndicator()),
+          if (!controller.value.isPlaying && !controller.value.isBuffering)
+            const Center(
+              child: Icon(
+                Icons.play_circle_fill,
+                color: Colors.white70,
+                size: 64,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullscreenPlayerHost extends StatefulWidget {
+  const _FullscreenPlayerHost({required this.owner});
+
+  final _VideoPlayerPageState owner;
+
+  @override
+  State<_FullscreenPlayerHost> createState() => _FullscreenPlayerHostState();
+}
+
+class _FullscreenPlayerHostState extends State<_FullscreenPlayerHost> {
+  bool _controlsVisible = true;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scheduleHide());
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _toggleControls() {
+    _hideTimer?.cancel();
+    setState(() => _controlsVisible = !_controlsVisible);
+    if (_controlsVisible) {
+      _scheduleHide();
+    }
+  }
+
+  void _showControls() {
+    _hideTimer?.cancel();
+    if (!_controlsVisible) {
+      setState(() => _controlsVisible = true);
+    }
+    _scheduleHide();
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    if (!mounted || widget.owner._controller?.value.isPlaying != true) {
+      return;
+    }
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && widget.owner._controller?.value.isPlaying == true) {
+        setState(() => _controlsVisible = false);
+      }
+    });
+  }
+
+  void _exit() {
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: ValueListenableBuilder<int>(
+        valueListenable: widget.owner._fullscreenRevision,
+        builder: (context, _, _) {
+          final controller = widget.owner._controller;
+          return Stack(
+            fit: StackFit.expand,
             children: [
-              VideoPlayer(controller),
-              if (controller.value.isBuffering)
-                const CircularProgressIndicator(),
-              if (!controller.value.isPlaying && !controller.value.isBuffering)
-                const Icon(
-                  Icons.play_circle_fill,
-                  color: Colors.white70,
-                  size: 64,
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleControls,
+                onDoubleTapDown: (details) {
+                  final width = MediaQuery.sizeOf(context).width;
+                  final delta = details.localPosition.dx < width / 2
+                      ? const Duration(seconds: -10)
+                      : const Duration(seconds: 10);
+                  unawaited(widget.owner._seekRelative(delta));
+                  _showControls();
+                },
+                child: Center(
+                  child: widget.owner._buildPlayerState(controller),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: SafeArea(
+                  child: IgnorePointer(
+                    ignoring: !_controlsVisible,
+                    child: AnimatedOpacity(
+                      opacity: _controlsVisible ? 1 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: IconButton.filledTonal(
+                        tooltip: '退出全屏',
+                        onPressed: _exit,
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (controller != null && controller.value.isInitialized)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: SafeArea(
+                    top: false,
+                    child: IgnorePointer(
+                      ignoring: !_controlsVisible,
+                      child: AnimatedOpacity(
+                        opacity: _controlsVisible ? 1 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: _Controls(
+                          controller: controller,
+                          fullscreen: true,
+                          sources: widget.owner._sources,
+                          selectedSource: widget.owner._selectedSource,
+                          playbackSpeed: widget.owner._playbackSpeed,
+                          onTogglePlayback: () {
+                            unawaited(
+                              widget.owner._togglePlayback().whenComplete(
+                                _scheduleHide,
+                              ),
+                            );
+                          },
+                          onSeekBack: () {
+                            unawaited(
+                              widget.owner._seekRelative(
+                                const Duration(seconds: -10),
+                              ),
+                            );
+                            _showControls();
+                          },
+                          onSeekForward: () {
+                            unawaited(
+                              widget.owner._seekRelative(
+                                const Duration(seconds: 10),
+                              ),
+                            );
+                            _showControls();
+                          },
+                          onSpeedChanged: widget.owner._setPlaybackSpeed,
+                          onSourceChanged: widget.owner._changeSource,
+                          onFullscreenChanged: _exit,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -688,6 +837,73 @@ class _Controls extends StatelessWidget {
                 ),
                 const Spacer(),
                 IconButton(
+                  tooltip: value.volume == 0 ? '恢复声音' : '静音',
+                  color: foreground,
+                  onPressed: () =>
+                      controller.setVolume(value.volume == 0 ? 1 : 0),
+                  icon: Icon(
+                    value.volume == 0 ? Icons.volume_off : Icons.volume_up,
+                  ),
+                ),
+                PopupMenuButton<_PlayerMenuOption>(
+                  tooltip: '播放选项',
+                  color: fullscreen
+                      ? const Color(0xff242529)
+                      : Theme.of(context).colorScheme.surfaceContainerHigh,
+                  onSelected: (option) {
+                    switch (option) {
+                      case _SpeedMenuOption(:final speed):
+                        onSpeedChanged(speed);
+                      case _SourceMenuOption(:final source):
+                        onSourceChanged(source);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem<_PlayerMenuOption>(
+                      enabled: false,
+                      height: 32,
+                      child: Text('播放速度'),
+                    ),
+                    for (final speed in const [0.5, 1.0, 1.25, 1.5, 2.0])
+                      PopupMenuItem<_PlayerMenuOption>(
+                        value: _SpeedMenuOption(speed),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 28,
+                              child: speed == playbackSpeed
+                                  ? const Icon(Icons.check, size: 18)
+                                  : null,
+                            ),
+                            Text('${speed}x'),
+                          ],
+                        ),
+                      ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem<_PlayerMenuOption>(
+                      enabled: false,
+                      height: 32,
+                      child: Text('清晰度'),
+                    ),
+                    for (final source in sources)
+                      PopupMenuItem<_PlayerMenuOption>(
+                        value: _SourceMenuOption(source),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 28,
+                              child: source == selectedSource
+                                  ? const Icon(Icons.check, size: 18)
+                                  : null,
+                            ),
+                            Text(source.label),
+                          ],
+                        ),
+                      ),
+                  ],
+                  icon: Icon(Icons.more_vert, color: foreground),
+                ),
+                IconButton(
                   tooltip: fullscreen ? '退出全屏' : '全屏',
                   color: foreground,
                   onPressed: onFullscreenChanged,
@@ -697,72 +913,27 @@ class _Controls extends StatelessWidget {
                 ),
               ],
             ),
-            Row(
-              children: [
-                IconButton(
-                  tooltip: value.volume == 0 ? '恢复声音' : '静音',
-                  color: foreground,
-                  onPressed: () =>
-                      controller.setVolume(value.volume == 0 ? 1 : 0),
-                  icon: Icon(
-                    value.volume == 0 ? Icons.volume_off : Icons.volume_up,
-                  ),
-                ),
-                SizedBox(
-                  width: 100,
-                  child: Slider(
-                    value: value.volume.clamp(0, 1),
-                    onChanged: controller.setVolume,
-                  ),
-                ),
-                const Spacer(),
-                PopupMenuButton<double>(
-                  tooltip: '播放速度',
-                  initialValue: playbackSpeed,
-                  onSelected: onSpeedChanged,
-                  itemBuilder: (context) => const [0.5, 1.0, 1.25, 1.5, 2.0]
-                      .map(
-                        (speed) => PopupMenuItem(
-                          value: speed,
-                          child: Text('${speed}x'),
-                        ),
-                      )
-                      .toList(growable: false),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      '${playbackSpeed}x',
-                      style: TextStyle(color: foreground),
-                    ),
-                  ),
-                ),
-                PopupMenuButton<VideoSource>(
-                  tooltip: '清晰度',
-                  initialValue: selectedSource,
-                  onSelected: onSourceChanged,
-                  itemBuilder: (context) => sources
-                      .map(
-                        (source) => PopupMenuItem(
-                          value: source,
-                          child: Text(source.label),
-                        ),
-                      )
-                      .toList(growable: false),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      selectedSource.label,
-                      style: TextStyle(color: foreground),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
     );
   }
+}
+
+sealed class _PlayerMenuOption {
+  const _PlayerMenuOption();
+}
+
+final class _SpeedMenuOption extends _PlayerMenuOption {
+  const _SpeedMenuOption(this.speed);
+
+  final double speed;
+}
+
+final class _SourceMenuOption extends _PlayerMenuOption {
+  const _SourceMenuOption(this.source);
+
+  final VideoSource source;
 }
 
 String _time(Duration value) {
@@ -787,11 +958,22 @@ class _PlayerError extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline, size: 52),
+          const Icon(Icons.error_outline, size: 52, color: Colors.white),
           const SizedBox(height: 16),
-          Text(message, textAlign: TextAlign.center),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
           const SizedBox(height: 16),
-          OutlinedButton(onPressed: onRetry, child: const Text('刷新并重试')),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white70),
+            ),
+            onPressed: onRetry,
+            child: const Text('刷新并重试'),
+          ),
         ],
       ),
     );

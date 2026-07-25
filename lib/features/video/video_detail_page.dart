@@ -162,18 +162,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
   }
 
-  Future<void> _openPlayer() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => VideoPlayerPage(
-          api: widget.api,
-          video: _details.video,
-          sources: _details.sources,
-        ),
-      ),
-    );
-  }
-
   Future<void> _download() async {
     if (_addingDownload) {
       return;
@@ -488,23 +476,22 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 28),
       children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: details.video.thumbnailUrl == null
-              ? const ColoredBox(
-                  color: Color(0xff25252d),
-                  child: Icon(Icons.movie_outlined, size: 52),
-                )
-              : CachedNetworkImage(
-                  imageUrl: details.video.thumbnailUrl!,
-                  fit: BoxFit.cover,
-                  placeholder: (_, _) =>
-                      const Center(child: CircularProgressIndicator()),
-                  errorWidget: (_, _, _) => const Center(
-                    child: Icon(Icons.broken_image_outlined, size: 52),
-                  ),
-                ),
-        ),
+        if (details.sources.isNotEmpty)
+          VideoPlayerPage(
+            api: widget.api,
+            video: details.video,
+            sources: details.sources,
+            embedded: true,
+            autoplay: true,
+          )
+        else
+          const AspectRatio(
+            aspectRatio: 16 / 9,
+            child: ColoredBox(
+              color: Colors.black,
+              child: Center(child: Text('此视频未提供可直接播放的 MP4 源。')),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -539,15 +526,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                 ],
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: details.sources.isEmpty ? null : _openPlayer,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('播放'),
-                ),
-              ),
-              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -584,10 +562,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                   ),
                 ],
               ),
-              if (details.sources.isEmpty) ...[
-                const SizedBox(height: 12),
-                const Text('此视频未提供可直接播放的 MP4 源。'),
-              ],
               if (details.description != null) ...[
                 const SizedBox(height: 24),
                 Text('简介', style: Theme.of(context).textTheme.titleMedium),

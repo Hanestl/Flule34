@@ -63,7 +63,7 @@ void main() {
 
     expect(find.byTooltip('播放'), findsOneWidget);
     expect(find.byTooltip('前进 10 秒'), findsOneWidget);
-    expect(find.byTooltip('播放速度'), findsOneWidget);
+    expect(find.byTooltip('播放选项'), findsOneWidget);
     expect(find.byTooltip('全屏'), findsOneWidget);
 
     await tester.tap(find.byTooltip('播放'));
@@ -74,7 +74,7 @@ void main() {
     await tester.pump();
     expect(platform.position, const Duration(seconds: 10));
 
-    await tester.tap(find.byTooltip('播放速度'));
+    await tester.tap(find.byTooltip('播放选项'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('1.5x'));
@@ -84,6 +84,29 @@ void main() {
     await tester.tap(find.byTooltip('全屏'));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
+
+    final contentSize = tester.getSize(
+      find.byKey(const ValueKey('video-content-aspect-ratio')),
+    );
+    expect(contentSize.width / contentSize.height, closeTo(16 / 9, 0.001));
+
+    final playerRect = tester.getRect(
+      find.byKey(const ValueKey('video-content-aspect-ratio')),
+    );
+    await tester.tapAt(playerRect.center);
+    await tester.pump(const Duration(milliseconds: 400));
+    final hiddenControls = tester.widget<AnimatedOpacity>(
+      find
+          .ancestor(
+            of: find.byIcon(Icons.fullscreen_exit),
+            matching: find.byType(AnimatedOpacity),
+          )
+          .first,
+    );
+    expect(hiddenControls.opacity, 0);
+
+    await tester.tapAt(playerRect.center);
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.byIcon(Icons.fullscreen_exit));
     await tester.pumpAndSettle();
