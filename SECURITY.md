@@ -23,3 +23,4 @@
 - GitHub Actions 使用固定提交 SHA 的官方 Action；
 - Release 提供 SHA256，公开仓库同时生成 GitHub artifact attestation；
 - App 不静默下载或安装 APK，只打开构建时配置的官方发布页。
+- Android 清单显式禁止明文网络流量，并排除系统云备份与设备迁移中的 App 私有数据。
