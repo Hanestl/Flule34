@@ -11,6 +11,7 @@ import '../../../app/router/route_names.dart';
 import '../../../core/config/app_build_config.dart';
 import '../../../core/services/external_link_service.dart';
 import '../data/app_diagnostics_service.dart';
+import '../data/app_settings_repository.dart';
 import '../data/app_update_service.dart';
 import '../domain/app_settings.dart';
 
@@ -59,7 +60,11 @@ class AppSettingsPage extends ConsumerWidget {
                         selected: {settings.updateChannel},
                         onSelectionChanged: (selection) {
                           unawaited(
-                            repository.setUpdateChannel(selection.single),
+                            _saveUpdateChannel(
+                              context,
+                              repository,
+                              selection.single,
+                            ),
                           );
                         },
                       ),
@@ -247,11 +252,19 @@ class AppUpdatePage extends ConsumerStatefulWidget {
 
 class _AppUpdatePageState extends ConsumerState<AppUpdatePage> {
   Future<AppUpdateResult>? _result;
+  late final AppUpdateService _service;
 
   @override
   void initState() {
     super.initState();
+    _service = AppUpdateService();
     _check();
+  }
+
+  @override
+  void dispose() {
+    _service.close();
+    super.dispose();
   }
 
   void _check() {
@@ -259,7 +272,7 @@ class _AppUpdatePageState extends ConsumerState<AppUpdatePage> {
         .read(appSettingsRepositoryProvider)
         .settings
         .updateChannel;
-    _result = AppUpdateService().check(channel);
+    _result = _service.check(channel);
   }
 
   @override
@@ -352,15 +365,44 @@ class _AppUpdatePageState extends ConsumerState<AppUpdatePage> {
   }
 }
 
-class AboutPage extends StatelessWidget {
+Future<void> _saveUpdateChannel(
+  BuildContext context,
+  AppSettingsRepository repository,
+  UpdateChannel channel,
+) async {
+  try {
+    await repository.setUpdateChannel(channel);
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存更新通道失败：$error')));
+    }
+  }
+}
+
+class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
+
+  @override
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> {
+  late final Future<PackageInfo> _packageInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _packageInfo = PackageInfo.fromPlatform();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('关于 Flule34')),
       body: FutureBuilder<PackageInfo>(
-        future: PackageInfo.fromPlatform(),
+        future: _packageInfo,
         builder: (context, snapshot) {
           final package = snapshot.data;
           final version = package == null

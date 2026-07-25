@@ -366,14 +366,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                   title: const Text('清除当前账号搜索历史'),
                   enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
                   onTap: widget.api.sessionStore.isLoggedIn && !_clearing
-                      ? () async {
-                          await searchHistory.clear();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('搜索历史已清除。')),
-                            );
-                          }
-                        }
+                      ? () => _clearSearchHistory(searchHistory)
                       : null,
                 ),
               ),
@@ -437,6 +430,50 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('清除图片缓存失败：$error')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _clearing = false);
+      }
+    }
+  }
+
+  Future<void> _clearSearchHistory(
+    SearchHistoryRepository searchHistory,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除搜索历史？'),
+        content: const Text('只会删除当前账号在这台设备上的搜索记录。此操作无法撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _clearing = true);
+    try {
+      await searchHistory.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('搜索历史已清除。')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('清除搜索历史失败：$error')));
       }
     } finally {
       if (mounted) {

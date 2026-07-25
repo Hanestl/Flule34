@@ -50,17 +50,36 @@ final class AppUpdateService {
     PackageInfoLoader? packageInfoLoader,
     AbiLoader? abiLoader,
     Uri? updateApiUri,
-  }) : _client = client ?? Dio(),
+  }) : _client =
+           client ??
+           Dio(
+             BaseOptions(
+               connectTimeout: const Duration(seconds: 10),
+               receiveTimeout: const Duration(seconds: 20),
+               headers: const {
+                 'Accept': 'application/vnd.github+json',
+                 'User-Agent': 'Flule34 Android update checker',
+               },
+             ),
+           ),
+       _ownsClient = client == null,
        _packageInfoLoader = packageInfoLoader ?? PackageInfo.fromPlatform,
        _abiLoader = abiLoader ?? _loadSupportedAbis,
        _updateApiUri = updateApiUri ?? AppBuildConfig.updateApiUri;
 
   final Dio _client;
+  final bool _ownsClient;
   final PackageInfoLoader _packageInfoLoader;
   final AbiLoader _abiLoader;
   final Uri? _updateApiUri;
 
   Uri? get configuredSource => _updateApiUri;
+
+  void close() {
+    if (_ownsClient) {
+      _client.close(force: true);
+    }
+  }
 
   Future<AppUpdateResult> check(UpdateChannel channel) async {
     final packageInfo = await _packageInfoLoader();
