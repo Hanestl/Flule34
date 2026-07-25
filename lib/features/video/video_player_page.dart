@@ -38,6 +38,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
   VideoPlayerController? _controller;
   late final PlaybackRepository _playback;
+  late final String? _playbackUserId;
   late final ScreenWakeLockService _wakeLock;
   late List<VideoSource> _sources;
   late VideoSource _selectedSource;
@@ -61,6 +62,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _playback = ref.read(playbackRepositoryProvider);
+    _playbackUserId = widget.api.sessionStore.currentUserId;
     _wakeLock = ref.read(screenWakeLockServiceProvider);
     _sources = List.of(widget.sources);
     final settings = ref.read(appSettingsRepositoryProvider).settings;
@@ -85,7 +87,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       _ => settings.playbackQuality,
     };
     _selectedSource = selectVideoSource(_sources, quality);
-    final resumePosition = await _playback.loadPosition(widget.video.id);
+    final resumePosition = await _playback.loadPositionForAccount(
+      videoId: widget.video.id,
+      userId: _playbackUserId,
+    );
     if (!mounted) {
       return;
     }
@@ -510,7 +515,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (!value.isInitialized) {
       return Future.value();
     }
-    return _playback.savePosition(
+    return _playback.savePositionForAccount(
+      userId: _playbackUserId,
       video: widget.video,
       position: value.position,
       duration: value.duration,

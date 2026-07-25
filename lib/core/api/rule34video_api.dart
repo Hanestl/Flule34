@@ -49,6 +49,7 @@ class Rule34VideoApi {
   final SessionStore sessionStore;
   late final Dio _dio;
   List<SubscriptionItem>? _subscriptionCache;
+  String? _subscriptionCacheUserId;
 
   void close() => _dio.close(force: true);
 
@@ -275,11 +276,15 @@ class Rule34VideoApi {
 
   Future<List<SubscriptionItem>> loadSubscriptions({bool force = false}) async {
     _requireLogin();
-    if (!force && _subscriptionCache != null) {
+    final userId = sessionStore.currentUserId!;
+    if (!force &&
+        _subscriptionCache != null &&
+        _subscriptionCacheUserId == userId) {
       return _subscriptionCache!;
     }
     final result = SiteParser.subscriptions(await _get('/my/subscriptions/'));
     _subscriptionCache = result;
+    _subscriptionCacheUserId = userId;
     return result;
   }
 
@@ -388,6 +393,7 @@ class Rule34VideoApi {
       ajax: true,
     );
     _subscriptionCache = null;
+    _subscriptionCacheUserId = null;
   }
 
   Future<void> postComment({

@@ -320,6 +320,53 @@ void main() {
 
     expect(platform.maxConcurrentValues, containsAllInOrder([2, 3]));
   });
+
+  test('刷新下载地址期间切换账号不会把任务串到其他账号', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('1001');
+    final platform = _FakeDownloadPlatformService();
+    final api = _BlockingRule34VideoApi(harness.sessionStore);
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      api,
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    await repository.initialize();
+
+    final enqueue = repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    await api.requestStarted.future;
+    await harness.sessionStore.authenticate('2002');
+    api.details.complete(_details);
+
+    await expectLater(enqueue, throwsA(isA<DownloadException>()));
+    expect(platform.requests, isEmpty);
+    expect(
+      await harness.database.findVideoDownload(
+        userId: '1001',
+        videoId: _details.video.id,
+        quality: _details.sources.single.label,
+      ),
+      isNull,
+    );
+    expect(
+      await harness.database.findVideoDownload(
+        userId: '2002',
+        videoId: _details.video.id,
+        quality: _details.sources.single.label,
+      ),
+      isNull,
+    );
+  });
 }
 
 const _details = VideoDetails(
@@ -404,6 +451,25 @@ final class _FakeRule34VideoApi extends Rule34VideoApi {
       models: const [],
       isFavorite: false,
     );
+  }
+
+  @override
+  void close() {}
+}
+
+final class _BlockingRule34VideoApi extends Rule34VideoApi {
+  _BlockingRule34VideoApi(SessionStore sessionStore)
+    : super(sessionStore: sessionStore);
+
+  final Completer<void> requestStarted = Completer<void>();
+  final Completer<VideoDetails> details = Completer<VideoDetails>();
+
+  @override
+  Future<VideoDetails> loadVideoDetails(VideoItem video) {
+    if (!requestStarted.isCompleted) {
+      requestStarted.complete();
+    }
+    return details.future;
   }
 
   @override

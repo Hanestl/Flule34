@@ -134,6 +134,37 @@ void main() {
     ]);
   });
 
+  test('订阅缓存按账号隔离，切换账号后必须重新请求', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    var requests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests += 1;
+        final userId = harness.sessionStore.currentUserId!;
+        return _htmlResponse('''
+          <div class="item">
+            <a href="/models/artist-$userId/" title="Artist $userId">
+              Artist $userId
+            </a>
+          </div>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+
+    await harness.sessionStore.authenticate('1001');
+    expect((await api.loadSubscriptions()).single.title, 'Artist 1001');
+    expect((await api.loadSubscriptions()).single.title, 'Artist 1001');
+    expect(requests, 1);
+
+    await harness.sessionStore.authenticate('2002');
+    expect((await api.loadSubscriptions()).single.title, 'Artist 2002');
+    expect(requests, 2);
+  });
+
   test('发现目录和集合视频使用正确的路径与排序参数', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);

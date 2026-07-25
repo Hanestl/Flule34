@@ -84,10 +84,12 @@ final class DownloadRepository {
       videoId: details.video.id,
       quality: quality,
     );
+    _requireCurrentUser(userId);
     if (existing != null) {
       throw DownloadException('$quality 已在当前账号的下载列表中。');
     }
     final refreshedDetails = await _api.loadVideoDetails(details.video);
+    _requireCurrentUser(userId);
     final refreshedSource = refreshedDetails.sources
         .cast<VideoSource?>()
         .firstWhere(
@@ -100,9 +102,11 @@ final class DownloadRepository {
     if (!await _platformService.ensureNotificationPermission()) {
       throw const DownloadException('需要通知权限才能可靠显示后台下载进度。');
     }
+    _requireCurrentUser(userId);
 
     final id = _taskId(userId, details.video.id, quality);
     final cookie = await _api.sessionCookieHeader();
+    _requireCurrentUser(userId);
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
       'User-Agent': 'Flule34 Android/0.1',
@@ -124,6 +128,10 @@ final class DownloadRepository {
         updatedAt: Value(now),
       ),
     );
+    if (_sessionStore.currentUserId != userId) {
+      await _database.deleteDownloadRecord(id);
+      throw const DownloadException('账号已切换，本次下载未加入队列。');
+    }
 
     final enqueued = await _platformService.enqueue(
       DownloadRequest(
@@ -142,6 +150,17 @@ final class DownloadRepository {
         requiresWiFi: _settingsRepository.settings.wifiOnlyDownloads,
       ),
     );
+    if (_sessionStore.currentUserId != userId) {
+      if (enqueued) {
+        await _platformService.cancel(id);
+      }
+      await _database.updateDownloadStatus(
+        id: id,
+        state: DownloadTaskState.canceled.storageValue,
+        errorMessage: '账号已切换，任务已取消。',
+      );
+      throw const DownloadException('账号已切换，本次下载已取消。');
+    }
     if (!enqueued) {
       await _database.updateDownloadStatus(
         id: id,
@@ -383,6 +402,12 @@ final class DownloadRepository {
   void _requireOwnedRecord(DownloadRecord record) {
     if (record.userId != _requireUserId()) {
       throw const DownloadException('不能操作其他账号的下载任务。');
+    }
+  }
+
+  void _requireCurrentUser(String userId) {
+    if (_sessionStore.currentUserId != userId) {
+      throw const DownloadException('账号已切换，请在当前账号下重新操作。');
     }
   }
 

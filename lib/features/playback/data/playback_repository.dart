@@ -18,7 +18,16 @@ final class PlaybackRepository {
   final AppSettingsRepository _settingsRepository;
 
   Future<Duration?> loadPosition(String videoId) async {
-    final userId = _sessionStore.currentUserId;
+    return loadPositionForAccount(
+      videoId: videoId,
+      userId: _sessionStore.currentUserId,
+    );
+  }
+
+  Future<Duration?> loadPositionForAccount({
+    required String videoId,
+    required String? userId,
+  }) async {
     if (userId == null ||
         !_settingsRepository.settings.rememberPlaybackProgress) {
       return null;
@@ -47,7 +56,20 @@ final class PlaybackRepository {
     required Duration position,
     required Duration duration,
   }) async {
-    final userId = _sessionStore.currentUserId;
+    return savePositionForAccount(
+      userId: _sessionStore.currentUserId,
+      video: video,
+      position: position,
+      duration: duration,
+    );
+  }
+
+  Future<void> savePositionForAccount({
+    required String? userId,
+    required VideoItem video,
+    required Duration position,
+    required Duration duration,
+  }) async {
     if (userId == null ||
         !_settingsRepository.settings.rememberPlaybackProgress ||
         duration <= Duration.zero) {

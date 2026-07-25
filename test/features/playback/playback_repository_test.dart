@@ -102,6 +102,44 @@ void main() {
     );
     expect(record?.positionMs, const Duration(seconds: 30).inMilliseconds);
   });
+
+  test('播放会话绑定开始时账号，切换账号不会串写进度', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('1001');
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = PlaybackRepository(
+      harness.database,
+      harness.sessionStore,
+      settings,
+    );
+    const boundUserId = '1001';
+
+    await harness.sessionStore.authenticate('2002');
+    await repository.savePositionForAccount(
+      userId: boundUserId,
+      video: _video,
+      position: const Duration(seconds: 30),
+      duration: const Duration(minutes: 2),
+    );
+
+    expect(
+      await harness.database.findPlaybackPosition(
+        userId: '1001',
+        videoId: _video.id,
+      ),
+      isNotNull,
+    );
+    expect(
+      await harness.database.findPlaybackPosition(
+        userId: '2002',
+        videoId: _video.id,
+      ),
+      isNull,
+    );
+  });
 }
 
 const _video = VideoItem(
