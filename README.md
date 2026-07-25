@@ -74,14 +74,14 @@ APK 输出位置：`build\app\outputs\flutter-apk\app-debug.apk`。
 
 ```powershell
 & 'D:\tools\flutter\bin\flutter.bat' build apk --release `
-  --dart-define=FLULE34_UPDATE_API_URL=https://api.github.com/repos/OWNER/REPOSITORY/releases `
-  --dart-define=FLULE34_REPOSITORY_URL=https://github.com/OWNER/REPOSITORY `
+  --dart-define=FLULE34_UPDATE_API_URL=https://api.github.com/repos/Hanestl/Flule34/releases `
+  --dart-define=FLULE34_REPOSITORY_URL=https://github.com/Hanestl/Flule34 `
   --dart-define=FLULE34_FLUTTER_VERSION=3.44.8 `
   --dart-define=GIT_COMMIT=<commit> `
   --dart-define=BUILD_TIME=<ISO-8601>
 ```
 
-仓库尚未确定前不要提交占位地址；未配置的构建会在 App 中明确显示“未配置更新源”。
+未注入上述构建参数的本地开发包会在 App 中明确显示“未配置更新源”；GitHub Release 工作流会自动注入当前仓库地址。
 
 正式签名、分 ABI 构建、GitHub Secrets、证书和 SHA256 校验见 [`docs/release.md`](docs/release.md)。仓库协作、安全和隐私规则分别见 [`CONTRIBUTING.md`](CONTRIBUTING.md)、[`SECURITY.md`](SECURITY.md) 与 [`PRIVACY.md`](PRIVACY.md)。
 

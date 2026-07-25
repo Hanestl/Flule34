@@ -44,8 +44,8 @@ $buildTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
   --split-debug-info=build\symbols `
   --build-name=$version `
   --build-number=$buildNumber `
-  --dart-define=FLULE34_UPDATE_API_URL=https://api.github.com/repos/OWNER/REPOSITORY/releases `
-  --dart-define=FLULE34_REPOSITORY_URL=https://github.com/OWNER/REPOSITORY `
+  --dart-define=FLULE34_UPDATE_API_URL=https://api.github.com/repos/Hanestl/Flule34/releases `
+  --dart-define=FLULE34_REPOSITORY_URL=https://github.com/Hanestl/Flule34 `
   --dart-define=FLULE34_FLUTTER_VERSION=3.44.8 `
   --dart-define=GIT_COMMIT=$commit `
   --dart-define=BUILD_TIME=$buildTime
