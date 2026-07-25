@@ -216,8 +216,9 @@ class _FakeSearchApi extends Rule34VideoApi {
 
   @override
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
-    DiscoveryDirectorySpec spec,
-  ) async {
+    DiscoveryDirectorySpec spec, {
+    int page = 1,
+  }) async {
     return const [];
   }
 

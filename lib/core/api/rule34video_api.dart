@@ -107,9 +107,11 @@ class Rule34VideoApi {
   }
 
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
-    DiscoveryDirectorySpec spec,
-  ) async {
-    final body = await _get(spec.path);
+    DiscoveryDirectorySpec spec, {
+    int page = 1,
+  }) async {
+    final path = page > 1 ? '${spec.path}$page/' : spec.path;
+    final body = await _get(path);
     return SiteParser.contentCollections(body, spec.kind);
   }
 

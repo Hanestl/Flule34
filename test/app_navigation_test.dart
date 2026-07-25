@@ -51,8 +51,8 @@ void main() {
     expect(find.text('探索内容'), findsOneWidget);
     await tester.tap(find.text('标签'));
     await tester.pumpAndSettle();
-    expect(find.text('在标签中筛选'), findsOneWidget);
-    expect(find.text('没有匹配的内容。'), findsOneWidget);
+    expect(find.text('筛选已加载的标签'), findsOneWidget);
+    expect(find.text('没有匹配的已加载内容。'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
 
@@ -85,8 +85,9 @@ class _FakeRule34VideoApi extends Rule34VideoApi {
 
   @override
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
-    DiscoveryDirectorySpec spec,
-  ) async {
+    DiscoveryDirectorySpec spec, {
+    int page = 1,
+  }) async {
     return const [];
   }
 

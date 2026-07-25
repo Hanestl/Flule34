@@ -194,9 +194,11 @@ void main() {
     );
 
     final item = (await api.loadDiscoveryDirectory(spec)).single;
+    await api.loadDiscoveryDirectory(spec, page: 2);
     await api.loadCollectionVideos(item, 2, sort: VideoSort.mostViewed);
 
     expect(requests.first.path, '/models/');
+    expect(requests[1].path, '/models/2/');
     expect(requests.last.path, '/models/example-artist/2/');
     expect(requests.last.queryParameters['sort_by'], 'video_viewed');
   });
