@@ -69,23 +69,9 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       if (!mounted) {
         return;
       }
-      final hiddenKeywords = ref
-          .read(appSettingsRepositoryProvider)
-          .settings
-          .hiddenKeywords
-          .split(',')
-          .map((item) => item.trim().toLowerCase())
-          .where((item) => item.isNotEmpty)
-          .toList(growable: false);
       setState(() {
         _videos.addAll(
-          page.where(
-            (item) =>
-                !hiddenKeywords.any(
-                  (keyword) => item.title.toLowerCase().contains(keyword),
-                ) &&
-                !_videos.any((saved) => saved.id == item.id),
-          ),
+          page.where((item) => !_videos.any((saved) => saved.id == item.id)),
         );
         _page += 1;
         _hasMore = page.length >= 30;
@@ -105,6 +91,23 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final hiddenKeywords = ref
+        .watch(appSettingsRepositoryProvider)
+        .settings
+        .hiddenKeywords
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    final visibleVideos = hiddenKeywords.isEmpty
+        ? _videos
+        : _videos
+              .where(
+                (video) => !hiddenKeywords.any(
+                  (keyword) => video.title.toLowerCase().contains(keyword),
+                ),
+              )
+              .toList(growable: false);
     if (_videos.isEmpty && _loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -122,16 +125,22 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
         message: widget.emptyMessage,
       );
     }
+    if (visibleVideos.isEmpty && !_loading) {
+      return const _StateMessage(
+        icon: Icons.visibility_off_outlined,
+        message: '当前加载的视频已被隐藏标题关键词过滤。',
+      );
+    }
 
     return RefreshIndicator(
       onRefresh: () => _load(reset: true),
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _videos.length + 1,
+        itemCount: visibleVideos.length + 1,
         itemBuilder: (context, index) {
-          if (index < _videos.length) {
-            final video = _videos[index];
+          if (index < visibleVideos.length) {
+            final video = visibleVideos[index];
             return VideoCard(
               video: video,
               onTap: () => context.pushNamed(
