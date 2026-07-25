@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
 
+import '../../../core/security/error_redaction.dart';
 import '../domain/download_models.dart';
 
 final class BackgroundDownloadPlatformService
@@ -219,7 +220,9 @@ final class BackgroundDownloadPlatformService
         taskId: update.task.taskId,
         state: state,
         filePath: filePath,
-        errorMessage: update.exception?.toString(),
+        errorMessage: update.exception == null
+            ? null
+            : redactSensitiveText(update.exception),
       ),
     );
   }

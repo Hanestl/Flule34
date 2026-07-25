@@ -9,6 +9,7 @@ import 'package:video_player/video_player.dart';
 import '../app/providers.dart';
 import '../core/api/rule34video_api.dart';
 import '../core/models/video_models.dart';
+import '../core/security/error_redaction.dart';
 import '../core/services/network_status_service.dart';
 import '../features/auth/login_sheet.dart';
 import '../features/settings/domain/app_settings.dart';
@@ -439,7 +440,7 @@ class _VideoPreviewSheetState extends State<_VideoPreviewSheet> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  '无法播放预览：${snapshot.error}',
+                  '无法播放预览：${redactSensitiveText(snapshot.error)}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
                 ),

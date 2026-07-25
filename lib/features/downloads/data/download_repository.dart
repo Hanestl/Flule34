@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import '../../../core/api/rule34video_api.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/models/video_models.dart';
+import '../../../core/security/error_redaction.dart';
 import '../../../core/session/session_store.dart';
 import '../../settings/data/app_settings_repository.dart';
 import '../domain/download_models.dart';
@@ -249,7 +250,7 @@ final class DownloadRepository {
       await _database.updateDownloadStatus(
         id: record.id,
         state: DownloadTaskState.failed.storageValue,
-        errorMessage: error.toString(),
+        errorMessage: redactSensitiveText(error),
       );
       return false;
     }

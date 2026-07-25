@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../core/security/error_redaction.dart';
 import '../../core/services/network_status_service.dart';
 import '../../core/services/screen_wake_lock_service.dart';
 import '../playback/data/playback_repository.dart';
@@ -238,7 +239,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       }
       setState(() {
         _initializing = false;
-        _error = '无法播放此视频源：$error';
+        _error = '无法播放此视频源：${redactSensitiveText(error)}';
       });
       _bumpFullscreenRevision();
       return false;
@@ -350,7 +351,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (mounted) {
         setState(() {
           _initializing = false;
-          _error = '刷新视频地址失败：$error';
+          _error = '刷新视频地址失败：${redactSensitiveText(error)}';
         });
         _bumpFullscreenRevision();
       }
@@ -415,9 +416,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('无法切换播放速度：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('无法切换播放速度：${redactSensitiveText(error)}')),
+        );
       }
     }
   }
