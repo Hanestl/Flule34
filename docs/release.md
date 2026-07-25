@@ -18,6 +18,18 @@ keytool -genkeypair `
 
 ## 2. 本地 Release 构建
 
+构建前先执行与 CI 一致的质量门：
+
+```powershell
+& 'D:\tools\flutter\bin\dart.bat' format --output=none --set-exit-if-changed lib test tool
+& 'D:\tools\flutter\bin\flutter.bat' analyze --no-pub
+& 'D:\tools\flutter\bin\flutter.bat' test --no-pub
+& 'D:\tools\flutter\bin\dart.bat' run tool\check_sensitive_files.dart
+Set-Location android
+.\gradlew.bat :app:lintDebug --no-daemon
+Set-Location ..
+```
+
 ```powershell
 $flutter = 'D:\tools\flutter\bin\flutter.bat'
 $version = '1.0.0'

@@ -4,9 +4,10 @@
 
 ## 验证
 
-- [ ] `dart format --output=none --set-exit-if-changed lib test`
+- [ ] `dart format --output=none --set-exit-if-changed lib test tool`
 - [ ] `flutter analyze --no-pub`
 - [ ] `flutter test --no-pub`
+- [ ] `android/gradlew :app:lintDebug --no-daemon`
 - [ ] Android Debug 或 Release 构建通过
 - [ ] 数据库变更包含 schema、迁移和迁移测试
 

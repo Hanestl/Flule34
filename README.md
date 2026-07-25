@@ -62,6 +62,9 @@ Set-Location D:\path\to\flule34
 & 'D:\tools\flutter\bin\dart.bat' run build_runner build
 & 'D:\tools\flutter\bin\flutter.bat' analyze
 & 'D:\tools\flutter\bin\flutter.bat' test
+Set-Location android
+.\gradlew.bat :app:lintDebug --no-daemon
+Set-Location ..
 & 'D:\tools\flutter\bin\flutter.bat' build apk --debug
 ```
 

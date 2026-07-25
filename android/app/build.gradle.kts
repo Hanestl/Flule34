@@ -37,6 +37,11 @@ android {
         versionName = flutter.versionName
     }
 
+    lint {
+        // Pub 插件可能位于不同盘符；只审计本应用模块，第三方依赖由其上游维护。
+        checkDependencies = false
+    }
+
     signingConfigs {
         if (releaseSigningConfigured) {
             create("release") {

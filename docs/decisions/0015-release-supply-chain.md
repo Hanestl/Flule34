@@ -1,6 +1,6 @@
 # ADR-0015：Android Release 与开源供应链
 
-- 状态：已接受，项目主许可证待所有者选择
+- 状态：已接受
 - 日期：2026-07-24
 
 ## 背景
@@ -13,7 +13,8 @@ Flule34 计划通过 GitHub 公开源码并侧载 APK。侧载绕过应用商店
 - Release 构建禁止使用调试签名，缺少未跟踪的 `android/key.properties` 时直接失败；
 - 正式构建输出 `armeabi-v7a`、`arm64-v8a` 和 `x86_64` 分 ABI APK；
 - Release 开启 Dart 混淆并把符号文件作为受限 Actions artifact 保存；
-- CI 固定 Flutter 3.44.8 和 JDK 17，执行格式、生成代码、分析、测试、Debug APK、SHA256 与敏感信息扫描；
+- CI 固定 Flutter 3.44.8 和 JDK 17，执行格式、生成代码、静态分析、Android Lint、测试、Debug APK、SHA256 与敏感信息扫描；
+- Windows 下若工程与 Pub 插件位于不同盘符，插件构建产物写入与源码同盘的本地缓存，避免 AGP Lint 的跨盘相对路径错误；
 - Kotlin 编译使用官方支持的 `in-process` 策略，避免本机 daemon 连接失败，同时保留当前关闭跨盘增量缓存的设置；
 - GitHub 官方 Action 固定到具体提交 SHA，避免浮动标签遭供应链替换；
 - Tag Release 由仓库 Secrets 注入签名，生成 SHA256；公开仓库额外生成 GitHub artifact attestation；
@@ -24,7 +25,7 @@ Flule34 计划通过 GitHub 公开源码并侧载 APK。侧载绕过应用商店
 
 - 没有正式私钥时仍可构建 Debug APK，但不能误产出 Release APK；
 - 正式私钥必须由项目所有者离线生成、备份并配置为 GitHub Secrets；
-- 主许可证影响贡献与再分发权利，必须由项目所有者明确选择后才能宣称仓库完成开源授权。
+- 项目主代码采用 Apache License 2.0；第三方组件继续遵循各自许可证和通知要求。
 
 ## 验证
 

@@ -44,7 +44,7 @@ jobs:
         run: flutter pub get
 
       - name: 检查格式
-        run: dart format --output=none --set-exit-if-changed lib test
+        run: dart format --output=none --set-exit-if-changed lib test tool
 
       - name: 校验生成代码
         shell: bash
@@ -54,6 +54,10 @@ jobs:
 
       - name: 静态分析
         run: flutter analyze --no-pub
+
+      - name: Android Lint
+        working-directory: android
+        run: ./gradlew :app:lintDebug --no-daemon
 
       - name: 扫描敏感文件
         run: dart run tool/check_sensitive_files.dart

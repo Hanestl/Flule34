@@ -65,10 +65,16 @@ jobs:
         shell: bash
         run: |
           flutter pub get
-          dart format --output=none --set-exit-if-changed lib test
+          dart format --output=none --set-exit-if-changed lib test tool
+          dart run build_runner build
+          git diff --exit-code -- lib/core/database/app_database.g.dart
           flutter analyze --no-pub
           flutter test --no-pub
           dart run tool/check_sensitive_files.dart
+
+      - name: Android Lint
+        working-directory: android
+        run: ./gradlew :app:lintDebug --no-daemon
 
       - name: 构建分 ABI Release APK
         shell: bash
