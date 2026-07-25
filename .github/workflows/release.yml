@@ -84,6 +84,19 @@ jobs:
             --dart-define=FLULE34_FLUTTER_VERSION="$FLUTTER_VERSION" \
             --dart-define=GIT_COMMIT="$GITHUB_SHA" \
             --dart-define=BUILD_TIME="$BUILD_TIME"
+
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/$(ls "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -1)/apksigner"
+          for apk in build/app/outputs/flutter-apk/*-release.apk; do
+            "$APKSIGNER" verify --verbose --print-certs "$apk"
+            temp_dir="$(mktemp -d)"
+            unzip -oq "$apk" 'lib/*/*.so' -d "$temp_dir"
+            if find "$temp_dir" -name '*.so' -print0 | xargs -0 -r readelf -SW | grep -Eq '\.(debug_|zdebug_)|\.symtab\b|\.strtab\b'; then
+              echo "Release APK 包含调试符号 section：$apk" >&2
+              exit 1
+            fi
+            rm -rf "$temp_dir"
+          done
+
           mkdir -p release
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "release/Flule34-$VERSION-armeabi-v7a.apk"
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "release/Flule34-$VERSION-arm64-v8a.apk"

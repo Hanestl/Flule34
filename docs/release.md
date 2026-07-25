@@ -55,6 +55,9 @@ $buildTools = Get-ChildItem 'D:\tools\android-sdk\build-tools' -Directory |
 
 Get-ChildItem 'build\app\outputs\flutter-apk\*-release.apk' |
   Get-FileHash -Algorithm SHA256
+
+# 一次检查签名、包名、ABI、ELF 调试 section 和 SHA256
+.\tool\verify_release.ps1
 ```
 
 首次公开发布后，把证书 SHA256 指纹记录在 GitHub Release 说明中。后续版本必须核对指纹完全一致。
