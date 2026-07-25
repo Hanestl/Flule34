@@ -51,7 +51,7 @@ void main() {
     expect(find.text('探索内容'), findsOneWidget);
     await tester.tap(find.text('标签'));
     await tester.pumpAndSettle();
-    expect(find.text('筛选已加载的标签'), findsOneWidget);
+    expect(find.text('搜索全部标签'), findsOneWidget);
     expect(find.text('没有匹配的已加载内容。'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();

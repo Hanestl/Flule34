@@ -724,89 +724,83 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     );
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.fromLTRB(4, 0, 4, 2),
-      child: SizedBox(
-        height: 48,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            SizedBox(
-              width: 52,
-              height: 48,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  Positioned(
-                    top: 1,
-                    left: 0,
-                    right: 0,
-                    child: Text(
-                      '${_time(position)} / ${_time(duration)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.visible,
-                      textAlign: TextAlign.center,
-                      style: textStyle,
-                    ),
-                  ),
-                  _CompactIconButton(
-                    tooltip: value.isPlaying ? '暂停' : '播放',
-                    onPressed: _togglePlayback,
-                    icon: value.isPlaying ? Icons.pause : Icons.play_arrow,
-                  ),
-                ],
-              ),
+      minimum: const EdgeInsets.fromLTRB(6, 0, 6, 3),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 1),
+            child: Text(
+              key: const ValueKey('player-time-label'),
+              '${_time(position)} / ${_time(duration)}',
+              maxLines: 1,
+              overflow: TextOverflow.clip,
+              textAlign: TextAlign.left,
+              style: textStyle,
             ),
-            const SizedBox(width: 2),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 5),
-                child: _VideoProgressBar(
-                  value: value,
-                  dragPosition: _dragPosition,
-                  onDragStart: (position) {
-                    _hideTimer?.cancel();
-                    setState(() => _dragPosition = position);
-                  },
-                  onDragUpdate: (position) {
-                    setState(() => _dragPosition = position);
-                  },
-                  onDragEnd: (position) async {
-                    setState(() => _dragPosition = null);
-                    await widget.controller.seekTo(position);
-                    _showControls();
-                  },
+          ),
+          SizedBox(
+            key: const ValueKey('player-control-row'),
+            height: 36,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _CompactIconButton(
+                  tooltip: value.isPlaying ? '暂停' : '播放',
+                  onPressed: _togglePlayback,
+                  icon: value.isPlaying ? Icons.pause : Icons.play_arrow,
                 ),
-              ),
+                const SizedBox(width: 2),
+                Expanded(
+                  child: _VideoProgressBar(
+                    value: value,
+                    dragPosition: _dragPosition,
+                    onDragStart: (position) {
+                      _hideTimer?.cancel();
+                      setState(() => _dragPosition = position);
+                    },
+                    onDragUpdate: (position) {
+                      setState(() => _dragPosition = position);
+                    },
+                    onDragEnd: (position) async {
+                      setState(() => _dragPosition = null);
+                      await widget.controller.seekTo(position);
+                      _showControls();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 2),
+                _CompactPopup<VideoSource>(
+                  tooltip: '清晰度',
+                  label: widget.selectedSource.label,
+                  values: widget.sources,
+                  selected: widget.selectedSource,
+                  labelFor: (source) => source.label,
+                  onSelected: widget.onSourceChanged,
+                ),
+                _CompactPopup<double>(
+                  tooltip: '播放速度',
+                  label: '${value.speed}x',
+                  values: _speeds,
+                  selected: value.speed,
+                  labelFor: (speed) => '${speed}x',
+                  onSelected: (speed) =>
+                      unawaited(widget.controller.setSpeed(speed)),
+                ),
+                _CompactIconButton(
+                  tooltip: widget.controller.isFullScreen ? '退出全屏' : '全屏',
+                  onPressed: widget.controller.isFullScreen
+                      ? widget.controller.exitFullScreen
+                      : widget.controller.enterFullScreen,
+                  icon: widget.controller.isFullScreen
+                      ? Icons.fullscreen_exit
+                      : Icons.fullscreen,
+                ),
+              ],
             ),
-            const SizedBox(width: 2),
-            _CompactPopup<VideoSource>(
-              tooltip: '清晰度',
-              label: widget.selectedSource.label,
-              values: widget.sources,
-              selected: widget.selectedSource,
-              labelFor: (source) => source.label,
-              onSelected: widget.onSourceChanged,
-            ),
-            _CompactPopup<double>(
-              tooltip: '播放速度',
-              label: '${value.speed}x',
-              values: _speeds,
-              selected: value.speed,
-              labelFor: (speed) => '${speed}x',
-              onSelected: (speed) =>
-                  unawaited(widget.controller.setSpeed(speed)),
-            ),
-            _CompactIconButton(
-              tooltip: widget.controller.isFullScreen ? '退出全屏' : '全屏',
-              onPressed: widget.controller.isFullScreen
-                  ? widget.controller.exitFullScreen
-                  : widget.controller.enterFullScreen,
-              icon: widget.controller.isFullScreen
-                  ? Icons.fullscreen_exit
-                  : Icons.fullscreen,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

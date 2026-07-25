@@ -25,11 +25,23 @@ class DiscoveryDirectoryPage extends StatefulWidget {
 class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ContentCollectionItem> _items = [];
+  Timer? _searchDebounce;
   var _query = '';
   var _page = 1;
   var _loading = false;
   var _hasMore = true;
+  var _searching = false;
+  var _searchOperation = 0;
+  List<ContentCollectionItem>? _searchResults;
   String? _error;
+  String? _searchError;
+
+  SearchSuggestionKind? get _searchKind => switch (widget.spec.kind) {
+    DiscoveryKind.tag => SearchSuggestionKind.tag,
+    DiscoveryKind.category => SearchSuggestionKind.category,
+    DiscoveryKind.model => SearchSuggestionKind.model,
+    DiscoveryKind.channel => null,
+  };
 
   @override
   void initState() {
@@ -40,6 +52,7 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -47,8 +60,56 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.extentAfter < 600) {
+    if (_query.isEmpty && _scrollController.position.extentAfter < 600) {
       unawaited(_load(reset: false));
+    }
+  }
+
+  void _onQueryChanged(String value) {
+    final query = value.trim();
+    _searchDebounce?.cancel();
+    final searchKind = _searchKind;
+    setState(() {
+      _query = query;
+      _searchError = null;
+      if (query.isEmpty) {
+        _searchResults = null;
+        _searching = false;
+      } else if (searchKind != null) {
+        _searchResults = const [];
+        _searching = query.length >= 2;
+      }
+    });
+    if (searchKind == null || query.isEmpty || query.length < 2) {
+      return;
+    }
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => unawaited(_search(query, searchKind)),
+    );
+  }
+
+  Future<void> _search(String query, SearchSuggestionKind kind) async {
+    final operation = ++_searchOperation;
+    try {
+      final suggestions = await widget.api.searchSuggestions(query, kind);
+      if (!mounted || operation != _searchOperation || _query != query) {
+        return;
+      }
+      setState(() {
+        _searchResults = suggestions
+            .map((suggestion) => suggestion.collection)
+            .toList(growable: false);
+        _searching = false;
+      });
+    } catch (error) {
+      if (!mounted || operation != _searchOperation || _query != query) {
+        return;
+      }
+      setState(() {
+        _searching = false;
+        _searchError = error.toString();
+      });
     }
   }
 
@@ -108,8 +169,10 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: SearchBar(
               leading: const Icon(Icons.search),
-              hintText: '筛选已加载的${widget.spec.title}',
-              onChanged: (value) => setState(() => _query = value.trim()),
+              hintText: _searchKind == null
+                  ? '筛选已加载的${widget.spec.title}'
+                  : '搜索全部${widget.spec.title}',
+              onChanged: _onQueryChanged,
             ),
           ),
           Expanded(child: _buildDirectory()),
@@ -119,13 +182,16 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
   }
 
   Widget _buildDirectory() {
+    if (_query.isNotEmpty && _searchKind != null) {
+      return _buildSearchResults();
+    }
     if (_items.isEmpty && _loading) {
       return const Center(child: CircularProgressIndicator());
     }
     if (_items.isEmpty && _error != null) {
       return _DirectoryMessage(
         message: _error!,
-        onRetry: () => _load(reset: true),
+        onRetry: () => unawaited(_load(reset: true)),
       );
     }
     final normalized = _query.toLowerCase();
@@ -159,31 +225,39 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
           if (index == visibleItems.length) {
             return _buildFooter();
           }
-          final item = visibleItems[index];
-          return Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundImage: item.thumbnailUrl == null
-                    ? null
-                    : CachedNetworkImageProvider(item.thumbnailUrl!),
-                child: item.thumbnailUrl == null
-                    ? Icon(_kindIcon(item.kind))
-                    : null,
-              ),
-              title: Text(item.title),
-              subtitle: item.total == null
-                  ? Text(item.kind.label)
-                  : Text('${item.total} 个视频'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.pushNamed(
-                AppRouteNames.collection,
-                pathParameters: {'kind': item.kind.name, 'id': item.id},
-                extra: item,
-              ),
-            ),
-          );
+          return _DirectoryItem(item: visibleItems[index]);
         },
       ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_query.length < 2) {
+      return const _DirectoryHint(message: '请至少输入 2 个字符。');
+    }
+    if (_searching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_searchError != null) {
+      return _DirectoryMessage(
+        message: _searchError!,
+        onRetry: () {
+          final kind = _searchKind;
+          if (kind != null) {
+            setState(() => _searching = true);
+            unawaited(_search(_query, kind));
+          }
+        },
+      );
+    }
+    final results = _searchResults ?? const <ContentCollectionItem>[];
+    if (results.isEmpty) {
+      return _DirectoryHint(message: '没有找到与“$_query”匹配的${widget.spec.title}。');
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+      itemCount: results.length,
+      itemBuilder: (context, index) => _DirectoryItem(item: results[index]),
     );
   }
 
@@ -206,7 +280,7 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => _load(reset: false),
+              onPressed: () => unawaited(_load(reset: false)),
               icon: const Icon(Icons.refresh),
               label: const Text('重试加载下一页'),
             ),
@@ -219,6 +293,36 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
       child: Center(child: Text(_hasMore ? '继续向下滚动以加载更多' : '已经到底了')),
     );
   }
+}
+
+class _DirectoryItem extends StatelessWidget {
+  const _DirectoryItem({required this.item});
+
+  final ContentCollectionItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundImage: item.thumbnailUrl == null
+              ? null
+              : CachedNetworkImageProvider(item.thumbnailUrl!),
+          child: item.thumbnailUrl == null ? Icon(_kindIcon(item.kind)) : null,
+        ),
+        title: Text(item.title),
+        subtitle: item.total == null
+            ? Text(item.kind.label)
+            : Text('${item.total} 个视频'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.pushNamed(
+          AppRouteNames.collection,
+          pathParameters: {'kind': item.kind.name, 'id': item.id},
+          extra: item,
+        ),
+      ),
+    );
+  }
 
   IconData _kindIcon(DiscoveryKind kind) => switch (kind) {
     DiscoveryKind.tag => Icons.tag,
@@ -226,6 +330,22 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
     DiscoveryKind.model => Icons.brush_outlined,
     DiscoveryKind.channel => Icons.live_tv_outlined,
   };
+}
+
+class _DirectoryHint extends StatelessWidget {
+  const _DirectoryHint({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(message, textAlign: TextAlign.center),
+      ),
+    );
+  }
 }
 
 class _DirectoryMessage extends StatelessWidget {

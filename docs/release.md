@@ -32,8 +32,8 @@ Set-Location ..
 
 ```powershell
 $flutter = 'D:\tools\flutter\bin\flutter.bat'
-$version = '1.1.0'
-$buildNumber = '2'
+$version = '1.1.1'
+$buildNumber = '3'
 $commit = git rev-parse HEAD
 $buildTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 
@@ -91,7 +91,7 @@ Windows 生成单行 Base64：
 ) | Set-Clipboard
 ```
 
-推送形如 `v1.1.0` 的已审核标签后，工作流会运行测试、构建分 ABI APK、生成 SHA256、生成公开仓库构建证明并创建 GitHub Release。若 `docs/releases/<标签>.md` 存在，工作流会把它作为逐条 Release 说明。符号文件只作为 Actions artifact 保存，不上传到公开 Release。
+推送形如 `v1.1.1` 的已审核标签后，工作流会运行测试、构建分 ABI APK、生成 SHA256、生成公开仓库构建证明并创建 GitHub Release。若 `docs/releases/<标签>.md` 存在，工作流会把它作为逐条 Release 说明。符号文件只作为 Actions artifact 保存，不上传到公开 Release。
 
 ## 5. 发布前验收
 

@@ -130,6 +130,32 @@ void main() {
     );
   });
 
+  test('分页列表第二页以后 404 视为正常结束，第一页仍保留错误', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter(
+        (_) => ResponseBody.fromString('Not Found', 404),
+      ),
+    );
+    addTearDown(api.close);
+
+    expect(await api.loadFavorites(2), isEmpty);
+    await expectLater(
+      api.loadFavorites(1),
+      throwsA(
+        isA<HttpStatusException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          404,
+        ),
+      ),
+    );
+  });
+
   test('已登录请求收到 403 时清除过期会话', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
@@ -304,6 +330,36 @@ void main() {
     expect(requests.last.queryParameters['sort_by'], 'video_viewed');
   });
 
+  test('标签目录第二页使用 AJAX Block 而不是标签 ID 页面', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    Uri? request;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        request = options.uri;
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.loadDiscoveryDirectory(
+      const DiscoveryDirectorySpec(
+        title: '标签',
+        path: '/tags/',
+        kind: DiscoveryKind.tag,
+      ),
+      page: 2,
+    );
+
+    expect(request?.path, '/tags/');
+    expect(request?.queryParameters['mode'], 'async');
+    expect(request?.queryParameters['function'], 'get_block');
+    expect(request?.queryParameters['block_id'], 'list_tags_tags_list');
+    expect(request?.queryParameters['from'], '2');
+  });
+
   test('视频搜索会发送排序、时间、时长、取向和实体筛选', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
@@ -392,9 +448,12 @@ void main() {
 
     expect(requests[0].path, '/tags_json.php');
     expect(requests[0].queryParameters['id'], 'true');
-    expect(requests[0].queryParameters['term'], 'ex');
+    expect(requests[0].queryParameters['q'], 'ex');
+    expect(requests[0].queryParameters.containsKey('term'), isFalse);
     expect(requests[1].path, '/categories_json.php');
-    expect(requests[1].queryParameters['term'], 'ex');
+    expect(requests[1].queryParameters['id'], 'true');
+    expect(requests[1].queryParameters['q'], 'ex');
+    expect(requests[1].queryParameters.containsKey('term'), isFalse);
     expect(requests[2].path, '/models_json.php');
     expect(requests[2].queryParameters['q'], 'ex');
     expect(requests[2].queryParameters.containsKey('term'), isFalse);

@@ -19,6 +19,13 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+final class HttpStatusException extends ApiException {
+  const HttpStatusException(this.statusCode)
+    : super('服务器返回了 HTTP $statusCode。');
+
+  final int statusCode;
+}
+
 final class SessionExpiredException extends ApiException {
   const SessionExpiredException() : super('登录状态已过期，请重新登录。');
 }
@@ -84,7 +91,11 @@ class Rule34VideoApi {
     int page, {
     SearchFilters filters = const SearchFilters(),
   }) async {
-    return _videoList(kind.pagePath(page), query: _searchQuery(filters));
+    return _paginatedVideoList(
+      kind.pagePath(page),
+      page: page,
+      query: _searchQuery(filters),
+    );
   }
 
   Future<List<VideoItem>> loadFollowingFeed(int page) async {
@@ -115,8 +126,26 @@ class Rule34VideoApi {
     DiscoveryDirectorySpec spec, {
     int page = 1,
   }) async {
-    final path = page > 1 ? '${spec.path}$page/' : spec.path;
-    final body = await _get(path);
+    if (spec.kind == DiscoveryKind.channel && page > 1) {
+      return const [];
+    }
+    final String body;
+    if (spec.kind == DiscoveryKind.tag && page > 1) {
+      body = await _get(
+        spec.path,
+        query: <String, String>{
+          'mode': 'async',
+          'function': 'get_block',
+          'block_id': 'list_tags_tags_list',
+          'section': 'All',
+          'sort_by': 'tag',
+          'from': '$page',
+        },
+      );
+    } else {
+      final path = page > 1 ? '${spec.path}$page/' : spec.path;
+      body = await _get(path);
+    }
     return SiteParser.contentCollections(body, spec.kind);
   }
 
@@ -126,8 +155,9 @@ class Rule34VideoApi {
     VideoSort sort = VideoSort.newest,
   }) {
     final path = page > 1 ? '${collection.path}$page/' : collection.path;
-    return _videoList(
+    return _paginatedVideoList(
       path,
+      page: page,
       query: sort.parameter == null
           ? null
           : <String, String>{'sort_by': sort.parameter!},
@@ -144,7 +174,11 @@ class Rule34VideoApi {
       return const [];
     }
     final suffix = page > 1 ? '/$page' : '';
-    return _videoList('/search/$encoded$suffix/', query: _searchQuery(filters));
+    return _paginatedVideoList(
+      '/search/$encoded$suffix/',
+      page: page,
+      query: _searchQuery(filters),
+    );
   }
 
   Future<List<TagSuggestion>> searchTags(String query) async {
@@ -171,12 +205,11 @@ class Rule34VideoApi {
     final parameters = switch (kind) {
       SearchSuggestionKind.tag => <String, String>{
         'id': 'true',
-        'advanced_search': 'true',
-        'term': query.trim(),
+        'q': query.trim(),
       },
       SearchSuggestionKind.category => <String, String>{
-        'advanced_search': 'true',
-        'term': query.trim(),
+        'id': 'true',
+        'q': query.trim(),
       },
       SearchSuggestionKind.model => <String, String>{'q': query.trim()},
     };
@@ -250,7 +283,7 @@ class Rule34VideoApi {
     final path = page > 1
         ? '/my/favourites/videos/$page/'
         : '/my/favourites/videos/';
-    return _videoList(path);
+    return _paginatedVideoList(path, page: page);
   }
 
   Future<List<VideoItem>> loadWatchLater(int page) async {
@@ -258,13 +291,13 @@ class Rule34VideoApi {
     final path = page > 1
         ? '/my/favourites/videos-watch-later/$page/'
         : '/my/favourites/videos-watch-later/';
-    return _videoList(path);
+    return _paginatedVideoList(path, page: page);
   }
 
   Future<List<VideoItem>> loadHistory(int page) async {
     _requireLogin();
     final path = page > 1 ? '/my/history/$page/' : '/my/history/';
-    return _videoList(path);
+    return _paginatedVideoList(path, page: page);
   }
 
   Future<List<PlaylistItem>> loadMyPlaylists() async {
@@ -278,7 +311,7 @@ class Rule34VideoApi {
   ) async {
     _requireLogin();
     final path = page > 1 ? '${playlist.path}$page/' : playlist.path;
-    return _videoList(path);
+    return _paginatedVideoList(path, page: page);
   }
 
   Future<List<SubscriptionItem>> loadSubscriptions({bool force = false}) async {
@@ -301,7 +334,7 @@ class Rule34VideoApi {
   ) async {
     _requireLogin();
     final path = page > 1 ? '${subscription.path}$page/' : subscription.path;
-    return _videoList(path);
+    return _paginatedVideoList(path, page: page);
   }
 
   Future<void> toggleFavorite({
@@ -411,6 +444,21 @@ class Rule34VideoApi {
     return SiteParser.videoList(body);
   }
 
+  Future<List<VideoItem>> _paginatedVideoList(
+    String path, {
+    required int page,
+    Map<String, String>? query,
+  }) async {
+    try {
+      return await _videoList(path, query: query);
+    } on HttpStatusException catch (error) {
+      if (page > 1 && error.statusCode == 404) {
+        return const [];
+      }
+      rethrow;
+    }
+  }
+
   Future<String> _get(String path, {Map<String, String>? query}) async {
     try {
       final response = await _dio.get<String>(path, queryParameters: query);
@@ -510,7 +558,7 @@ class Rule34VideoApi {
       throw const SessionExpiredException();
     }
     if (status < 200 || status >= 300) {
-      throw ApiException('服务器返回了 HTTP $status。');
+      throw HttpStatusException(status);
     }
     return response.data ?? '';
   }

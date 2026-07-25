@@ -9,7 +9,7 @@ import 'package:flule34/features/discover/discovery_directory_page.dart';
 import '../../helpers/test_session_harness.dart';
 
 void main() {
-  testWidgets('发现目录支持分页、筛选已加载内容和下拉刷新', (tester) async {
+  testWidgets('发现目录支持正确分页和全站服务端搜索', (tester) async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -30,17 +30,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('第一页标签 1'), findsOneWidget);
-    expect(find.text('筛选已加载的标签'), findsOneWidget);
+    expect(find.text('搜索全部标签'), findsOneWidget);
     await tester.fling(find.byType(ListView), const Offset(0, -5000), 10000);
     await tester.pumpAndSettle();
 
     expect(find.text('第二页标签'), findsOneWidget);
     expect(api.pages, containsAllInOrder([1, 2]));
 
-    await tester.enterText(find.byType(SearchBar), '第二页');
-    await tester.pump();
-    expect(find.text('第二页标签'), findsOneWidget);
+    await tester.enterText(find.byType(SearchBar), 'tifa');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(find.text('tifa lockhart (final fantasy)'), findsOneWidget);
     expect(find.text('第一页标签 1'), findsNothing);
+    expect(api.searches, ['tifa']);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -52,6 +54,7 @@ final class _PagedDirectoryApi extends Rule34VideoApi {
     : super(sessionStore: sessionStore);
 
   final List<int> pages = [];
+  final List<String> searches = [];
 
   @override
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
@@ -81,6 +84,22 @@ final class _PagedDirectoryApi extends Rule34VideoApi {
       ];
     }
     return const [];
+  }
+
+  @override
+  Future<List<SearchSuggestion>> searchSuggestions(
+    String query,
+    SearchSuggestionKind kind,
+  ) async {
+    searches.add(query);
+    return const [
+      SearchSuggestion(
+        id: '369',
+        title: 'tifa lockhart (final fantasy)',
+        total: 5442,
+        kind: SearchSuggestionKind.tag,
+      ),
+    ];
   }
 
   @override
