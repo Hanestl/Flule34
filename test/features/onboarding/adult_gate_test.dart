@@ -6,6 +6,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flule34/features/onboarding/adult_gate.dart';
 
 void main() {
+  testWidgets('旧年龄确认键会迁移且不会再次拦截', (tester) async {
+    final preferences = _MemoryAdultConfirmationPreferences({
+      'adult_confirmed': true,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdultGate(
+          store: SharedPreferencesAdultConfirmationStore(
+            preferences: preferences,
+          ),
+          child: const Scaffold(body: Text('首页已显示')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('首页已显示'), findsOneWidget);
+    expect(preferences.values['flule34.onboarding.adult_confirmed'], isTrue);
+    expect(preferences.values['adult_confirmed'], isNull);
+  });
+
   testWidgets('首次确认后不等待持久化即可进入应用', (tester) async {
     final write = Completer<void>();
     final store = _MemoryAdultConfirmationStore(write: write);
@@ -53,6 +75,27 @@ void main() {
     expect(find.text('首页已显示'), findsOneWidget);
     expect(find.textContaining('年龄确认未能保存'), findsOneWidget);
   });
+}
+
+final class _MemoryAdultConfirmationPreferences
+    implements AdultConfirmationPreferences {
+  _MemoryAdultConfirmationPreferences(Map<String, bool> values)
+    : values = Map<String, bool>.of(values);
+
+  final Map<String, bool> values;
+
+  @override
+  Future<bool?> getBool(String key) async => values[key];
+
+  @override
+  Future<void> remove(String key) async {
+    values.remove(key);
+  }
+
+  @override
+  Future<void> setBool(String key, bool value) async {
+    values[key] = value;
+  }
 }
 
 final class _MemoryAdultConfirmationStore implements AdultConfirmationStore {

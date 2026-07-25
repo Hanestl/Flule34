@@ -10,17 +10,59 @@ abstract interface class AdultConfirmationStore {
   Future<void> writeConfirmed(bool value);
 }
 
-final class SharedPreferencesAdultConfirmationStore
-    implements AdultConfirmationStore {
-  SharedPreferencesAdultConfirmationStore({SharedPreferencesAsync? preferences})
-    : _preferences = preferences ?? SharedPreferencesAsync();
+abstract interface class AdultConfirmationPreferences {
+  Future<bool?> getBool(String key);
 
-  static const _confirmedKey = 'flule34.onboarding.adult_confirmed';
+  Future<void> setBool(String key, bool value);
+
+  Future<void> remove(String key);
+}
+
+final class SharedPreferencesAdultConfirmationPreferences
+    implements AdultConfirmationPreferences {
+  SharedPreferencesAdultConfirmationPreferences({
+    SharedPreferencesAsync? preferences,
+  }) : _preferences = preferences ?? SharedPreferencesAsync();
 
   final SharedPreferencesAsync _preferences;
 
   @override
-  Future<bool?> readConfirmed() => _preferences.getBool(_confirmedKey);
+  Future<bool?> getBool(String key) => _preferences.getBool(key);
+
+  @override
+  Future<void> setBool(String key, bool value) {
+    return _preferences.setBool(key, value);
+  }
+
+  @override
+  Future<void> remove(String key) => _preferences.remove(key);
+}
+
+final class SharedPreferencesAdultConfirmationStore
+    implements AdultConfirmationStore {
+  SharedPreferencesAdultConfirmationStore({
+    AdultConfirmationPreferences? preferences,
+  }) : _preferences =
+           preferences ?? SharedPreferencesAdultConfirmationPreferences();
+
+  static const _confirmedKey = 'flule34.onboarding.adult_confirmed';
+  static const _legacyConfirmedKey = 'adult_confirmed';
+
+  final AdultConfirmationPreferences _preferences;
+
+  @override
+  Future<bool?> readConfirmed() async {
+    final confirmed = await _preferences.getBool(_confirmedKey);
+    if (confirmed != null) {
+      return confirmed;
+    }
+    final legacyConfirmed = await _preferences.getBool(_legacyConfirmedKey);
+    if (legacyConfirmed != null) {
+      await _preferences.setBool(_confirmedKey, legacyConfirmed);
+      await _preferences.remove(_legacyConfirmedKey);
+    }
+    return legacyConfirmed;
+  }
 
   @override
   Future<void> writeConfirmed(bool value) {
