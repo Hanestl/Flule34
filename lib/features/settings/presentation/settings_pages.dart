@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/api/rule34video_api.dart';
+import '../../../core/models/video_models.dart';
 import '../../downloads/data/download_repository.dart';
+import '../../search/data/search_history_repository.dart';
 import '../data/app_settings_repository.dart';
 import '../domain/app_settings.dart';
 
@@ -61,13 +64,26 @@ class PlaybackSettingsPage extends ConsumerWidget {
           onChanged: (value) =>
               _save(context, repository.setPlaybackQuality(value)),
         ),
-        SwitchListTile(
+        ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('打开播放器后自动播放'),
-          value: settings.autoplay,
-          onChanged: (value) {
-            unawaited(_save(context, repository.setAutoplay(value)));
-          },
+          title: const Text('网络播放策略'),
+          subtitle: Text(settings.networkPlaybackPolicy.description),
+          trailing: DropdownButton<NetworkPlaybackPolicy>(
+            value: settings.networkPlaybackPolicy,
+            items: NetworkPlaybackPolicy.values
+                .map(
+                  (value) =>
+                      DropdownMenuItem(value: value, child: Text(value.label)),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                unawaited(
+                  _save(context, repository.setNetworkPlaybackPolicy(value)),
+                );
+              }
+            },
+          ),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -76,6 +92,35 @@ class PlaybackSettingsPage extends ConsumerWidget {
           onChanged: (value) {
             unawaited(_save(context, repository.setLoopPlayback(value)));
           },
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('播放时保持屏幕常亮'),
+          subtitle: const Text('仅在视频正在播放时生效，暂停或离开页面后自动恢复。'),
+          value: settings.keepScreenAwake,
+          onChanged: (value) {
+            unawaited(_save(context, repository.setKeepScreenAwake(value)));
+          },
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('全屏方向'),
+          trailing: DropdownButton<FullscreenOrientationPreference>(
+            value: settings.fullscreenOrientation,
+            items: FullscreenOrientationPreference.values
+                .map(
+                  (value) =>
+                      DropdownMenuItem(value: value, child: Text(value.label)),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                unawaited(
+                  _save(context, repository.setFullscreenOrientation(value)),
+                );
+              }
+            },
+          ),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -90,23 +135,86 @@ class PlaybackSettingsPage extends ConsumerWidget {
         ),
         const _InfoCard(
           icon: Icons.auto_awesome_outlined,
-          text: '“自动”当前选择最高可解析的直链清晰度；后续接入网络质量评估后会动态选择。',
+          text: '从视频卡片进入观看页属于明确播放操作，因此会直接播放；网络策略只影响首次选择的清晰度。',
         ),
       ],
     );
   }
 }
 
-class ContentSettingsPage extends ConsumerWidget {
+class ContentSettingsPage extends ConsumerStatefulWidget {
   const ContentSettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ContentSettingsPage> createState() =>
+      _ContentSettingsPageState();
+}
+
+class _ContentSettingsPageState extends ConsumerState<ContentSettingsPage> {
+  late final TextEditingController _hiddenKeywordsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _hiddenKeywordsController = TextEditingController(
+      text: ref.read(appSettingsRepositoryProvider).settings.hiddenKeywords,
+    );
+  }
+
+  @override
+  void dispose() {
+    _hiddenKeywordsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final repository = ref.watch(appSettingsRepositoryProvider);
     return _SettingsScaffold(
       title: '内容设置',
       repository: repository,
       builder: (context, settings) => [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('首页默认内容取向'),
+          trailing: DropdownButton<ContentOrientation>(
+            value: settings.defaultOrientation,
+            items: ContentOrientation.values
+                .map(
+                  (value) =>
+                      DropdownMenuItem(value: value, child: Text(value.label)),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                unawaited(
+                  _save(context, repository.setDefaultOrientation(value)),
+                );
+              }
+            },
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('视频预览'),
+          subtitle: const Text('长按视频封面时播放网站提供的短预览。'),
+          trailing: DropdownButton<VideoPreviewPolicy>(
+            value: settings.videoPreviewPolicy,
+            items: VideoPreviewPolicy.values
+                .map(
+                  (value) =>
+                      DropdownMenuItem(value: value, child: Text(value.label)),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                unawaited(
+                  _save(context, repository.setVideoPreviewPolicy(value)),
+                );
+              }
+            },
+          ),
+        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('模糊视频封面'),
@@ -116,9 +224,28 @@ class ContentSettingsPage extends ConsumerWidget {
             unawaited(_save(context, repository.setBlurThumbnails(value)));
           },
         ),
-        const _InfoCard(
-          icon: Icons.visibility_off_outlined,
-          text: '隐藏标签和更细粒度的内容过滤需要先建立统一标签规则，后续将基于接口数据接入。',
+        const SizedBox(height: 8),
+        TextField(
+          controller: _hiddenKeywordsController,
+          minLines: 1,
+          maxLines: 3,
+          decoration: InputDecoration(
+            labelText: '隐藏标题关键词',
+            helperText: '用逗号或换行分隔；匹配的视频不会出现在列表中。',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: '保存隐藏关键词',
+              onPressed: () => unawaited(
+                _save(
+                  context,
+                  repository.setHiddenKeywords(_hiddenKeywordsController.text),
+                ),
+              ),
+              icon: const Icon(Icons.save_outlined),
+            ),
+          ),
+          onSubmitted: (value) =>
+              unawaited(_save(context, repository.setHiddenKeywords(value))),
         ),
       ],
     );
@@ -159,6 +286,27 @@ class DownloadSettingsPage extends ConsumerWidget {
             unawaited(_save(context, repository.setWifiOnlyDownloads(value)));
           },
         ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('同时下载任务数'),
+          subtitle: const Text('限制并发可减少发热、带宽抢占和服务器压力。'),
+          trailing: DropdownButton<int>(
+            value: settings.downloadConcurrentTasks,
+            items: [1, 2, 3, 4]
+                .map(
+                  (value) =>
+                      DropdownMenuItem(value: value, child: Text('$value')),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                unawaited(
+                  _save(context, repository.setDownloadConcurrentTasks(value)),
+                );
+              }
+            },
+          ),
+        ),
         const _InfoCard(
           icon: Icons.folder_outlined,
           text:
@@ -185,51 +333,122 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
   @override
   Widget build(BuildContext context) {
     final downloads = ref.watch(downloadRepositoryProvider);
+    final settingsRepository = ref.watch(appSettingsRepositoryProvider);
+    final searchHistory = ref.watch(searchHistoryRepositoryProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('隐私与数据')),
-      body: AnimatedBuilder(
-        animation: widget.api.sessionStore,
-        builder: (context, _) => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const _InfoCard(
-              icon: Icons.lock_outline,
-              text: '收藏、观看进度、下载记录和文件均按登录后的稳定用户 ID 隔离；未登录状态不创建匿名媒体库。',
-            ),
-            Card(
-              child: ListTile(
-                leading: _clearing
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.delete_sweep_outlined),
-                title: const Text('清理当前账号本地数据'),
-                subtitle: const Text('删除观看进度、下载任务、私有下载文件和对应记录；网站收藏不会受影响。'),
-                enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
-                onTap: widget.api.sessionStore.isLoggedIn && !_clearing
-                    ? () => _clearAccountData(downloads)
-                    : null,
+      body: ListenableBuilder(
+        listenable: settingsRepository,
+        builder: (context, _) => AnimatedBuilder(
+          animation: widget.api.sessionStore,
+          builder: (context, _) => ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const _InfoCard(
+                icon: Icons.lock_outline,
+                text: '收藏、观看进度、搜索历史、下载记录和文件均按登录后的稳定用户 ID 隔离；未登录状态不创建匿名媒体库。',
               ),
-            ),
-            if (widget.api.sessionStore.isLoggedIn) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _clearing
-                    ? null
-                    : () => _confirmLogout(context, widget.api),
-                icon: const Icon(Icons.logout),
-                label: const Text('退出当前账号'),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('保存搜索历史'),
+                subtitle: const Text('仅登录后按账号保存；关闭后不再记录新搜索。'),
+                value: settingsRepository.settings.saveSearchHistory,
+                onChanged: (value) => unawaited(
+                  _save(
+                    context,
+                    settingsRepository.setSaveSearchHistory(value),
+                  ),
+                ),
               ),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.manage_search_outlined),
+                  title: const Text('清除当前账号搜索历史'),
+                  enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
+                  onTap: widget.api.sessionStore.isLoggedIn && !_clearing
+                      ? () async {
+                          await searchHistory.clear();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('搜索历史已清除。')),
+                            );
+                          }
+                        }
+                      : null,
+                ),
+              ),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.image_outlined),
+                  title: const Text('清除图片缓存'),
+                  subtitle: const Text('不会删除下载的视频或账号数据。'),
+                  onTap: _clearing ? null : _clearImageCache,
+                ),
+              ),
+              Card(
+                child: ListTile(
+                  leading: _clearing
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.delete_sweep_outlined),
+                  title: const Text('清理当前账号本地数据'),
+                  subtitle: const Text(
+                    '删除搜索历史、观看进度、下载任务、私有下载文件和对应记录；网站收藏不会受影响。',
+                  ),
+                  enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
+                  onTap: widget.api.sessionStore.isLoggedIn && !_clearing
+                      ? () => _clearAccountData(downloads, searchHistory)
+                      : null,
+                ),
+              ),
+              if (widget.api.sessionStore.isLoggedIn) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _clearing
+                      ? null
+                      : () => _confirmLogout(context, widget.api),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('退出当前账号'),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _clearAccountData(DownloadRepository repository) async {
+  Future<void> _clearImageCache() async {
+    setState(() => _clearing = true);
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      await DefaultCacheManager().emptyCache();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('图片缓存已清除。')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('清除图片缓存失败：$error')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _clearing = false);
+      }
+    }
+  }
+
+  Future<void> _clearAccountData(
+    DownloadRepository repository,
+    SearchHistoryRepository searchHistory,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -256,6 +475,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
     setState(() => _clearing = true);
     try {
       final result = await repository.clearCurrentUserData();
+      await searchHistory.clear();
       if (!mounted) {
         return;
       }

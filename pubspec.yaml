@@ -51,6 +51,10 @@ dependencies:
   package_info_plus: ^10.2.1
   device_info_plus: ^13.2.0
   url_launcher: ^6.3.2
+  connectivity_plus: ^7.3.1
+  flutter_cache_manager: ^3.4.2
+  share_plus: ^13.3.0
+  wakelock_plus: ^1.7.0
 
 dev_dependencies:
   flutter_test:

@@ -6,6 +6,8 @@ import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/features/search/data/search_history_repository.dart';
 import 'package:flule34/features/search/search_page.dart';
+import 'package:flule34/features/settings/data/app_settings_repository.dart';
+import 'package:flule34/features/settings/data/app_settings_store.dart';
 
 import '../../helpers/test_session_harness.dart';
 
@@ -16,6 +18,9 @@ void main() {
     await harness.sessionStore.load();
     final api = _FakeSearchApi(harness.sessionStore);
     addTearDown(api.close);
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -24,6 +29,7 @@ void main() {
           historyRepository: SearchHistoryRepository(
             harness.database,
             harness.sessionStore,
+            settings,
           ),
         ),
       ),
@@ -48,6 +54,9 @@ void main() {
     await harness.sessionStore.authenticate('1001');
     final api = _FakeSearchApi(harness.sessionStore);
     addTearDown(api.close);
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -56,6 +65,7 @@ void main() {
           historyRepository: SearchHistoryRepository(
             harness.database,
             harness.sessionStore,
+            settings,
           ),
         ),
       ),
@@ -95,6 +105,49 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+
+  test('关闭搜索历史后不记录新查询', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('1001');
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
+    await settings.setSaveSearchHistory(false);
+    final repository = SearchHistoryRepository(
+      harness.database,
+      harness.sessionStore,
+      settings,
+    );
+
+    await repository.record('example');
+
+    expect(
+      await harness.database.select(harness.database.searchHistories).get(),
+      isEmpty,
+    );
+  });
+}
+
+final class _MemorySettingsStore implements AppSettingsStore {
+  final Map<String, Object> _values = {};
+
+  @override
+  Future<bool?> readBool(String key) async => _values[key] as bool?;
+
+  @override
+  Future<String?> readString(String key) async => _values[key] as String?;
+
+  @override
+  Future<void> writeBool(String key, bool value) async {
+    _values[key] = value;
+  }
+
+  @override
+  Future<void> writeString(String key, String value) async {
+    _values[key] = value;
+  }
 }
 
 class _FakeSearchApi extends Rule34VideoApi {

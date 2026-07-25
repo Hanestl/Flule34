@@ -7,12 +7,16 @@ import '../domain/download_models.dart';
 
 final class BackgroundDownloadPlatformService
     implements DownloadPlatformService {
-  BackgroundDownloadPlatformService({FileDownloader? downloader})
-    : _downloader = downloader ?? FileDownloader();
+  BackgroundDownloadPlatformService({
+    FileDownloader? downloader,
+    int maxConcurrent = 2,
+  }) : _downloader = downloader ?? FileDownloader(),
+       _maxConcurrent = maxConcurrent.clamp(1, 4);
 
   static const _group = 'flule34_downloads';
 
   final FileDownloader _downloader;
+  int _maxConcurrent;
   final StreamController<DownloadPlatformEvent> _events =
       StreamController<DownloadPlatformEvent>.broadcast();
   bool _initialized = false;
@@ -25,6 +29,7 @@ final class BackgroundDownloadPlatformService
     if (_initialized) {
       return;
     }
+    await setMaxConcurrent(_maxConcurrent);
     _downloader
         .registerCallbacks(
           group: _group,
@@ -48,6 +53,17 @@ final class BackgroundDownloadPlatformService
     await _downloader.trackTasksInGroup(_group);
     await _downloader.rescheduleKilledTasks();
     _initialized = true;
+  }
+
+  @override
+  Future<void> setMaxConcurrent(int value) async {
+    _maxConcurrent = value.clamp(1, 4);
+    await _downloader.configure(
+      globalConfig: (
+        Config.holdingQueue,
+        (_maxConcurrent, _maxConcurrent, _maxConcurrent),
+      ),
+    );
   }
 
   @override

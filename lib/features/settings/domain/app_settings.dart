@@ -1,3 +1,5 @@
+import '../../../core/models/video_models.dart';
+
 enum AppThemePreference {
   system('跟随系统'),
   light('浅色'),
@@ -29,6 +31,36 @@ enum VideoQualityPreference {
   };
 }
 
+enum NetworkPlaybackPolicy {
+  automatic('自动', 'Wi-Fi 使用默认清晰度，移动网络最高 480p'),
+  alwaysDefault('始终使用默认清晰度', '所有网络都使用上方选择的清晰度'),
+  dataSaver('节省流量', 'Wi-Fi 最高 720p，移动网络最高 360p');
+
+  const NetworkPlaybackPolicy(this.label, this.description);
+
+  final String label;
+  final String description;
+}
+
+enum FullscreenOrientationPreference {
+  landscape('进入全屏时横屏'),
+  device('保持设备当前方向');
+
+  const FullscreenOrientationPreference(this.label);
+
+  final String label;
+}
+
+enum VideoPreviewPolicy {
+  disabled('关闭'),
+  wifiOnly('仅 Wi-Fi'),
+  allNetworks('所有网络');
+
+  const VideoPreviewPolicy(this.label);
+
+  final String label;
+}
+
 enum UpdateChannel {
   stable('稳定版'),
   prerelease('预发布版');
@@ -42,63 +74,106 @@ final class AppSettings {
   const AppSettings({
     required this.theme,
     required this.playbackQuality,
+    required this.networkPlaybackPolicy,
     required this.autoplay,
     required this.loopPlayback,
     required this.rememberPlaybackProgress,
+    required this.keepScreenAwake,
+    required this.fullscreenOrientation,
+    required this.defaultOrientation,
+    required this.hiddenKeywords,
+    required this.videoPreviewPolicy,
     required this.blurThumbnails,
     required this.askDownloadQuality,
     required this.downloadQuality,
     required this.wifiOnlyDownloads,
+    required this.downloadConcurrentTasks,
+    required this.saveSearchHistory,
     required this.updateChannel,
   });
 
   static const defaults = AppSettings(
     theme: AppThemePreference.system,
     playbackQuality: VideoQualityPreference.automatic,
+    networkPlaybackPolicy: NetworkPlaybackPolicy.automatic,
     autoplay: false,
     loopPlayback: false,
     rememberPlaybackProgress: true,
+    keepScreenAwake: true,
+    fullscreenOrientation: FullscreenOrientationPreference.landscape,
+    defaultOrientation: ContentOrientation.all,
+    hiddenKeywords: '',
+    videoPreviewPolicy: VideoPreviewPolicy.disabled,
     blurThumbnails: false,
     askDownloadQuality: true,
     downloadQuality: VideoQualityPreference.highest,
     wifiOnlyDownloads: false,
+    downloadConcurrentTasks: 2,
+    saveSearchHistory: true,
     updateChannel: UpdateChannel.stable,
   );
 
   final AppThemePreference theme;
   final VideoQualityPreference playbackQuality;
+  final NetworkPlaybackPolicy networkPlaybackPolicy;
   final bool autoplay;
   final bool loopPlayback;
   final bool rememberPlaybackProgress;
+  final bool keepScreenAwake;
+  final FullscreenOrientationPreference fullscreenOrientation;
+  final ContentOrientation defaultOrientation;
+  final String hiddenKeywords;
+  final VideoPreviewPolicy videoPreviewPolicy;
   final bool blurThumbnails;
   final bool askDownloadQuality;
   final VideoQualityPreference downloadQuality;
   final bool wifiOnlyDownloads;
+  final int downloadConcurrentTasks;
+  final bool saveSearchHistory;
   final UpdateChannel updateChannel;
 
   AppSettings copyWith({
     AppThemePreference? theme,
     VideoQualityPreference? playbackQuality,
+    NetworkPlaybackPolicy? networkPlaybackPolicy,
     bool? autoplay,
     bool? loopPlayback,
     bool? rememberPlaybackProgress,
+    bool? keepScreenAwake,
+    FullscreenOrientationPreference? fullscreenOrientation,
+    ContentOrientation? defaultOrientation,
+    String? hiddenKeywords,
+    VideoPreviewPolicy? videoPreviewPolicy,
     bool? blurThumbnails,
     bool? askDownloadQuality,
     VideoQualityPreference? downloadQuality,
     bool? wifiOnlyDownloads,
+    int? downloadConcurrentTasks,
+    bool? saveSearchHistory,
     UpdateChannel? updateChannel,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
       playbackQuality: playbackQuality ?? this.playbackQuality,
+      networkPlaybackPolicy:
+          networkPlaybackPolicy ?? this.networkPlaybackPolicy,
       autoplay: autoplay ?? this.autoplay,
       loopPlayback: loopPlayback ?? this.loopPlayback,
       rememberPlaybackProgress:
           rememberPlaybackProgress ?? this.rememberPlaybackProgress,
+      keepScreenAwake: keepScreenAwake ?? this.keepScreenAwake,
+      fullscreenOrientation:
+          fullscreenOrientation ?? this.fullscreenOrientation,
+      defaultOrientation: defaultOrientation ?? this.defaultOrientation,
+      hiddenKeywords: hiddenKeywords ?? this.hiddenKeywords,
+      videoPreviewPolicy: videoPreviewPolicy ?? this.videoPreviewPolicy,
       blurThumbnails: blurThumbnails ?? this.blurThumbnails,
       askDownloadQuality: askDownloadQuality ?? this.askDownloadQuality,
       downloadQuality: downloadQuality ?? this.downloadQuality,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+      downloadConcurrentTasks:
+          downloadConcurrentTasks ?? this.downloadConcurrentTasks,
+      saveSearchHistory: saveSearchHistory ?? this.saveSearchHistory,
       updateChannel: updateChannel ?? this.updateChannel,
     );
   }

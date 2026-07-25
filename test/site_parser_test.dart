@@ -140,6 +140,9 @@ void main() {
 
   test('解析视频元数据投票项、评分票数和评论', () {
     const source = '''
+      <script type="application/ld+json">
+        {"@type":"VideoObject","name":"Example","uploadDate":"2026-07-24"}
+      </script>
       <div class="action_rating">
         <div class="voters count">94% (1,234)</div>
       </div>
@@ -168,6 +171,13 @@ void main() {
           <div class="coment-text">A useful comment.</div>
         </div>
       </div>
+      <div class="item thumb video_456">
+        <a class="th js-open-popup" href="/video/456/related/" title="Related">
+          <img class="thumb" data-original="/related.jpg" alt="Related">
+        </a>
+        <div class="time">1:23</div>
+        <div class="thumb_title">Related</div>
+      </div>
     ''';
 
     final details = SiteParser.videoDetails(
@@ -185,6 +195,8 @@ void main() {
     expect(details.comments.single.id, '77');
     expect(details.comments.single.author, 'Tester');
     expect(details.comments.single.memberPath, '/members/42/');
+    expect(details.video.publishedLabel, '2026-07-24');
+    expect(details.relatedVideos.single.id, '456');
     expect(
       details.comments.single.avatarUrl,
       'https://rule34video.com/avatar.jpg',

@@ -47,6 +47,7 @@ final class DownloadRepository {
   final AppSettingsRepository _settingsRepository;
 
   StreamSubscription<DownloadPlatformEvent>? _eventSubscription;
+  final Set<String> _automaticRefreshAttempts = {};
   String? _observedUserId;
   bool _initialized = false;
 
@@ -56,7 +57,11 @@ final class DownloadRepository {
     }
     _observedUserId = _sessionStore.currentUserId;
     _sessionStore.addListener(_onSessionChanged);
+    _settingsRepository.addListener(_onSettingsChanged);
     _eventSubscription = _platformService.events.listen(_onPlatformEvent);
+    await _platformService.setMaxConcurrent(
+      _settingsRepository.settings.downloadConcurrentTasks,
+    );
     await _platformService.initialize();
     _initialized = true;
   }
@@ -152,6 +157,85 @@ final class DownloadRepository {
 
   Future<bool> resume(String id) => _ownedAction(id, _platformService.resume);
 
+  Future<bool> retry(DownloadRecord record) async {
+    _requireOwnedRecord(record);
+    final video = VideoItem(
+      id: record.videoId,
+      title: record.title,
+      slug: 'video',
+    );
+    try {
+      final details = await _api.loadVideoDetails(video);
+      final source = details.sources.cast<VideoSource?>().firstWhere(
+        (candidate) => candidate?.label.trim() == record.quality.trim(),
+        orElse: () => null,
+      );
+      if (source == null) {
+        throw DownloadException('刷新后已找不到 ${record.quality} 下载源。');
+      }
+      await _platformService.delete(
+        taskId: record.taskId ?? record.id,
+        directory: _directoryForUser(record.userId),
+        filePath: record.filePath,
+      );
+      final cookie = await _api.sessionCookieHeader();
+      final headers = <String, String>{
+        'Referer': 'https://rule34video.com/',
+        'User-Agent': 'Flule34 Android/0.1',
+      };
+      if (cookie != null) {
+        headers['Cookie'] = cookie;
+      }
+      final now = DateTime.now().toUtc();
+      await _database.saveDownloadRecord(
+        DownloadRecordsCompanion(
+          id: Value(record.id),
+          userId: Value(record.userId),
+          videoId: Value(record.videoId),
+          title: Value(details.video.title),
+          quality: Value(record.quality),
+          state: Value(DownloadTaskState.queued.storageValue),
+          bytesDownloaded: const Value(0),
+          totalBytes: const Value(null),
+          filePath: const Value(null),
+          errorMessage: const Value(null),
+          taskId: Value(record.taskId ?? record.id),
+          createdAt: Value(record.createdAt),
+          updatedAt: Value(now),
+          completedAt: const Value(null),
+        ),
+      );
+      final enqueued = await _platformService.enqueue(
+        DownloadRequest(
+          id: record.taskId ?? record.id,
+          url: source.url,
+          filename: _filename(details.video, record.quality),
+          directory: _directoryForUser(record.userId),
+          displayName: details.video.title,
+          metadata: jsonEncode({
+            'recordId': record.id,
+            'userId': record.userId,
+            'videoId': record.videoId,
+            'quality': record.quality,
+          }),
+          headers: headers,
+          requiresWiFi: _settingsRepository.settings.wifiOnlyDownloads,
+        ),
+      );
+      if (!enqueued) {
+        throw const DownloadException('系统未能重新加入下载任务。');
+      }
+      return true;
+    } catch (error) {
+      await _database.updateDownloadStatus(
+        id: record.id,
+        state: DownloadTaskState.failed.storageValue,
+        errorMessage: error.toString(),
+      );
+      return false;
+    }
+  }
+
   Future<bool> cancel(String id) async {
     final success = await _ownedAction(id, _platformService.cancel);
     if (success) {
@@ -238,6 +322,16 @@ final class DownloadRepository {
               ? DateTime.now().toUtc()
               : null,
         );
+        if (event.state == DownloadTaskState.complete) {
+          _automaticRefreshAttempts.remove(event.taskId);
+        } else if (event.state == DownloadTaskState.failed &&
+            _isExpiredSourceError(event.errorMessage) &&
+            _automaticRefreshAttempts.add(event.taskId)) {
+          final record = await _database.findDownloadRecord(event.taskId);
+          if (record != null && record.userId == _sessionStore.currentUserId) {
+            unawaited(retry(record));
+          }
+        }
       case DownloadProgressEvent():
         await _database.updateDownloadProgress(
           id: event.taskId,
@@ -254,6 +348,21 @@ final class DownloadRepository {
     if (previousUserId != null && previousUserId != nextUserId) {
       unawaited(_cancelActiveForUser(previousUserId));
     }
+  }
+
+  void _onSettingsChanged() {
+    unawaited(
+      _platformService.setMaxConcurrent(
+        _settingsRepository.settings.downloadConcurrentTasks,
+      ),
+    );
+  }
+
+  bool _isExpiredSourceError(String? message) {
+    return RegExp(
+      r'\b(?:401|403|404)\b|unauthori[sz]ed|forbidden|not found',
+      caseSensitive: false,
+    ).hasMatch(message ?? '');
   }
 
   Future<void> _cancelActiveForUser(String userId) async {
@@ -296,6 +405,7 @@ final class DownloadRepository {
 
   void dispose() {
     _sessionStore.removeListener(_onSessionChanged);
+    _settingsRepository.removeListener(_onSettingsChanged);
     unawaited(_eventSubscription?.cancel());
     _platformService.dispose();
   }

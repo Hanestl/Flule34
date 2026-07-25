@@ -17,6 +17,16 @@ void main() {
     expect(repository.settings.askDownloadQuality, isTrue);
 
     await repository.setTheme(AppThemePreference.light);
+    await repository.setNetworkPlaybackPolicy(NetworkPlaybackPolicy.dataSaver);
+    await repository.setKeepScreenAwake(false);
+    await repository.setFullscreenOrientation(
+      FullscreenOrientationPreference.device,
+    );
+    await repository.setDefaultOrientation(ContentOrientation.futa);
+    await repository.setHiddenKeywords('foo, bar');
+    await repository.setVideoPreviewPolicy(VideoPreviewPolicy.wifiOnly);
+    await repository.setDownloadConcurrentTasks(3);
+    await repository.setSaveSearchHistory(false);
     await repository.setAutoplay(true);
     await repository.setRememberPlaybackProgress(false);
     await repository.setWifiOnlyDownloads(true);
@@ -26,6 +36,20 @@ void main() {
     addTearDown(restored.dispose);
     await restored.load();
     expect(restored.settings.theme, AppThemePreference.light);
+    expect(
+      restored.settings.networkPlaybackPolicy,
+      NetworkPlaybackPolicy.dataSaver,
+    );
+    expect(restored.settings.keepScreenAwake, isFalse);
+    expect(
+      restored.settings.fullscreenOrientation,
+      FullscreenOrientationPreference.device,
+    );
+    expect(restored.settings.defaultOrientation, ContentOrientation.futa);
+    expect(restored.settings.hiddenKeywords, 'foo, bar');
+    expect(restored.settings.videoPreviewPolicy, VideoPreviewPolicy.wifiOnly);
+    expect(restored.settings.downloadConcurrentTasks, 3);
+    expect(restored.settings.saveSearchHistory, isFalse);
     expect(restored.settings.autoplay, isTrue);
     expect(restored.settings.rememberPlaybackProgress, isFalse);
     expect(restored.settings.wifiOnlyDownloads, isTrue);

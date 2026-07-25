@@ -22,5 +22,9 @@
 | package_info_plus | 10.2.1 | BSD-3-Clause |
 | device_info_plus | 13.2.0 | BSD-3-Clause |
 | url_launcher | 6.3.2 | BSD-3-Clause |
+| connectivity_plus | 7.3.1 | BSD-3-Clause |
+| flutter_cache_manager | 3.4.2 | MIT |
+| share_plus | 13.3.0 | BSD-3-Clause |
+| wakelock_plus | 1.7.0 | BSD-3-Clause |
 
 本摘要不替代各依赖的完整许可证条款。更新依赖后必须同步更新此表，并重新检查 App 内许可证页。

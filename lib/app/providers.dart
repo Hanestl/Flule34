@@ -8,6 +8,9 @@ import '../core/database/app_database.dart';
 import '../core/session/secret_store.dart';
 import '../core/session/secure_cookie_storage.dart';
 import '../core/session/session_store.dart';
+import '../core/services/network_status_service.dart';
+import '../core/services/screen_wake_lock_service.dart';
+import '../core/services/share_service.dart';
 import '../features/downloads/data/background_download_platform_service.dart';
 import '../features/downloads/data/download_repository.dart';
 import '../features/downloads/domain/download_models.dart';
@@ -24,6 +27,18 @@ final appSettingsRepositoryProvider = Provider<AppSettingsRepository>((ref) {
   final repository = AppSettingsRepository(ref.watch(appSettingsStoreProvider));
   ref.onDispose(repository.dispose);
   return repository;
+});
+
+final networkStatusServiceProvider = Provider<NetworkStatusService>((ref) {
+  return ConnectivityNetworkStatusService();
+});
+
+final screenWakeLockServiceProvider = Provider<ScreenWakeLockService>((ref) {
+  return WakelockScreenWakeLockService();
+});
+
+final shareServiceProvider = Provider<ShareService>((ref) {
+  return PlatformShareService();
 });
 
 final secretStoreProvider = Provider<SecretStore>((ref) {
@@ -62,7 +77,12 @@ final rule34VideoApiProvider = Provider<Rule34VideoApi>((ref) {
 final downloadPlatformServiceProvider = Provider<DownloadPlatformService>((
   ref,
 ) {
-  return BackgroundDownloadPlatformService();
+  return BackgroundDownloadPlatformService(
+    maxConcurrent: ref
+        .watch(appSettingsRepositoryProvider)
+        .settings
+        .downloadConcurrentTasks,
+  );
 });
 
 final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
@@ -91,6 +111,7 @@ final searchHistoryRepositoryProvider = Provider<SearchHistoryRepository>((
   return SearchHistoryRepository(
     ref.watch(appDatabaseProvider),
     ref.watch(sessionStoreProvider),
+    ref.watch(appSettingsRepositoryProvider),
   );
 });
 

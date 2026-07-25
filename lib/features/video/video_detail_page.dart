@@ -7,6 +7,8 @@ import '../../app/providers.dart';
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../core/services/share_service.dart';
+import '../../shared/video_card.dart';
 import '../auth/login_sheet.dart';
 import '../downloads/data/download_repository.dart';
 import '../settings/data/app_settings_repository.dart';
@@ -45,6 +47,7 @@ class VideoDetailPage extends ConsumerWidget {
             details: snapshot.requireData,
             downloads: ref.watch(downloadRepositoryProvider),
             settings: ref.watch(appSettingsRepositoryProvider),
+            shareService: ref.watch(shareServiceProvider),
           );
         },
       ),
@@ -58,12 +61,14 @@ class _VideoDetailsBody extends StatefulWidget {
     required this.details,
     required this.downloads,
     required this.settings,
+    required this.shareService,
   });
 
   final Rule34VideoApi api;
   final VideoDetails details;
   final DownloadRepository downloads;
   final AppSettingsRepository settings;
+  final ShareService shareService;
 
   @override
   State<_VideoDetailsBody> createState() => _VideoDetailsBodyState();
@@ -75,6 +80,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
   late bool _favorite;
   final Set<String> _subscriptionPaths = {};
   final Set<String> _updatingMetadata = {};
+  final Set<String> _votingComments = {};
   var _updatingFavorite = false;
   var _updatingRating = false;
   var _addingPlaylist = false;
@@ -239,6 +245,16 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
   }
 
+  Future<void> _share() async {
+    try {
+      await widget.shareService.shareVideo(_details.video);
+    } catch (error) {
+      if (mounted) {
+        _showMessage('无法打开分享面板：$error');
+      }
+    }
+  }
+
   Future<void> _addToPlaylist() async {
     if (_addingPlaylist || !await _ensureLogin() || !mounted) {
       return;
@@ -331,6 +347,33 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     } finally {
       if (mounted) {
         setState(() => _postingComment = false);
+      }
+    }
+  }
+
+  Future<void> _voteComment(VideoComment comment, bool upvote) async {
+    if (_votingComments.contains(comment.id) ||
+        !await _ensureLogin() ||
+        !mounted) {
+      return;
+    }
+    setState(() => _votingComments.add(comment.id));
+    try {
+      await widget.api.voteComment(
+        video: _details.video,
+        comment: comment,
+        upvote: upvote,
+      );
+      if (mounted) {
+        _showMessage(upvote ? '已赞同这条评论。' : '已反对这条评论。');
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _votingComments.remove(comment.id));
       }
     }
   }
@@ -523,6 +566,11 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                           ? '${details.video.rating}%'
                           : '${details.video.rating}% · ${details.ratingVotes} 票',
                     ),
+                  if (details.video.publishedLabel != null)
+                    _StatChip(
+                      icon: Icons.calendar_today_outlined,
+                      label: details.video.publishedLabel!,
+                    ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -559,6 +607,12 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                     label: '下载',
                     busy: _addingDownload,
                     onPressed: details.sources.isEmpty ? null : _download,
+                  ),
+                  _ActionButton(
+                    icon: Icons.share_outlined,
+                    label: '分享',
+                    busy: false,
+                    onPressed: _share,
                   ),
                 ],
               ),
@@ -611,7 +665,23 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                   }
                 },
                 onSubmit: _postComment,
+                votingCommentIds: _votingComments,
+                onVote: _voteComment,
               ),
+              if (details.relatedVideos.isNotEmpty) ...[
+                const SizedBox(height: 28),
+                Text('相关视频', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                for (final video in details.relatedVideos)
+                  VideoCard(
+                    video: video,
+                    onTap: () => context.pushNamed(
+                      AppRouteNames.video,
+                      pathParameters: {'id': video.id, 'slug': video.slug},
+                      extra: video,
+                    ),
+                  ),
+              ],
             ],
           ),
         ),
@@ -750,6 +820,8 @@ class _CommentsSection extends StatelessWidget {
     required this.posting,
     required this.onLogin,
     required this.onSubmit,
+    required this.votingCommentIds,
+    required this.onVote,
   });
 
   final List<VideoComment> comments;
@@ -759,6 +831,8 @@ class _CommentsSection extends StatelessWidget {
   final bool posting;
   final Future<void> Function() onLogin;
   final VoidCallback onSubmit;
+  final Set<String> votingCommentIds;
+  final void Function(VideoComment comment, bool upvote) onVote;
 
   @override
   Widget build(BuildContext context) {
@@ -848,6 +922,42 @@ class _CommentsSection extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             SelectableText(comment.text),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                if (votingCommentIds.contains(comment.id))
+                                  const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                else ...[
+                                  IconButton(
+                                    tooltip: '赞同评论',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => onVote(comment, true),
+                                    icon: const Icon(
+                                      Icons.thumb_up_alt_outlined,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: '反对评论',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => onVote(comment, false),
+                                    icon: const Icon(
+                                      Icons.thumb_down_alt_outlined,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ],
                         ),
                       ),

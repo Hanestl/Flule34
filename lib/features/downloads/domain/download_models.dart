@@ -85,6 +85,8 @@ abstract interface class DownloadPlatformService {
 
   Future<void> initialize();
 
+  Future<void> setMaxConcurrent(int value);
+
   Future<bool> ensureNotificationPermission();
 
   Future<bool> enqueue(DownloadRequest request);

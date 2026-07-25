@@ -112,6 +112,8 @@ class SiteParser {
           _flashValue(source, 'video_duration') ??
           _isoDuration(_string(schema?['duration'])) ??
           fallback.duration,
+      publishedLabel:
+          _clean(_string(schema?['uploadDate'])) ?? fallback.publishedLabel,
       views: _viewsFromSchema(schema) ?? fallback.views,
     );
 
@@ -137,6 +139,10 @@ class SiteParser {
       isFavorite: document.querySelector('a.delete.button_fav') != null,
       metadataItems: metadataItems,
       comments: _videoComments(document),
+      relatedVideos: videoList(source)
+          .where((item) => item.id != fallback.id)
+          .take(12)
+          .toList(growable: false),
       commentCount:
           _number(
             RegExp(r'Comments\s*\(([\d,]+)\)', caseSensitive: false)

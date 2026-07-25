@@ -291,6 +291,7 @@ class VideoDetails {
     this.description,
     this.metadataItems = const [],
     this.comments = const [],
+    this.relatedVideos = const [],
     this.commentCount = 0,
     this.ratingVotes,
   });
@@ -304,6 +305,7 @@ class VideoDetails {
   final bool isFavorite;
   final List<VideoMetadataItem> metadataItems;
   final List<VideoComment> comments;
+  final List<VideoItem> relatedVideos;
   final int commentCount;
   final int? ratingVotes;
 }

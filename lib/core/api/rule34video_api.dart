@@ -48,6 +48,7 @@ class Rule34VideoApi {
 
   final SessionStore sessionStore;
   late final Dio _dio;
+  List<SubscriptionItem>? _subscriptionCache;
 
   void close() => _dio.close(force: true);
 
@@ -72,8 +73,36 @@ class Rule34VideoApi {
     return sessionStore.cookieHeaderFor(Uri.parse('https://rule34video.com/'));
   }
 
-  Future<List<VideoItem>> loadFeed(FeedKind kind, int page) async {
-    return _videoList(kind.pagePath(page));
+  Future<List<VideoItem>> loadFeed(
+    FeedKind kind,
+    int page, {
+    SearchFilters filters = const SearchFilters(),
+  }) async {
+    return _videoList(kind.pagePath(page), query: _searchQuery(filters));
+  }
+
+  Future<List<VideoItem>> loadFollowingFeed(int page) async {
+    _requireLogin();
+    final subscriptions = (await loadSubscriptions()).take(8).toList();
+    if (subscriptions.isEmpty) {
+      return const [];
+    }
+    final pages = await Future.wait(
+      subscriptions.map((item) => loadSubscriptionVideos(item, page)),
+    );
+    final merged = <String, VideoItem>{};
+    final longest = pages.fold<int>(
+      0,
+      (length, items) => items.length > length ? items.length : length,
+    );
+    for (var index = 0; index < longest; index += 1) {
+      for (final items in pages) {
+        if (index < items.length) {
+          merged[items[index].id] = items[index];
+        }
+      }
+    }
+    return merged.values.take(30).toList(growable: false);
   }
 
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
@@ -244,9 +273,14 @@ class Rule34VideoApi {
     return _videoList(path);
   }
 
-  Future<List<SubscriptionItem>> loadSubscriptions() async {
+  Future<List<SubscriptionItem>> loadSubscriptions({bool force = false}) async {
     _requireLogin();
-    return SiteParser.subscriptions(await _get('/my/subscriptions/'));
+    if (!force && _subscriptionCache != null) {
+      return _subscriptionCache!;
+    }
+    final result = SiteParser.subscriptions(await _get('/my/subscriptions/'));
+    _subscriptionCache = result;
+    return result;
   }
 
   Future<List<VideoItem>> loadSubscriptionVideos(
@@ -353,6 +387,7 @@ class Rule34VideoApi {
       },
       ajax: true,
     );
+    _subscriptionCache = null;
   }
 
   Future<void> postComment({
@@ -368,6 +403,24 @@ class Rule34VideoApi {
       video.detailPath,
       query: const <String, String>{'mode': 'async'},
       data: <String, dynamic>{'comment': text, 'anonymous_username': ''},
+    );
+  }
+
+  Future<void> voteComment({
+    required VideoItem video,
+    required VideoComment comment,
+    required bool upvote,
+  }) async {
+    _requireLogin();
+    await _post(
+      video.detailPath,
+      query: const <String, String>{'mode': 'async'},
+      data: <String, String>{
+        'action': 'vote_comment',
+        'vote': upvote ? '1' : '-1',
+        'comment_id': comment.id,
+      },
+      ajax: true,
     );
   }
 

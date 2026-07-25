@@ -41,6 +41,10 @@ void main() {
     expect(find.text('媒体库'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
     expect(find.widgetWithText(NavigationDestination, '搜索'), findsNothing);
+    expect(find.text('关注'), findsOneWidget);
+    expect(find.text('内容取向'), findsOneWidget);
+    expect(find.text('时长'), findsOneWidget);
+    expect(find.text('发布时间'), findsOneWidget);
 
     await tester.tap(find.text('发现'));
     await tester.pumpAndSettle();
@@ -58,7 +62,7 @@ void main() {
     await tester.tap(find.text('播放设置'));
     await tester.pumpAndSettle();
     expect(find.text('默认播放清晰度'), findsOneWidget);
-    expect(find.text('打开播放器后自动播放'), findsOneWidget);
+    expect(find.text('网络播放策略'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('关于 Flule34'), 300);
@@ -71,7 +75,11 @@ class _FakeRule34VideoApi extends Rule34VideoApi {
     : super(sessionStore: sessionStore);
 
   @override
-  Future<List<VideoItem>> loadFeed(FeedKind kind, int page) async {
+  Future<List<VideoItem>> loadFeed(
+    FeedKind kind,
+    int page, {
+    SearchFilters filters = const SearchFilters(),
+  }) async {
     return const [];
   }
 

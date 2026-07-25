@@ -23,12 +23,26 @@ class DownloadsList extends StatelessWidget {
         if (records.isEmpty) {
           return const Center(child: Text('还没有下载任务。'));
         }
+        final completed = records.where((item) => item.state == 'complete');
+        final storedBytes = completed.fold<int>(
+          0,
+          (total, item) => total + (item.totalBytes ?? item.bytesDownloaded),
+        );
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-          itemCount: records.length,
+          itemCount: records.length + 1,
           itemBuilder: (context, index) {
+            if (index == 0) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
+                child: Text(
+                  '共 ${records.length} 个任务 · 已完成 ${completed.length} 个 · 约占用 ${_DownloadCardState._formatBytes(storedBytes)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              );
+            }
             return _DownloadCard(
-              record: records[index],
+              record: records[index - 1],
               repository: repository,
             );
           },
@@ -116,6 +130,16 @@ class _DownloadCardState extends State<_DownloadCard> {
                             onPressed: () =>
                                 _run(() => widget.repository.resume(record.id)),
                             icon: const Icon(Icons.play_arrow),
+                          ),
+                        if (record.state == 'failed' ||
+                            record.state == 'not_found')
+                          IconButton(
+                            tooltip: '刷新地址并重试',
+                            onPressed: () => _run(
+                              () => widget.repository.retry(record),
+                              successMessage: '已刷新视频地址并重新加入下载队列。',
+                            ),
+                            icon: const Icon(Icons.refresh),
                           ),
                         if (_isActive(record.state))
                           IconButton(

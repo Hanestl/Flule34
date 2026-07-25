@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/models/video_models.dart';
 import '../domain/app_settings.dart';
 import 'app_settings_store.dart';
 
@@ -8,14 +9,26 @@ final class AppSettingsRepository extends ChangeNotifier {
 
   static const _themeKey = 'flule34.settings.theme';
   static const _playbackQualityKey = 'flule34.settings.playback_quality';
+  static const _networkPlaybackPolicyKey =
+      'flule34.settings.network_playback_policy';
   static const _autoplayKey = 'flule34.settings.autoplay';
   static const _loopPlaybackKey = 'flule34.settings.loop_playback';
   static const _rememberPlaybackProgressKey =
       'flule34.settings.remember_playback_progress';
+  static const _keepScreenAwakeKey = 'flule34.settings.keep_screen_awake';
+  static const _fullscreenOrientationKey =
+      'flule34.settings.fullscreen_orientation';
+  static const _defaultOrientationKey =
+      'flule34.settings.default_content_orientation';
+  static const _hiddenKeywordsKey = 'flule34.settings.hidden_keywords';
+  static const _videoPreviewPolicyKey = 'flule34.settings.video_preview_policy';
   static const _blurThumbnailsKey = 'flule34.settings.blur_thumbnails';
   static const _askDownloadQualityKey = 'flule34.settings.ask_download_quality';
   static const _downloadQualityKey = 'flule34.settings.download_quality';
   static const _wifiOnlyDownloadsKey = 'flule34.settings.wifi_only_downloads';
+  static const _downloadConcurrentTasksKey =
+      'flule34.settings.download_concurrent_tasks';
+  static const _saveSearchHistoryKey = 'flule34.settings.save_search_history';
   static const _updateChannelKey = 'flule34.settings.update_channel';
 
   final AppSettingsStore _store;
@@ -32,13 +45,21 @@ final class AppSettingsRepository extends ChangeNotifier {
     final values = await Future.wait<Object?>([
       _readString(_themeKey),
       _readString(_playbackQualityKey),
+      _readString(_networkPlaybackPolicyKey),
       _readBool(_autoplayKey),
       _readBool(_loopPlaybackKey),
       _readBool(_rememberPlaybackProgressKey),
+      _readBool(_keepScreenAwakeKey),
+      _readString(_fullscreenOrientationKey),
+      _readString(_defaultOrientationKey),
+      _readString(_hiddenKeywordsKey),
+      _readString(_videoPreviewPolicyKey),
       _readBool(_blurThumbnailsKey),
       _readBool(_askDownloadQualityKey),
       _readString(_downloadQualityKey),
       _readBool(_wifiOnlyDownloadsKey),
+      _readString(_downloadConcurrentTasksKey),
+      _readBool(_saveSearchHistoryKey),
       _readString(_updateChannelKey),
     ]);
     _settings = AppSettings(
@@ -48,23 +69,54 @@ final class AppSettingsRepository extends ChangeNotifier {
         values[1] as String?,
         AppSettings.defaults.playbackQuality,
       ),
-      autoplay: values[2] as bool? ?? AppSettings.defaults.autoplay,
-      loopPlayback: values[3] as bool? ?? AppSettings.defaults.loopPlayback,
+      networkPlaybackPolicy: _enumValue(
+        NetworkPlaybackPolicy.values,
+        values[2] as String?,
+        AppSettings.defaults.networkPlaybackPolicy,
+      ),
+      autoplay: values[3] as bool? ?? AppSettings.defaults.autoplay,
+      loopPlayback: values[4] as bool? ?? AppSettings.defaults.loopPlayback,
       rememberPlaybackProgress:
-          values[4] as bool? ?? AppSettings.defaults.rememberPlaybackProgress,
-      blurThumbnails: values[5] as bool? ?? AppSettings.defaults.blurThumbnails,
+          values[5] as bool? ?? AppSettings.defaults.rememberPlaybackProgress,
+      keepScreenAwake:
+          values[6] as bool? ?? AppSettings.defaults.keepScreenAwake,
+      fullscreenOrientation: _enumValue(
+        FullscreenOrientationPreference.values,
+        values[7] as String?,
+        AppSettings.defaults.fullscreenOrientation,
+      ),
+      defaultOrientation: _enumValue(
+        ContentOrientation.values,
+        values[8] as String?,
+        AppSettings.defaults.defaultOrientation,
+      ),
+      hiddenKeywords:
+          values[9] as String? ?? AppSettings.defaults.hiddenKeywords,
+      videoPreviewPolicy: _enumValue(
+        VideoPreviewPolicy.values,
+        values[10] as String?,
+        AppSettings.defaults.videoPreviewPolicy,
+      ),
+      blurThumbnails:
+          values[11] as bool? ?? AppSettings.defaults.blurThumbnails,
       askDownloadQuality:
-          values[6] as bool? ?? AppSettings.defaults.askDownloadQuality,
+          values[12] as bool? ?? AppSettings.defaults.askDownloadQuality,
       downloadQuality: _enumValue(
         VideoQualityPreference.values,
-        values[7] as String?,
+        values[13] as String?,
         AppSettings.defaults.downloadQuality,
       ),
       wifiOnlyDownloads:
-          values[8] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
+          values[14] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
+      downloadConcurrentTasks:
+          (int.tryParse(values[15] as String? ?? '') ??
+                  AppSettings.defaults.downloadConcurrentTasks)
+              .clamp(1, 4),
+      saveSearchHistory:
+          values[16] as bool? ?? AppSettings.defaults.saveSearchHistory,
       updateChannel: _enumValue(
         UpdateChannel.values,
-        values[9] as String?,
+        values[17] as String?,
         AppSettings.defaults.updateChannel,
       ),
     );
@@ -82,6 +134,11 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(playbackQuality: value));
   }
 
+  Future<void> setNetworkPlaybackPolicy(NetworkPlaybackPolicy value) async {
+    await _store.writeString(_networkPlaybackPolicyKey, value.name);
+    _update(_settings.copyWith(networkPlaybackPolicy: value));
+  }
+
   Future<void> setAutoplay(bool value) async {
     await _store.writeBool(_autoplayKey, value);
     _update(_settings.copyWith(autoplay: value));
@@ -95,6 +152,39 @@ final class AppSettingsRepository extends ChangeNotifier {
   Future<void> setRememberPlaybackProgress(bool value) async {
     await _store.writeBool(_rememberPlaybackProgressKey, value);
     _update(_settings.copyWith(rememberPlaybackProgress: value));
+  }
+
+  Future<void> setKeepScreenAwake(bool value) async {
+    await _store.writeBool(_keepScreenAwakeKey, value);
+    _update(_settings.copyWith(keepScreenAwake: value));
+  }
+
+  Future<void> setFullscreenOrientation(
+    FullscreenOrientationPreference value,
+  ) async {
+    await _store.writeString(_fullscreenOrientationKey, value.name);
+    _update(_settings.copyWith(fullscreenOrientation: value));
+  }
+
+  Future<void> setDefaultOrientation(ContentOrientation value) async {
+    await _store.writeString(_defaultOrientationKey, value.name);
+    _update(_settings.copyWith(defaultOrientation: value));
+  }
+
+  Future<void> setHiddenKeywords(String value) async {
+    final normalized = value
+        .split(RegExp(r'[,，\n]'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .join(', ');
+    await _store.writeString(_hiddenKeywordsKey, normalized);
+    _update(_settings.copyWith(hiddenKeywords: normalized));
+  }
+
+  Future<void> setVideoPreviewPolicy(VideoPreviewPolicy value) async {
+    await _store.writeString(_videoPreviewPolicyKey, value.name);
+    _update(_settings.copyWith(videoPreviewPolicy: value));
   }
 
   Future<void> setBlurThumbnails(bool value) async {
@@ -115,6 +205,20 @@ final class AppSettingsRepository extends ChangeNotifier {
   Future<void> setWifiOnlyDownloads(bool value) async {
     await _store.writeBool(_wifiOnlyDownloadsKey, value);
     _update(_settings.copyWith(wifiOnlyDownloads: value));
+  }
+
+  Future<void> setDownloadConcurrentTasks(int value) async {
+    final normalized = value.clamp(1, 4);
+    await _store.writeString(
+      _downloadConcurrentTasksKey,
+      normalized.toString(),
+    );
+    _update(_settings.copyWith(downloadConcurrentTasks: normalized));
+  }
+
+  Future<void> setSaveSearchHistory(bool value) async {
+    await _store.writeBool(_saveSearchHistoryKey, value);
+    _update(_settings.copyWith(saveSearchHistory: value));
   }
 
   Future<void> setUpdateChannel(UpdateChannel value) async {

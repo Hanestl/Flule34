@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api/rule34video_api.dart';
+import '../../core/services/external_link_service.dart';
 
 Future<bool> showLoginSheet(BuildContext context, Rule34VideoApi api) async {
   final result = await showModalBottomSheet<bool>(
@@ -111,6 +112,28 @@ class _LoginSheetState extends State<_LoginSheet> {
                     )
                   : const Text('登录'),
             ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: _submitting
+                      ? null
+                      : () => _openWebsite(
+                          Uri.parse('https://rule34video.com/signup/'),
+                        ),
+                  child: const Text('注册账号'),
+                ),
+                TextButton(
+                  onPressed: _submitting
+                      ? null
+                      : () => _openWebsite(
+                          Uri.parse('https://rule34video.com/reset-password/'),
+                        ),
+                  child: const Text('忘记密码'),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             const Text(
               '密码不会由应用保存；仅保存网站返回的加密会话信息。',
@@ -120,5 +143,15 @@ class _LoginSheetState extends State<_LoginSheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _openWebsite(Uri uri) async {
+    try {
+      await ExternalLinkService.open(uri);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = error.toString());
+      }
+    }
   }
 }

@@ -212,10 +212,7 @@ void main() {
     });
 
     final record = (await harness.database.findDownloadRecord(id))!;
-    expect(
-      await repository.export(record),
-      'Downloads/Flule34/video.mp4',
-    );
+    expect(await repository.export(record), 'Downloads/Flule34/video.mp4');
   });
 
   test('清理当前账号本地数据会删除下载和播放进度但保留账号', () async {
@@ -258,6 +255,70 @@ void main() {
       isNull,
     );
     expect(await harness.database.findAccount('2421071'), isNotNull);
+  });
+
+  test('令牌失效失败会刷新详情并自动重建下载任务', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final platform = _FakeDownloadPlatformService();
+    final api = _FakeRule34VideoApi(harness.sessionStore);
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      api,
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+
+    platform.emit(
+      DownloadStatusEvent(
+        taskId: id,
+        state: DownloadTaskState.failed,
+        errorMessage: 'HTTP response 403 Forbidden',
+      ),
+    );
+    await _waitFor(() async => platform.requests.length == 2);
+
+    expect(api.detailLoads, 2);
+    expect(platform.deletedIds, contains(id));
+    expect(platform.requests.last.url, contains('token=2'));
+    final record = await harness.database.findDownloadRecord(id);
+    expect(record?.state, 'queued');
+    expect(record?.errorMessage, isNull);
+  });
+
+  test('下载并发设置会同步到后台队列', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    addTearDown(settings.dispose);
+    final repository = DownloadRepository(
+      harness.database,
+      harness.sessionStore,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    await repository.initialize();
+
+    await settings.setDownloadConcurrentTasks(3);
+    await _waitFor(() async => platform.maxConcurrentValues.contains(3));
+
+    expect(platform.maxConcurrentValues, containsAllInOrder([2, 3]));
   });
 }
 
@@ -324,8 +385,26 @@ final class _FakeRule34VideoApi extends Rule34VideoApi {
   @override
   Future<String?> sessionCookieHeader() async => 'PHPSESSID=test-cookie';
 
+  int detailLoads = 0;
+
   @override
-  Future<VideoDetails> loadVideoDetails(VideoItem video) async => _details;
+  Future<VideoDetails> loadVideoDetails(VideoItem video) async {
+    detailLoads += 1;
+    return VideoDetails(
+      video: _details.video,
+      sources: [
+        VideoSource(
+          label: '720p',
+          url: 'https://rule34video.com/get_file/video.mp4?token=$detailLoads',
+          isHd: true,
+        ),
+      ],
+      categories: const [],
+      tags: const [],
+      models: const [],
+      isFavorite: false,
+    );
+  }
 
   @override
   void close() {}
@@ -340,6 +419,7 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   final Set<String> deletedIds = {};
   final Map<String, String> deletedDirectories = {};
   final Map<String, String?> deletedPaths = {};
+  final List<int> maxConcurrentValues = [];
   bool permissionGranted = true;
   String? exportedPath = 'Downloads/Flule34/video.mp4';
 
@@ -350,6 +430,11 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<void> setMaxConcurrent(int value) async {
+    maxConcurrentValues.add(value);
+  }
 
   @override
   Future<bool> ensureNotificationPermission() async => permissionGranted;

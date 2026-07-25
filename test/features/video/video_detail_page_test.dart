@@ -9,6 +9,8 @@ import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
+import 'package:flule34/core/services/network_status_service.dart';
+import 'package:flule34/core/services/screen_wake_lock_service.dart';
 import 'package:flule34/features/downloads/domain/download_models.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
 import 'package:flule34/features/video/video_detail_page.dart';
@@ -36,6 +38,12 @@ void main() {
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
         downloadPlatformServiceProvider.overrideWithValue(
           _FakeDownloadPlatformService(),
+        ),
+        networkStatusServiceProvider.overrideWithValue(
+          _FakeNetworkStatusService(),
+        ),
+        screenWakeLockServiceProvider.overrideWithValue(
+          _FakeScreenWakeLockService(),
         ),
       ],
     );
@@ -77,9 +85,24 @@ void main() {
 
     expect(api.postedComment, '新评论');
     expect(api.detailLoads, greaterThanOrEqualTo(2));
+    await tester.drag(find.byType(ListView), const Offset(0, -800));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('赞同评论'));
+    await tester.pump();
+    expect(api.votedCommentId, '1');
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+}
+
+final class _FakeNetworkStatusService implements NetworkStatusService {
+  @override
+  Future<NetworkClass> current() async => NetworkClass.wifi;
+}
+
+final class _FakeScreenWakeLockService implements ScreenWakeLockService {
+  @override
+  Future<void> setEnabled(bool enabled) async {}
 }
 
 const _video = VideoItem(id: '123', title: '测试视频', slug: 'test-video');
@@ -106,6 +129,7 @@ class _FakeVideoApi extends Rule34VideoApi {
 
   bool? ratedLike;
   String? postedComment;
+  String? votedCommentId;
   int detailLoads = 0;
 
   @override
@@ -115,7 +139,9 @@ class _FakeVideoApi extends Rule34VideoApi {
   }
 
   @override
-  Future<List<SubscriptionItem>> loadSubscriptions() async => const [];
+  Future<List<SubscriptionItem>> loadSubscriptions({
+    bool force = false,
+  }) async => const [];
 
   @override
   Future<void> rateVideo({required VideoItem video, required bool like}) async {
@@ -128,6 +154,15 @@ class _FakeVideoApi extends Rule34VideoApi {
     required String comment,
   }) async {
     postedComment = comment;
+  }
+
+  @override
+  Future<void> voteComment({
+    required VideoItem video,
+    required VideoComment comment,
+    required bool upvote,
+  }) async {
+    votedCommentId = comment.id;
   }
 
   @override
@@ -253,6 +288,9 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<void> setMaxConcurrent(int value) async {}
 
   @override
   Future<bool> openFile(String filePath) async => true;

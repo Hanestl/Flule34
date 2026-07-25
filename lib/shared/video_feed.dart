@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../app/providers.dart';
 import '../app/router/route_names.dart';
 import '../core/models/video_models.dart';
 import 'video_card.dart';
 
-class VideoFeed extends StatefulWidget {
+class VideoFeed extends ConsumerStatefulWidget {
   const VideoFeed({
     super.key,
     required this.loadPage,
@@ -16,10 +18,10 @@ class VideoFeed extends StatefulWidget {
   final String emptyMessage;
 
   @override
-  State<VideoFeed> createState() => _VideoFeedState();
+  ConsumerState<VideoFeed> createState() => _VideoFeedState();
 }
 
-class _VideoFeedState extends State<VideoFeed>
+class _VideoFeedState extends ConsumerState<VideoFeed>
     with AutomaticKeepAliveClientMixin {
   final ScrollController _scrollController = ScrollController();
   final List<VideoItem> _videos = [];
@@ -67,9 +69,23 @@ class _VideoFeedState extends State<VideoFeed>
       if (!mounted) {
         return;
       }
+      final hiddenKeywords = ref
+          .read(appSettingsRepositoryProvider)
+          .settings
+          .hiddenKeywords
+          .split(',')
+          .map((item) => item.trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
       setState(() {
         _videos.addAll(
-          page.where((item) => !_videos.any((saved) => saved.id == item.id)),
+          page.where(
+            (item) =>
+                !hiddenKeywords.any(
+                  (keyword) => item.title.toLowerCase().contains(keyword),
+                ) &&
+                !_videos.any((saved) => saved.id == item.id),
+          ),
         );
         _page += 1;
         _hasMore = page.length >= 30;

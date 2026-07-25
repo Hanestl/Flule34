@@ -10,6 +10,8 @@ import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
+import 'package:flule34/core/services/network_status_service.dart';
+import 'package:flule34/core/services/screen_wake_lock_service.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
 import 'package:flule34/features/video/video_player_page.dart';
 
@@ -46,6 +48,12 @@ void main() {
         sessionStoreProvider.overrideWithValue(harness.sessionStore),
         rule34VideoApiProvider.overrideWithValue(api),
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        networkStatusServiceProvider.overrideWithValue(
+          _FakeNetworkStatusService(),
+        ),
+        screenWakeLockServiceProvider.overrideWithValue(
+          _FakeScreenWakeLockService(),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -115,6 +123,16 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+}
+
+final class _FakeNetworkStatusService implements NetworkStatusService {
+  @override
+  Future<NetworkClass> current() async => NetworkClass.wifi;
+}
+
+final class _FakeScreenWakeLockService implements ScreenWakeLockService {
+  @override
+  Future<void> setEnabled(bool enabled) async {}
 }
 
 const _video = VideoItem(id: '123', title: '播放器测试', slug: 'player-test');

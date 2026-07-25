@@ -8,7 +8,10 @@ import 'package:video_player/video_player.dart';
 import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../core/services/network_status_service.dart';
+import '../../core/services/screen_wake_lock_service.dart';
 import '../playback/data/playback_repository.dart';
+import '../settings/domain/app_settings.dart';
 import '../settings/domain/quality_selection.dart';
 
 class VideoPlayerPage extends ConsumerStatefulWidget {
@@ -35,6 +38,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
   VideoPlayerController? _controller;
   late final PlaybackRepository _playback;
+  late final ScreenWakeLockService _wakeLock;
   late List<VideoSource> _sources;
   late VideoSource _selectedSource;
   final Set<String> _failedUrls = {};
@@ -43,6 +47,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _operation = 0;
   var _lastSavedSecond = -1;
   var _lastKnownPlaying = false;
+  var _wakeLockEnabled = false;
   var _resumeMessageShown = false;
   var _fullscreen = false;
   var _controlsVisible = true;
@@ -56,6 +61,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _playback = ref.read(playbackRepositoryProvider);
+    _wakeLock = ref.read(screenWakeLockServiceProvider);
     _sources = List.of(widget.sources);
     final settings = ref.read(appSettingsRepositoryProvider).settings;
     _selectedSource = selectVideoSource(_sources, settings.playbackQuality);
@@ -63,6 +69,22 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   Future<void> _start() async {
+    final settings = ref.read(appSettingsRepositoryProvider).settings;
+    NetworkClass network;
+    try {
+      network = await ref.read(networkStatusServiceProvider).current();
+    } catch (_) {
+      network = NetworkClass.other;
+    }
+    final quality = switch (settings.networkPlaybackPolicy) {
+      NetworkPlaybackPolicy.automatic when network == NetworkClass.mobile =>
+        VideoQualityPreference.p480,
+      NetworkPlaybackPolicy.dataSaver when network == NetworkClass.mobile =>
+        VideoQualityPreference.p360,
+      NetworkPlaybackPolicy.dataSaver => VideoQualityPreference.p720,
+      _ => settings.playbackQuality,
+    };
+    _selectedSource = selectVideoSource(_sources, quality);
     final resumePosition = await _playback.loadPosition(widget.video.id);
     if (!mounted) {
       return;
@@ -87,6 +109,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       unawaited(_persist(controller.value));
       unawaited(controller.dispose());
     }
+    unawaited(_updateWakeLock(false));
     unawaited(_restoreSystemUi());
     _fullscreenRevision.dispose();
     super.dispose();
@@ -234,6 +257,12 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       return;
     }
     _lastKnownPlaying = value.isPlaying;
+    final keepAwake =
+        ref.read(appSettingsRepositoryProvider).settings.keepScreenAwake &&
+        value.isPlaying;
+    if (keepAwake != _wakeLockEnabled) {
+      unawaited(_updateWakeLock(keepAwake));
+    }
     final second = value.position.inSeconds;
     if (value.isInitialized &&
         second >= 0 &&
@@ -243,6 +272,17 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
     setState(() {});
     _bumpFullscreenRevision();
+  }
+
+  Future<void> _updateWakeLock(bool enabled) async {
+    _wakeLockEnabled = enabled;
+    try {
+      await _wakeLock.setEnabled(enabled);
+    } catch (_) {
+      if (enabled) {
+        _wakeLockEnabled = false;
+      }
+    }
   }
 
   Future<bool> _refreshSources({
@@ -420,10 +460,18 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       return;
     }
     try {
-      await SystemChrome.setPreferredOrientations(const [
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+      final orientation = ref
+          .read(appSettingsRepositoryProvider)
+          .settings
+          .fullscreenOrientation;
+      await SystemChrome.setPreferredOrientations(
+        orientation == FullscreenOrientationPreference.landscape
+            ? const [
+                DeviceOrientation.landscapeLeft,
+                DeviceOrientation.landscapeRight,
+              ]
+            : const [],
+      );
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       if (!mounted) {
         return;
