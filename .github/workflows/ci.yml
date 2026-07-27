@@ -68,7 +68,7 @@ jobs:
       - name: 构建 Debug APK
         shell: bash
         run: |
-          flutter build apk --debug --no-pub \
+          flutter build apk --debug --target-platform android-arm64 --no-pub \
             --dart-define=FLULE34_FLUTTER_VERSION="$FLUTTER_VERSION" \
             --dart-define=GIT_COMMIT="$GITHUB_SHA" \
             --dart-define=BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

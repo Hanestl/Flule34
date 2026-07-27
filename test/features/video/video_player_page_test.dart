@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:better_player_plus/better_player_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -13,11 +14,91 @@ import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/core/services/network_status_service.dart';
 import 'package:flule34/core/services/screen_wake_lock_service.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
+import 'package:flule34/features/settings/domain/app_settings.dart';
 import 'package:flule34/features/video/video_player_page.dart';
 
 import '../../helpers/test_session_harness.dart';
 
 void main() {
+  test('下一视频预缓存按网络限制体积并复用正式缓存键', () {
+    expect(videoPreCacheSizeForNetwork(NetworkClass.wifi), 16 * 1024 * 1024);
+    expect(videoPreCacheSizeForNetwork(NetworkClass.mobile), 6 * 1024 * 1024);
+    expect(videoPreCacheSizeForNetwork(NetworkClass.offline), 0);
+    expect(videoCacheKey('456', _source), 'flule34_456_720p');
+    expect(
+      playlistVideoPreCacheSizeForNetwork(NetworkClass.wifi),
+      64 * 1024 * 1024,
+    );
+    expect(
+      playlistVideoPreCacheSizeForNetwork(NetworkClass.mobile),
+      24 * 1024 * 1024,
+    );
+  });
+
+  test('竖屏保持当前方向时使用真实屏幕比例', () {
+    const portrait = Size(1080, 2400);
+
+    expect(
+      videoFullScreenAspectRatio(
+        portrait,
+        FullscreenOrientationPreference.device,
+      ),
+      closeTo(1080 / 2400, 0.0001),
+    );
+    expect(
+      videoFullScreenAspectRatio(
+        portrait,
+        FullscreenOrientationPreference.landscape,
+      ),
+      closeTo(2400 / 1080, 0.0001),
+    );
+  });
+
+  test('全屏进入默认隐藏控件且退出后恢复显示', () {
+    expect(initialVideoControlsVisible(false), isTrue);
+    expect(initialVideoControlsVisible(true), isFalse);
+    expect(
+      videoControlsVisibleAfterFullscreenEvent(
+        BetterPlayerEventType.openFullscreen,
+        true,
+      ),
+      isFalse,
+    );
+    expect(
+      videoControlsVisibleAfterFullscreenEvent(
+        BetterPlayerEventType.hideFullscreen,
+        false,
+      ),
+      isTrue,
+    );
+    expect(
+      videoControlsUseFullscreenLayoutAfterEvent(
+        BetterPlayerEventType.openFullscreen,
+        false,
+      ),
+      isFalse,
+    );
+    expect(
+      videoControlsUseFullscreenLayoutAfterEvent(
+        BetterPlayerEventType.hideFullscreen,
+        true,
+      ),
+      isFalse,
+    );
+    expect(
+      videoControlsAnimateOpacityAfterEvent(
+        BetterPlayerEventType.openFullscreen,
+      ),
+      isFalse,
+    );
+    expect(
+      videoControlsAnimateOpacityAfterEvent(
+        BetterPlayerEventType.hideFullscreen,
+      ),
+      isTrue,
+    );
+  });
+
   test('缓存区间会合并且不会被瞬时空快照清零', () {
     final first = mergeBufferedRanges(const [], const [
       (start: Duration.zero, end: Duration(seconds: 30)),
@@ -102,6 +183,29 @@ void main() {
     for (var attempt = 0; attempt < 10 && platform.playCount == 0; attempt++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
+    final stateBeforeSwitch = tester.state(find.byType(VideoPlayerPage));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: VideoPlayerPage(
+            api: api,
+            video: _nextVideo,
+            sources: [_nextSource],
+            handle: handle,
+            autoplay: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      identical(stateBeforeSwitch, tester.state(find.byType(VideoPlayerPage))),
+      isTrue,
+    );
+    expect(find.text('下一条播放器测试'), findsOneWidget);
     await handle.pause();
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -124,6 +228,18 @@ const _video = VideoItem(id: '123', title: '播放器测试', slug: 'player-test
 const _source = VideoSource(
   label: '720p',
   url: 'https://example.com/video.mp4',
+  isHd: true,
+);
+
+const _nextVideo = VideoItem(
+  id: '456',
+  title: '下一条播放器测试',
+  slug: 'next-player-test',
+);
+
+const _nextSource = VideoSource(
+  label: '1080p',
+  url: 'https://example.com/next.mp4',
   isHd: true,
 );
 

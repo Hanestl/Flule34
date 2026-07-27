@@ -43,7 +43,8 @@ void main() {
     expect(find.text('订阅'), findsOneWidget);
     expect(find.text('继续观看'), findsNothing);
     expect(find.text('稍后观看'), findsNothing);
-    expect(find.text('播放列表'), findsNothing);
+    expect(find.text('播放列表'), findsOneWidget);
+    expect(find.text('媒体库'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

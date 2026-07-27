@@ -17,6 +17,7 @@ import '../auth/login_sheet.dart';
 import '../downloads/data/download_repository.dart';
 import '../library/data/local_library_repository.dart';
 import '../library/local_library_picker.dart';
+import '../library/playlist_picker.dart';
 import '../settings/data/app_settings_repository.dart';
 import '../settings/domain/quality_selection.dart';
 import 'video_player_page.dart';
@@ -153,7 +154,7 @@ class _DetailLoading extends StatelessWidget {
 
   static const _headers = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.1',
+    'User-Agent': 'Flule34 Android/1.3.0',
   };
 
   final VideoItem video;
@@ -251,6 +252,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
   final Set<String> _updatingMetadata = {};
   var _updatingFavorite = false;
   var _addingDownload = false;
+  var _addingPlaylist = false;
   var _loadingSubscriptions = false;
   var _subscriptionsLoaded = false;
 
@@ -392,17 +394,42 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
 
   Future<void> _addToLocalLibrary() async {
     try {
-      final name = await addVideoToLocalLibrary(
+      final message = await manageVideoLocalLibraries(
         context: context,
         repository: widget.localLibraryRepository,
         video: _details.video,
       );
-      if (name != null && mounted) {
-        _showMessage('已加入“$name”。');
+      if (message != null && mounted) {
+        _showMessage(message);
       }
     } catch (error) {
       if (mounted) {
         _showMessage(error.toString());
+      }
+    }
+  }
+
+  Future<void> _addToPlaylist() async {
+    if (_addingPlaylist || !await _ensureLogin() || !mounted) {
+      return;
+    }
+    setState(() => _addingPlaylist = true);
+    try {
+      final message = await manageVideoAccountPlaylists(
+        context: context,
+        api: widget.api,
+        video: _details.video,
+      );
+      if (message != null && mounted) {
+        _showMessage(message);
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _addingPlaylist = false);
       }
     }
   }
@@ -589,9 +616,15 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                         ),
                         _ActionButton(
                           icon: Icons.library_add_outlined,
-                          label: '入库',
+                          label: '本地分类库',
                           busy: false,
                           onPressed: _addToLocalLibrary,
+                        ),
+                        _ActionButton(
+                          icon: Icons.playlist_add,
+                          label: '播放列表',
+                          busy: _addingPlaylist,
+                          onPressed: _addToPlaylist,
                         ),
                         _ActionButton(
                           icon: Icons.share_outlined,

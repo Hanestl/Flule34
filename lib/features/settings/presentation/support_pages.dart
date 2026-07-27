@@ -123,15 +123,6 @@ class HelpFeedbackPage extends StatelessWidget {
           ),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.article_outlined),
-              title: const Text('调试日志'),
-              subtitle: const Text('按需记录最近 1～7 天异常并生成脱敏日志文件'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.pushNamed(AppRouteNames.debugLogs),
-            ),
-          ),
-          Card(
-            child: ListTile(
               leading: const Icon(Icons.bug_report_outlined),
               title: const Text('查看诊断信息'),
               subtitle: const Text('复制版本、设备和配置摘要，不包含 Cookie 或密码'),
@@ -266,7 +257,7 @@ class _AppUpdatePageState extends ConsumerState<AppUpdatePage> {
   @override
   void initState() {
     super.initState();
-    _service = AppUpdateService();
+    _service = AppUpdateService(logService: ref.read(appLogServiceProvider));
     _check();
   }
 

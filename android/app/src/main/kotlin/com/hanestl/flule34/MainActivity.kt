@@ -23,22 +23,19 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
-                else -> result.notImplemented()
-            }
-        }
-
-        MethodChannel(messenger, LOG_CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "configure" -> {
-                    val enabled = call.argument<Boolean>("enabled") ?: false
-                    val retentionDays = call.argument<Int>("retentionDays") ?: 3
-                    NativeDebugLog.configure(this, enabled, retentionDays)
-                    result.success(null)
+                "deleteFile" -> {
+                    val rawUri = call.argument<String>("uri")
+                    if (rawUri.isNullOrBlank()) {
+                        result.error("INVALID_URI", "文件 URI 不能为空", null)
+                    } else {
+                        result.success(deleteFile(Uri.parse(rawUri)))
+                    }
                 }
 
                 else -> result.notImplemented()
             }
         }
+
     }
 
     private fun inspectFile(uri: Uri): Map<String, Any?> {
@@ -117,8 +114,25 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun deleteFile(uri: Uri): Boolean {
+        if (uri.scheme == "file") {
+            val file = uri.path?.let(::File) ?: return false
+            return !file.exists() || file.delete()
+        }
+        if (uri.scheme != "content") {
+            return false
+        }
+        return try {
+            val exists = inspectFile(uri)["exists"] == true
+            !exists || contentResolver.delete(uri, null, null) > 0
+        } catch (_: SecurityException) {
+            false
+        } catch (_: RuntimeException) {
+            false
+        }
+    }
+
     private companion object {
         const val STORAGE_CHANNEL = "com.hanestl.flule34/storage_access"
-        const val LOG_CHANNEL = "com.hanestl.flule34/app_log"
     }
 }

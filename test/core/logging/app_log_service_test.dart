@@ -5,37 +5,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flule34/core/logging/app_log_service.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
-  test('调试日志会脱敏、停止记录并支持清除', () async {
-    final root = await Directory.systemTemp.createTemp('flule34_logs_test_');
+  test('启动会清理旧日志且内部记录接口不再落盘', () async {
+    final root = await Directory.systemTemp.createTemp('flule34-log-cleanup-');
     addTearDown(() async {
       if (await root.exists()) {
         await root.delete(recursive: true);
       }
     });
-    final service = AppLogService(supportDirectory: () async => root);
-    await service.initialize(enabledOverride: true, retentionDaysOverride: 3);
-
-    await service.error(
-      'test',
-      '下载失败 Cookie: PHPSESSID=secret-cookie',
-      error: 'Authorization: Bearer secret-token',
+    final logs = Directory('${root.path}${Platform.pathSeparator}flule34_logs');
+    await logs.create(recursive: true);
+    await File(
+      '${logs.path}${Platform.pathSeparator}legacy.log',
+    ).writeAsString('legacy');
+    var preferencesCleared = false;
+    final service = AppLogService(
+      supportDirectory: () async => root,
+      clearPreferences: () async => preferencesCleared = true,
     );
-    final first = await service.snapshot();
 
-    expect(first.content, contains('<redacted>'));
-    expect(first.content, isNot(contains('secret-cookie')));
-    expect(first.content, isNot(contains('secret-token')));
+    await service.initialize();
+    await service.error('test', '不会写入文件', error: StateError('test'));
 
-    await service.configure(enabled: false, retentionDays: 3);
-    await service.info('test', '不应写入的新消息');
-    final stopped = await service.snapshot();
-    expect(stopped.content, isNot(contains('不应写入的新消息')));
-
-    await service.clear();
-    final cleared = await service.snapshot();
-    expect(cleared.fileCount, 0);
-    expect(cleared.content, isEmpty);
+    expect(await logs.exists(), isFalse);
+    expect(preferencesCleared, isTrue);
+    expect(root.listSync(), isEmpty);
   });
 }

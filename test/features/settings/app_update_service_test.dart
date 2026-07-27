@@ -65,6 +65,53 @@ void main() {
     expect(result.release?.apkUri, isNotNull);
     expect(result.release?.apkUri?.path, endsWith('/arm64.apk'));
   });
+
+  test('GitHub API 被限流时降级读取 Releases Feed', () async {
+    final dio = Dio()
+      ..httpClientAdapter = _RoutingAdapter((options) {
+        if (options.uri.host == 'api.github.com') {
+          return ResponseBody.fromString(
+            '{"message":"rate limit exceeded"}',
+            403,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          );
+        }
+        return ResponseBody.fromString(
+          '''
+          <feed xmlns="http://www.w3.org/2005/Atom">
+            <entry>
+              <title>Flule34 v1.2.0</title>
+              <link rel="alternate" href="https://github.com/example/releases/tag/v1.2.0" />
+              <updated>2026-07-27T00:00:00Z</updated>
+            </entry>
+          </feed>
+          ''',
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/atom+xml'],
+          },
+        );
+      });
+    final service = AppUpdateService(
+      client: dio,
+      updateApiUri: Uri.parse('https://api.github.com/repos/example/releases'),
+      releaseFeedUri: Uri.parse('https://github.com/example/releases.atom'),
+      packageInfoLoader: () async => PackageInfo(
+        appName: 'Flule34',
+        packageName: 'com.hanestl.flule34',
+        version: '1.1.1',
+        buildNumber: '1',
+      ),
+      abiLoader: () async => const ['arm64-v8a'],
+    );
+
+    final result = await service.check(UpdateChannel.stable);
+
+    expect(result.status, AppUpdateStatus.updateAvailable);
+    expect(result.release?.version, '1.2.0');
+  });
 }
 
 final class _JsonAdapter implements HttpClientAdapter {
@@ -85,6 +132,24 @@ final class _JsonAdapter implements HttpClientAdapter {
         Headers.contentTypeHeader: ['application/json'],
       },
     );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+final class _RoutingAdapter implements HttpClientAdapter {
+  _RoutingAdapter(this.handler);
+
+  final ResponseBody Function(RequestOptions options) handler;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return handler(options);
   }
 
   @override

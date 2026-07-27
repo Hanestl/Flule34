@@ -32,24 +32,7 @@ final appLogServiceProvider = Provider<AppLogService>((ref) {
 
 final appSettingsRepositoryProvider = Provider<AppSettingsRepository>((ref) {
   final repository = AppSettingsRepository(ref.watch(appSettingsStoreProvider));
-  final logs = ref.watch(appLogServiceProvider);
-  void syncLogSettings() {
-    if (!repository.isLoaded) {
-      return;
-    }
-    unawaited(
-      logs.configure(
-        enabled: repository.settings.debugLoggingEnabled,
-        retentionDays: repository.settings.debugLogRetentionDays,
-      ),
-    );
-  }
-
-  repository.addListener(syncLogSettings);
-  ref.onDispose(() {
-    repository.removeListener(syncLogSettings);
-    repository.dispose();
-  });
+  ref.onDispose(repository.dispose);
   return repository;
 });
 

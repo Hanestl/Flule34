@@ -9,10 +9,17 @@ import '../../../core/database/app_database.dart';
 import '../data/download_repository.dart';
 import '../domain/download_models.dart';
 
-class DownloadManagementPage extends StatelessWidget {
+class DownloadManagementPage extends StatefulWidget {
   const DownloadManagementPage({super.key, required this.repository});
 
   final DownloadRepository repository;
+
+  @override
+  State<DownloadManagementPage> createState() => _DownloadManagementPageState();
+}
+
+class _DownloadManagementPageState extends State<DownloadManagementPage> {
+  var _bulkDeleting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +27,22 @@ class DownloadManagementPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('下载'),
         actions: [
+          if (_bulkDeleting)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: '批量删除',
+              onPressed: _showBulkDelete,
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
           IconButton(
             tooltip: '下载设置',
             onPressed: () => context.pushNamed(AppRouteNames.downloadSettings),
@@ -27,8 +50,102 @@ class DownloadManagementPage extends StatelessWidget {
           ),
         ],
       ),
-      body: DownloadsList(repository: repository),
+      body: DownloadsList(repository: widget.repository),
     );
+  }
+
+  Future<void> _showBulkDelete() async {
+    final mode = await showModalBottomSheet<DownloadBulkDeleteMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.list_alt_outlined),
+              title: const Text('删除全部下载记录'),
+              subtitle: const Text('保留已经下载到公共目录的视频'),
+              onTap: () =>
+                  Navigator.pop(context, DownloadBulkDeleteMode.recordsOnly),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('删除全部失效下载记录'),
+              subtitle: const Text('只移除已经找不到对应文件的记录'),
+              onTap: () =>
+                  Navigator.pop(context, DownloadBulkDeleteMode.invalidRecords),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_forever_outlined),
+              title: const Text('删除全部下载记录及对应视频'),
+              subtitle: const Text('同时删除公共目录中仍能对应上的视频'),
+              onTap: () => Navigator.pop(
+                context,
+                DownloadBulkDeleteMode.filesAndRecords,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (mode == null || !mounted) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认批量删除？'),
+        content: Text(_bulkDeleteDescription(mode)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _bulkDeleting = true);
+    try {
+      final result = await widget.repository.deleteAll(mode);
+      if (!mounted) {
+        return;
+      }
+      final message = result.matched == 0
+          ? '没有符合条件的下载记录。'
+          : result.failed > 0
+          ? '已删除 ${result.deleted} 条，${result.failed} 条未能删除。'
+          : '已删除 ${result.deleted} 条下载记录。';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _bulkDeleting = false);
+      }
+    }
+  }
+
+  String _bulkDeleteDescription(DownloadBulkDeleteMode mode) {
+    return switch (mode) {
+      DownloadBulkDeleteMode.recordsOnly =>
+        '只删除 App 中的全部下载记录，已经保存到 Download/Flule34 的视频会保留。进行中的任务会先取消。',
+      DownloadBulkDeleteMode.invalidRecords => '删除全部已经找不到严格对应文件的下载记录，不会触碰外部文件。',
+      DownloadBulkDeleteMode.filesAndRecords =>
+        '删除全部下载记录，并删除公共目录中仍能对应上的视频。无法删除文件的记录会保留。',
+    };
   }
 }
 
@@ -287,36 +404,43 @@ class _DownloadCardState extends State<_DownloadCard>
 
   Future<void> _confirmDelete({required bool invalid}) async {
     final active = _isActive(widget.record.state);
-    final confirmed = await showDialog<bool>(
+    final choice = await showDialog<_DownloadDeleteChoice>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(invalid ? '移除失效记录？' : '删除下载？'),
         content: Text(
           invalid
-              ? '只会移除 App 内记录，不会删除外部已经改名或发生变化的文件。'
+              ? '可以只移除 App 内记录，也可以尝试删除当前记录所指向的外部文件。'
               : active
-              ? '当前任务会被取消，未完成文件和任务记录都会删除。'
-              : '公共目录中的视频文件和任务记录都会删除。此操作无法撤销。',
+              ? '当前任务会先被取消。你可以只删除记录，也可以同时清理未完成文件。'
+              : '你可以只删除下载记录并保留视频，也可以同时删除公共目录中的视频。',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('取消'),
           ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(_DownloadDeleteChoice.recordOnly),
+            child: const Text('仅删除记录'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(invalid ? '移除记录' : '删除'),
+            onPressed: () =>
+                Navigator.of(context).pop(_DownloadDeleteChoice.fileAndRecord),
+            child: const Text('删除文件和记录'),
           ),
         ],
       ),
     );
-    if (confirmed == true) {
+    if (choice != null) {
+      final deleteFile = choice == _DownloadDeleteChoice.fileAndRecord;
       await _run(
         () => widget.repository.delete(
           widget.record,
-          deleteExternalFile: !invalid,
+          deleteExternalFile: deleteFile,
         ),
-        successMessage: invalid ? '失效记录已移除。' : '下载文件和记录已删除。',
+        successMessage: deleteFile ? '下载文件和记录已删除。' : '下载记录已删除。',
       );
     }
   }
@@ -382,6 +506,8 @@ class _DownloadCardState extends State<_DownloadCard>
     }
   }
 }
+
+enum _DownloadDeleteChoice { recordOnly, fileAndRecord }
 
 class _DownloadCover extends StatelessWidget {
   const _DownloadCover({required this.record});

@@ -67,8 +67,8 @@ void main() {
 
     expect(find.text('喜欢'), findsNothing);
     expect(find.text('不喜欢'), findsNothing);
-    expect(find.text('播放列表'), findsNothing);
-    expect(find.text('入库'), findsOneWidget);
+    expect(find.text('播放列表'), findsOneWidget);
+    expect(find.text('本地分类库'), findsOneWidget);
     expect(find.text('3D · ↑12 ↓3'), findsOneWidget);
     expect(find.textContaining('评论'), findsNothing);
     expect(find.text('播放'), findsNothing);

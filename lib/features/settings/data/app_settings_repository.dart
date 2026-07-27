@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../core/logging/app_log_service.dart';
 import '../../../core/models/video_models.dart';
 import '../domain/app_settings.dart';
 import 'app_settings_store.dart';
@@ -22,7 +21,6 @@ final class AppSettingsRepository extends ChangeNotifier {
       'flule34.settings.fullscreen_orientation';
   static const _defaultOrientationKey =
       'flule34.settings.default_content_orientation';
-  static const _hiddenKeywordsKey = 'flule34.settings.hidden_keywords';
   static const _blurThumbnailsKey = 'flule34.settings.blur_thumbnails';
   static const _askDownloadQualityKey = 'flule34.settings.ask_download_quality';
   static const _downloadQualityKey = 'flule34.settings.download_quality';
@@ -31,9 +29,7 @@ final class AppSettingsRepository extends ChangeNotifier {
       'flule34.settings.download_concurrent_tasks';
   static const _saveSearchHistoryKey = 'flule34.settings.save_search_history';
   static const _updateChannelKey = 'flule34.settings.update_channel';
-  static const _debugLoggingEnabledKey = AppLogService.enabledPreferenceKey;
-  static const _debugLogRetentionDaysKey =
-      AppLogService.retentionDaysPreferenceKey;
+  static const _homeVideoLayoutKey = 'flule34.settings.home_video_layout';
 
   final AppSettingsStore _store;
   AppSettings _settings = AppSettings.defaults;
@@ -57,7 +53,6 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readBool(_backgroundPlaybackKey),
       _readString(_fullscreenOrientationKey),
       _readString(_defaultOrientationKey),
-      _readString(_hiddenKeywordsKey),
       _readBool(_blurThumbnailsKey),
       _readBool(_askDownloadQualityKey),
       _readString(_downloadQualityKey),
@@ -65,13 +60,11 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_downloadConcurrentTasksKey),
       _readBool(_saveSearchHistoryKey),
       _readString(_updateChannelKey),
-      _readBool(_debugLoggingEnabledKey),
-      _readString(_debugLogRetentionDaysKey),
+      _readString(_homeVideoLayoutKey),
     ]);
     _settings = AppSettings(
       theme: _themeValue(values[0] as String?),
-      playbackQuality: _enumValue(
-        VideoQualityPreference.values,
+      playbackQuality: _qualityValue(
         values[1] as String?,
         AppSettings.defaults.playbackQuality,
       ),
@@ -98,36 +91,32 @@ final class AppSettingsRepository extends ChangeNotifier {
         values[9] as String?,
         AppSettings.defaults.defaultOrientation,
       ),
-      hiddenKeywords:
-          values[10] as String? ?? AppSettings.defaults.hiddenKeywords,
       blurThumbnails:
-          values[11] as bool? ?? AppSettings.defaults.blurThumbnails,
+          values[10] as bool? ?? AppSettings.defaults.blurThumbnails,
       askDownloadQuality:
-          values[12] as bool? ?? AppSettings.defaults.askDownloadQuality,
-      downloadQuality: _enumValue(
-        VideoQualityPreference.values,
-        values[13] as String?,
+          values[11] as bool? ?? AppSettings.defaults.askDownloadQuality,
+      downloadQuality: _qualityValue(
+        values[12] as String?,
         AppSettings.defaults.downloadQuality,
       ),
       wifiOnlyDownloads:
-          values[14] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
+          values[13] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
       downloadConcurrentTasks:
-          (int.tryParse(values[15] as String? ?? '') ??
+          (int.tryParse(values[14] as String? ?? '') ??
                   AppSettings.defaults.downloadConcurrentTasks)
               .clamp(1, 4),
       saveSearchHistory:
-          values[16] as bool? ?? AppSettings.defaults.saveSearchHistory,
+          values[15] as bool? ?? AppSettings.defaults.saveSearchHistory,
       updateChannel: _enumValue(
         UpdateChannel.values,
-        values[17] as String?,
+        values[16] as String?,
         AppSettings.defaults.updateChannel,
       ),
-      debugLoggingEnabled:
-          values[18] as bool? ?? AppSettings.defaults.debugLoggingEnabled,
-      debugLogRetentionDays:
-          (int.tryParse(values[19] as String? ?? '') ??
-                  AppSettings.defaults.debugLogRetentionDays)
-              .clamp(1, AppLogService.maxRetentionDays),
+      homeVideoLayout: _enumValue(
+        HomeVideoLayout.values,
+        values[17] as String?,
+        AppSettings.defaults.homeVideoLayout,
+      ),
     );
     _loaded = true;
     notifyListeners();
@@ -185,17 +174,6 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(defaultOrientation: value));
   }
 
-  Future<void> setHiddenKeywords(String value) async {
-    final normalized = value
-        .split(RegExp(r'[,，\n]'))
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toSet()
-        .join(', ');
-    await _store.writeString(_hiddenKeywordsKey, normalized);
-    _update(_settings.copyWith(hiddenKeywords: normalized));
-  }
-
   Future<void> setBlurThumbnails(bool value) async {
     await _store.writeBool(_blurThumbnailsKey, value);
     _update(_settings.copyWith(blurThumbnails: value));
@@ -235,15 +213,9 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(updateChannel: value));
   }
 
-  Future<void> setDebugLoggingEnabled(bool value) async {
-    await _store.writeBool(_debugLoggingEnabledKey, value);
-    _update(_settings.copyWith(debugLoggingEnabled: value));
-  }
-
-  Future<void> setDebugLogRetentionDays(int value) async {
-    final normalized = value.clamp(1, AppLogService.maxRetentionDays);
-    await _store.writeString(_debugLogRetentionDaysKey, normalized.toString());
-    _update(_settings.copyWith(debugLogRetentionDays: normalized));
+  Future<void> setHomeVideoLayout(HomeVideoLayout value) async {
+    await _store.writeString(_homeVideoLayoutKey, value.name);
+    _update(_settings.copyWith(homeVideoLayout: value));
   }
 
   void _update(AppSettings value) {
@@ -277,6 +249,17 @@ final class AppSettingsRepository extends ChangeNotifier {
       }
     }
     return fallback;
+  }
+
+  VideoQualityPreference _qualityValue(
+    String? name,
+    VideoQualityPreference fallback,
+  ) {
+    // 1.2.0 以前的“自动”实际等同于 1080p，保留无感迁移。
+    if (name == 'automatic') {
+      return VideoQualityPreference.p1080;
+    }
+    return _enumValue(VideoQualityPreference.values, name, fallback);
   }
 
   AppThemePreference _themeValue(String? name) {

@@ -208,6 +208,50 @@ void main() {
     expect(context.platform.deletedUris[record.id], _fileUri);
     expect(context.platform.deleteExternalFlags[record.id], isTrue);
   });
+
+  test('批量仅删除记录会保留公共目录视频', () async {
+    final context = await _completedDownload();
+    addTearDown(context.dispose);
+
+    final result = await context.repository.deleteAll(
+      DownloadBulkDeleteMode.recordsOnly,
+    );
+
+    expect(result.matched, 1);
+    expect(result.deleted, 1);
+    expect(result.failed, 0);
+    expect(context.platform.deleteExternalFlags[context.record.id], isFalse);
+  });
+
+  test('批量删除失效记录只匹配校验失败的完成任务', () async {
+    final context = await _completedDownload();
+    addTearDown(context.dispose);
+    context.platform.inspections[_fileUri] = const DownloadFileInspection(
+      exists: false,
+      readable: false,
+    );
+
+    final result = await context.repository.deleteAll(
+      DownloadBulkDeleteMode.invalidRecords,
+    );
+
+    expect(result.matched, 1);
+    expect(result.deleted, 1);
+    expect(context.platform.deleteExternalFlags[context.record.id], isFalse);
+  });
+
+  test('批量删除记录及视频会请求删除公共文件', () async {
+    final context = await _completedDownload();
+    addTearDown(context.dispose);
+
+    final result = await context.repository.deleteAll(
+      DownloadBulkDeleteMode.filesAndRecords,
+    );
+
+    expect(result.deleted, 1);
+    expect(context.platform.deletedUris[context.record.id], _fileUri);
+    expect(context.platform.deleteExternalFlags[context.record.id], isTrue);
+  });
 }
 
 const _fileUri = 'content://media/external/downloads/flule34_4505897_720p.mp4';

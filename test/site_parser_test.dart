@@ -37,6 +37,23 @@ void main() {
     expect(videos.single.views, 1200);
   });
 
+  test('解析播放列表编辑表单', () {
+    const source = '''
+      <form action="/edit-playlist/42/">
+        <input name="title" value="精选列表">
+        <textarea name="description">只保留高质量视频</textarea>
+        <input type="hidden" name="is_private" value="0">
+        <input type="checkbox" name="is_private" value="1" checked>
+      </form>
+    ''';
+
+    final form = SiteParser.playlistForm(source);
+
+    expect(form.title, '精选列表');
+    expect(form.description, '只保留高质量视频');
+    expect(form.isPrivate, isTrue);
+  });
+
   test('从页面上下文解析稳定用户 ID', () {
     const source = '''
       <script>
@@ -119,6 +136,159 @@ void main() {
     expect(items.single.title, 'Example Artist');
     expect(items.single.total, 42);
     expect(items.single.path, '/models/example-artist/');
+  });
+
+  test('直接解析艺术家详情页头像', () {
+    const source = '''
+      <div class="brand_image">
+        <div class="brand_image_wrapper">
+          <img src="/contents/models/446/juicyneko.jpg" alt="Juicyneko">
+        </div>
+      </div>
+    ''';
+
+    expect(
+      SiteParser.collectionAvatar(source),
+      'https://rule34video.com/contents/models/446/juicyneko.jpg',
+    );
+  });
+
+  test('动态解析4K视频源并规范化清晰度', () {
+    const source = '''
+      <link rel="canonical" href="/video/123/example/">
+      <script>
+        flashvars = {
+          video_url: 'https://cdn.example.com/example_360.mp4',
+          video_url_text: '360p',
+          video_alt_url3: 'https://cdn.example.com/example_1080p.mp4',
+          video_alt_url3_text: '1080p',
+          video_alt_url4: 'https://cdn.example.com/example_2160p.mp4',
+          video_alt_url4_text: '4k'
+        };
+      </script>
+    ''';
+
+    final details = SiteParser.videoDetails(
+      source: source,
+      fallback: const VideoItem(id: '123', title: 'Example', slug: 'example'),
+    );
+
+    expect(details.sources.map((item) => item.label), [
+      '360p',
+      '1080p',
+      '2160p (4K)',
+    ]);
+    expect(details.sources.last.isHd, isTrue);
+  });
+
+  test('收藏状态只读取当前视频主操作区', () {
+    const unrelated = '''
+      <a class="delete button_fav">Delete from Favorites</a>
+      <div id="tab_video_info">
+        <a class="button_fav">Add to Favorites</a>
+      </div>
+    ''';
+    const current = '''
+      <div id="tab_video_info">
+        <a class="delete button_fav">Delete from Favorites</a>
+      </div>
+    ''';
+    const fallback = VideoItem(id: '123', title: 'Example', slug: 'example');
+
+    expect(
+      SiteParser.videoDetails(source: unrelated, fallback: fallback).isFavorite,
+      isFalse,
+    );
+    expect(
+      SiteParser.videoDetails(source: current, fallback: fallback).isFavorite,
+      isTrue,
+    );
+  });
+
+  test('解析账号播放列表', () {
+    const source = '''
+      <div class="item">
+        <a href="/my/playlists/42/example/" title="Example playlist">
+          <img src="/playlist.jpg" alt="Example playlist">
+        </a>
+        <span>12 videos</span>
+        <span>345 views</span>
+      </div>
+    ''';
+
+    final playlists = SiteParser.playlists(source);
+
+    expect(playlists, hasLength(1));
+    expect(playlists.single.id, '42');
+    expect(playlists.single.videoCount, 12);
+    expect(playlists.single.views, 345);
+  });
+
+  test('播放列表名称优先于封面中的首个视频名称', () {
+    const source = '''
+      <div class="item">
+        <a class="thumb" href="/my/playlists/42/selected/" title="首个视频">
+          <img src="/video.jpg" alt="首个视频">
+        </a>
+        <div class="title">
+          <a href="/my/playlists/42/selected/">真正的播放列表名称</a>
+        </div>
+        <span>3 videos</span>
+      </div>
+    ''';
+
+    final playlist = SiteParser.playlists(source).single;
+
+    expect(playlist.title, '真正的播放列表名称');
+  });
+
+  test('播放列表卡片把标题、视频数和浏览量分别解析', () {
+    const source = '''
+      <div class="item thumb">
+        <a class="th" href="/playlists/2744709/test1104/">
+          <div class="img wrap_image">
+            <img src="/video1.jpg" alt="第一个视频">
+          </div>
+          <div class="thumb_title">test1</div>
+          <div class="thumb_info">
+            <div class="added">3 videos</div>
+            <div class="views">3</div>
+          </div>
+        </a>
+      </div>
+    ''';
+
+    final playlist = SiteParser.playlists(source).single;
+
+    expect(playlist.title, 'test1');
+    expect(playlist.videoCount, 3);
+    expect(playlist.views, 3);
+  });
+
+  test('视频详情解析已经加入的播放列表 ID', () {
+    const source = '''
+      <ul class="btn-favourites">
+        <li id="delete_playlist_42">
+          <a class="delete" data-fav-type="10" data-playlist-id="42"></a>
+        </li>
+        <li id="add_playlist_42" class="hidden">
+          <a href="#add_to_playlist" data-fav-type="10" data-playlist-id="42"></a>
+        </li>
+        <li id="delete_playlist_77" class="hidden">
+          <a class="delete" data-fav-type="10" data-playlist-id="77"></a>
+        </li>
+        <li id="add_playlist_77">
+          <a href="#add_to_playlist" data-fav-type="10" data-playlist-id="77"></a>
+        </li>
+      </ul>
+    ''';
+
+    final details = SiteParser.videoDetails(
+      source: source,
+      fallback: const VideoItem(id: '123', title: 'Example', slug: 'example'),
+    );
+
+    expect(details.playlistIds, {'42'});
   });
 
   test('解析视频元数据投票项、评分票数和评论', () {

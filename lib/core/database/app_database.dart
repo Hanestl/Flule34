@@ -361,6 +361,13 @@ final class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  Future<List<DownloadRecord>> downloadsForUser(String userId) {
+    return (select(downloadRecords)
+          ..where((record) => record.userId.equals(userId))
+          ..orderBy([(record) => OrderingTerm.desc(record.updatedAt)]))
+        .get();
+  }
+
   Future<List<DownloadRecord>> allDownloads() {
     return (select(
       downloadRecords,

@@ -51,6 +51,8 @@ void main() {
     await tester.tap(find.text('发现'));
     await tester.pumpAndSettle();
     expect(find.text('探索内容'), findsOneWidget);
+    expect(find.text('艺术家'), findsOneWidget);
+    expect(find.text('频道'), findsNothing);
     await tester.tap(find.text('标签'));
     await tester.pumpAndSettle();
     expect(find.text('搜索全部标签'), findsOneWidget);
@@ -67,8 +69,14 @@ void main() {
     expect(find.text('网络播放策略'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
+    await tester.tap(find.text('内容设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('隐藏标题关键词'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('关于 Flule34'), 300);
     expect(find.text('关于 Flule34'), findsOneWidget);
+    expect(find.text('调试日志'), findsNothing);
   });
 }
 

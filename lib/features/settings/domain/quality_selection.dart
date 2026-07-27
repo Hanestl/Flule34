@@ -22,18 +22,22 @@ VideoSource selectVideoSource(
   if (target == null) {
     return withHeight.last.source;
   }
-
-  return withHeight.reduce((best, candidate) {
-    final bestDistance = (best.height! - target).abs();
-    final candidateDistance = (candidate.height! - target).abs();
-    if (candidateDistance != bestDistance) {
-      return candidateDistance < bestDistance ? candidate : best;
-    }
-    return candidate.height! > best.height! ? candidate : best;
-  }).source;
+  final atOrBelow = withHeight.where((item) => item.height! <= target).toList();
+  if (atOrBelow.isNotEmpty) {
+    return atOrBelow.last.source;
+  }
+  // 如果网站只提供高于目标的源，最低可用档仍比直接失败更合理。
+  return withHeight.first.source;
 }
 
 int? _height(String label) {
+  final normalized = label.toLowerCase();
+  if (normalized.contains('8k')) {
+    return 4320;
+  }
+  if (normalized.contains('4k')) {
+    return 2160;
+  }
   final match = RegExp(
     r'(\d{3,4})\s*p?',
     caseSensitive: false,

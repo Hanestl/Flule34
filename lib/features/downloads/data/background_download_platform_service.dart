@@ -188,11 +188,7 @@ final class BackgroundDownloadPlatformService
     if (deleteExternalFile && fileUri != null) {
       final inspection = await inspectFile(fileUri);
       if (inspection.exists) {
-        try {
-          if (!await _downloader.uri.deleteFile(Uri.parse(fileUri))) {
-            return false;
-          }
-        } on Exception {
+        if (!await _deleteSharedFile(fileUri)) {
           return false;
         }
       }
@@ -209,6 +205,25 @@ final class BackgroundDownloadPlatformService
     }
     await _downloader.database.deleteRecordWithId(taskId);
     return true;
+  }
+
+  Future<bool> _deleteSharedFile(String fileUri) async {
+    try {
+      return await _storageChannel.invokeMethod<bool>('deleteFile', {
+            'uri': fileUri,
+          }) ??
+          false;
+    } on PlatformException catch (error, stackTrace) {
+      unawaited(
+        _logs?.warning(
+          'downloads',
+          '无法删除公共目录中的下载文件。',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      return false;
+    }
   }
 
   void _onStatus(TaskStatusUpdate update) {

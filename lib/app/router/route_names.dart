@@ -17,11 +17,12 @@ abstract final class AppRouteNames {
   static const appSettings = 'app-settings';
   static const helpFeedback = 'help-feedback';
   static const diagnostics = 'diagnostics';
-  static const debugLogs = 'debug-logs';
   static const update = 'update';
   static const about = 'about';
   static const search = 'search';
   static const video = 'video';
   static const subscription = 'subscription';
+  static const playlist = 'playlist';
+  static const playlistPlayback = 'playlist-playback';
   static const uploader = 'uploader';
 }

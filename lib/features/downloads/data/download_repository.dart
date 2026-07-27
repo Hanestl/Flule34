@@ -338,6 +338,41 @@ final class DownloadRepository {
     return true;
   }
 
+  Future<DownloadBulkDeleteResult> deleteAll(
+    DownloadBulkDeleteMode mode,
+  ) async {
+    final records = await _database.downloadsForUser(_deviceOwnerId);
+    final selected = <DownloadRecord>[];
+    if (mode == DownloadBulkDeleteMode.invalidRecords) {
+      for (final record in records) {
+        if (record.state != DownloadTaskState.complete.storageValue) {
+          continue;
+        }
+        final validation = await validateFile(record);
+        if (!validation.valid) {
+          selected.add(record);
+        }
+      }
+    } else {
+      selected.addAll(records);
+    }
+    var deleted = 0;
+    var failed = 0;
+    final deleteExternal = mode == DownloadBulkDeleteMode.filesAndRecords;
+    for (final record in selected) {
+      if (await delete(record, deleteExternalFile: deleteExternal)) {
+        deleted += 1;
+      } else {
+        failed += 1;
+      }
+    }
+    return DownloadBulkDeleteResult(
+      matched: selected.length,
+      deleted: deleted,
+      failed: failed,
+    );
+  }
+
   Future<bool> _knownAction(
     String id,
     Future<bool> Function(String id) action,
@@ -351,7 +386,7 @@ final class DownloadRepository {
   Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/1.1',
+      'User-Agent': 'Flule34 Android/1.3.0',
     };
     final cookie = await _api.sessionCookieHeader();
     if (cookie != null) {

@@ -88,6 +88,20 @@ final class DownloadFileValidation {
   final String? reason;
 }
 
+enum DownloadBulkDeleteMode { recordsOnly, invalidRecords, filesAndRecords }
+
+final class DownloadBulkDeleteResult {
+  const DownloadBulkDeleteResult({
+    required this.matched,
+    required this.deleted,
+    required this.failed,
+  });
+
+  final int matched;
+  final int deleted;
+  final int failed;
+}
+
 sealed class DownloadPlatformEvent {
   const DownloadPlatformEvent({required this.taskId});
 

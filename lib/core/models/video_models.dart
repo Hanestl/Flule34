@@ -416,6 +416,7 @@ class VideoDetails {
     this.relatedVideos = const [],
     this.ratingVotes,
     this.uploader,
+    this.playlistIds = const {},
   });
 
   final VideoItem video;
@@ -429,11 +430,13 @@ class VideoDetails {
   final List<VideoItem> relatedVideos;
   final int? ratingVotes;
   final UploaderSummary? uploader;
+  final Set<String> playlistIds;
 
   VideoDetails copyWith({
     VideoItem? video,
     List<VideoSource>? sources,
     bool? isFavorite,
+    Set<String>? playlistIds,
   }) {
     return VideoDetails(
       video: video ?? this.video,
@@ -447,6 +450,7 @@ class VideoDetails {
       relatedVideos: relatedVideos,
       ratingVotes: ratingVotes,
       uploader: uploader,
+      playlistIds: playlistIds ?? this.playlistIds,
     );
   }
 }
@@ -509,6 +513,36 @@ class TagSuggestion {
   final String id;
   final String title;
   final int total;
+}
+
+class PlaylistItem {
+  const PlaylistItem({
+    required this.id,
+    required this.title,
+    required this.path,
+    this.thumbnailUrl,
+    this.videoCount,
+    this.views,
+  });
+
+  final String id;
+  final String title;
+  final String path;
+  final String? thumbnailUrl;
+  final int? videoCount;
+  final int? views;
+}
+
+class PlaylistFormData {
+  const PlaylistFormData({
+    required this.title,
+    this.description = '',
+    this.isPrivate = false,
+  });
+
+  final String title;
+  final String description;
+  final bool isPrivate;
 }
 
 enum SubscriptionKind {

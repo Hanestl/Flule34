@@ -10,9 +10,18 @@ enum AppThemePreference {
   final String label;
 }
 
+enum HomeVideoLayout {
+  singleColumn('一列'),
+  doubleColumn('两列');
+
+  const HomeVideoLayout(this.label);
+
+  final String label;
+}
+
 enum VideoQualityPreference {
-  automatic('自动'),
   highest('最高可用'),
+  p2160('2160p / 4K'),
   p1080('1080p'),
   p720('720p'),
   p480('480p'),
@@ -23,6 +32,7 @@ enum VideoQualityPreference {
   final String label;
 
   int? get targetHeight => switch (this) {
+    VideoQualityPreference.p2160 => 2160,
     VideoQualityPreference.p1080 => 1080,
     VideoQualityPreference.p720 => 720,
     VideoQualityPreference.p480 => 480,
@@ -72,7 +82,6 @@ final class AppSettings {
     required this.backgroundPlayback,
     required this.fullscreenOrientation,
     required this.defaultOrientation,
-    required this.hiddenKeywords,
     required this.blurThumbnails,
     required this.askDownloadQuality,
     required this.downloadQuality,
@@ -80,13 +89,12 @@ final class AppSettings {
     required this.downloadConcurrentTasks,
     required this.saveSearchHistory,
     required this.updateChannel,
-    required this.debugLoggingEnabled,
-    required this.debugLogRetentionDays,
+    required this.homeVideoLayout,
   });
 
   static const defaults = AppSettings(
     theme: AppThemePreference.system,
-    playbackQuality: VideoQualityPreference.automatic,
+    playbackQuality: VideoQualityPreference.p1080,
     networkPlaybackPolicy: NetworkPlaybackPolicy.automatic,
     autoplay: false,
     loopPlayback: false,
@@ -95,7 +103,6 @@ final class AppSettings {
     backgroundPlayback: false,
     fullscreenOrientation: FullscreenOrientationPreference.landscape,
     defaultOrientation: ContentOrientation.all,
-    hiddenKeywords: '',
     blurThumbnails: false,
     askDownloadQuality: true,
     downloadQuality: VideoQualityPreference.highest,
@@ -103,8 +110,7 @@ final class AppSettings {
     downloadConcurrentTasks: 2,
     saveSearchHistory: true,
     updateChannel: UpdateChannel.stable,
-    debugLoggingEnabled: false,
-    debugLogRetentionDays: 3,
+    homeVideoLayout: HomeVideoLayout.singleColumn,
   );
 
   final AppThemePreference theme;
@@ -117,7 +123,6 @@ final class AppSettings {
   final bool backgroundPlayback;
   final FullscreenOrientationPreference fullscreenOrientation;
   final ContentOrientation defaultOrientation;
-  final String hiddenKeywords;
   final bool blurThumbnails;
   final bool askDownloadQuality;
   final VideoQualityPreference downloadQuality;
@@ -125,8 +130,7 @@ final class AppSettings {
   final int downloadConcurrentTasks;
   final bool saveSearchHistory;
   final UpdateChannel updateChannel;
-  final bool debugLoggingEnabled;
-  final int debugLogRetentionDays;
+  final HomeVideoLayout homeVideoLayout;
 
   AppSettings copyWith({
     AppThemePreference? theme,
@@ -139,7 +143,6 @@ final class AppSettings {
     bool? backgroundPlayback,
     FullscreenOrientationPreference? fullscreenOrientation,
     ContentOrientation? defaultOrientation,
-    String? hiddenKeywords,
     bool? blurThumbnails,
     bool? askDownloadQuality,
     VideoQualityPreference? downloadQuality,
@@ -147,8 +150,7 @@ final class AppSettings {
     int? downloadConcurrentTasks,
     bool? saveSearchHistory,
     UpdateChannel? updateChannel,
-    bool? debugLoggingEnabled,
-    int? debugLogRetentionDays,
+    HomeVideoLayout? homeVideoLayout,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
@@ -164,7 +166,6 @@ final class AppSettings {
       fullscreenOrientation:
           fullscreenOrientation ?? this.fullscreenOrientation,
       defaultOrientation: defaultOrientation ?? this.defaultOrientation,
-      hiddenKeywords: hiddenKeywords ?? this.hiddenKeywords,
       blurThumbnails: blurThumbnails ?? this.blurThumbnails,
       askDownloadQuality: askDownloadQuality ?? this.askDownloadQuality,
       downloadQuality: downloadQuality ?? this.downloadQuality,
@@ -173,9 +174,7 @@ final class AppSettings {
           downloadConcurrentTasks ?? this.downloadConcurrentTasks,
       saveSearchHistory: saveSearchHistory ?? this.saveSearchHistory,
       updateChannel: updateChannel ?? this.updateChannel,
-      debugLoggingEnabled: debugLoggingEnabled ?? this.debugLoggingEnabled,
-      debugLogRetentionDays:
-          debugLogRetentionDays ?? this.debugLogRetentionDays,
+      homeVideoLayout: homeVideoLayout ?? this.homeVideoLayout,
     );
   }
 }

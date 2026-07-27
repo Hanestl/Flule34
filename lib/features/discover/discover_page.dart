@@ -12,8 +12,6 @@ class DiscoverPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        Text('发现', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 16),
         SearchBar(
           readOnly: true,
           leading: const Icon(Icons.search),
@@ -37,15 +35,9 @@ class DiscoverPage extends StatelessWidget {
         ),
         _DiscoveryEntry(
           icon: Icons.brush_outlined,
-          title: '艺术家与模型',
-          description: '查找艺术家、作者和模型页面',
+          title: '艺术家',
+          description: '查找艺术家页面',
           onTap: () => _openDirectory(context, DiscoveryKind.model),
-        ),
-        _DiscoveryEntry(
-          icon: Icons.live_tv_outlined,
-          title: '频道',
-          description: '浏览站点频道与专题内容',
-          onTap: () => _openDirectory(context, DiscoveryKind.channel),
         ),
         _DiscoveryEntry(
           icon: Icons.leaderboard_outlined,

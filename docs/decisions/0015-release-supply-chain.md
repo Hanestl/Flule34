@@ -25,7 +25,7 @@ Flule34 计划通过 GitHub 公开源码并侧载 APK。侧载绕过应用商店
 
 - 没有正式私钥时仍可构建 Debug APK，但不能误产出 Release APK；
 - 正式私钥必须由项目所有者离线生成、备份并配置为 GitHub Secrets；
-- 项目主代码采用 Apache License 2.0；第三方组件继续遵循各自许可证和通知要求。
+- 项目主代码自 1.3.0 起采用 MIT License；第三方组件继续遵循各自许可证和通知要求。
 
 ## 验证
 

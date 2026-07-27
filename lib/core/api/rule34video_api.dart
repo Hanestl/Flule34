@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -53,8 +54,12 @@ class Rule34VideoApi {
   late final Dio _publicDio;
   List<SubscriptionItem>? _subscriptionCache;
   String? _subscriptionCacheUserId;
+  final Map<int, List<SubscriptionItem>> _subscriptionPageCache = {};
   final Map<String, Future<SubscriptionItem>> _subscriptionResolutionRequests =
       {};
+  final Map<String, String> _entityAvatarByPath = {};
+  List<PlaylistItem>? _playlistCache;
+  String? _playlistCacheUserId;
   final Map<String, _VideoDetailsCacheEntry> _videoDetailsCache = {};
   final Map<String, Future<VideoDetails>> _videoDetailsRequests = {};
   final Map<String, bool> _favoriteStatusByVideoId = {};
@@ -105,12 +110,21 @@ class Rule34VideoApi {
 
   Future<List<VideoItem>> loadFollowingFeed(int page) async {
     _requireLogin();
-    final subscriptions = (await loadSubscriptions()).take(8).toList();
+    final subscriptions = await loadSubscriptions();
     if (subscriptions.isEmpty) {
       return const [];
     }
+    const batchSize = 8;
+    final batchCount = (subscriptions.length + batchSize - 1) ~/ batchSize;
+    final batchIndex = (page - 1) % batchCount;
+    final subscriptionPage = ((page - 1) ~/ batchCount) + 1;
+    final batchStart = batchIndex * batchSize;
+    final batch = subscriptions
+        .skip(batchStart)
+        .take(batchSize)
+        .toList(growable: false);
     final pages = await Future.wait(
-      subscriptions.map((item) => loadSubscriptionVideos(item, page)),
+      batch.map((item) => loadSubscriptionVideos(item, subscriptionPage)),
     );
     final merged = <String, VideoItem>{};
     final longest = pages.fold<int>(
@@ -124,7 +138,9 @@ class Rule34VideoApi {
         }
       }
     }
-    return merged.values.take(30).toList(growable: false);
+    final sorted = merged.values.toList(growable: true)
+      ..sort(_comparePublishedNewest);
+    return sorted.take(30).toList(growable: false);
   }
 
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
@@ -350,6 +366,16 @@ class Rule34VideoApi {
     }
     _syncFavoriteCache();
     _favoriteStatusByVideoId[video.id] = details.isFavorite;
+    for (final item in details.metadataItems) {
+      final avatarUrl = item.thumbnailUrl;
+      if (avatarUrl != null && avatarUrl.isNotEmpty) {
+        _entityAvatarByPath[item.path] = avatarUrl;
+      }
+    }
+    final uploader = details.uploader;
+    if (uploader?.avatarUrl?.isNotEmpty == true) {
+      _entityAvatarByPath[uploader!.profilePath] = uploader.avatarUrl!;
+    }
     return details;
   }
 
@@ -373,6 +399,14 @@ class Rule34VideoApi {
       return known;
     }
     return (await loadVideoDetails(video)).isFavorite;
+  }
+
+  bool? cachedFavoriteStatus(String videoId) {
+    if (!sessionStore.isLoggedIn) {
+      return null;
+    }
+    _syncFavoriteCache();
+    return _favoriteStatusByVideoId[videoId];
   }
 
   Future<MemberProfile?> loadCachedCurrentUserProfile() async {
@@ -549,6 +583,107 @@ class Rule34VideoApi {
     return _paginatedVideoList(path, page: page);
   }
 
+  Future<List<PlaylistItem>> loadMyPlaylists({bool force = false}) async {
+    _requireLogin();
+    final userId = sessionStore.currentUserId!;
+    if (!force && _playlistCache != null && _playlistCacheUserId == userId) {
+      return _playlistCache!;
+    }
+    final result = <String, PlaylistItem>{};
+    for (var page = 1; page <= 50; page += 1) {
+      final items = await loadMyPlaylistsPage(page);
+      if (items.isEmpty) {
+        break;
+      }
+      final before = result.length;
+      for (final item in items) {
+        result[item.id] = item;
+      }
+      if (result.length == before) {
+        break;
+      }
+    }
+    _playlistCache = result.values.toList(growable: false);
+    _playlistCacheUserId = userId;
+    return _playlistCache!;
+  }
+
+  Future<List<PlaylistItem>> loadMyPlaylistsPage(int page) async {
+    _requireLogin();
+    final path = page > 1 ? '/my/playlists/$page/' : '/my/playlists/';
+    try {
+      return SiteParser.playlists(await _get(path));
+    } on HttpStatusException catch (error) {
+      if (page > 1 && error.statusCode == 404) {
+        return const [];
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<VideoItem>> loadPlaylistVideos(
+    PlaylistItem playlist,
+    int page,
+  ) async {
+    _requireLogin();
+    final path = page > 1 ? '${playlist.path}$page/' : playlist.path;
+    return _paginatedVideoList(path, page: page);
+  }
+
+  Future<PlaylistFormData> loadPlaylistForm(String playlistId) async {
+    _requireLogin();
+    try {
+      return SiteParser.playlistForm(await _get('/edit-playlist/$playlistId/'));
+    } on FormatException catch (error) {
+      throw ApiException(error.message);
+    }
+  }
+
+  Future<void> createPlaylist(PlaylistFormData form) async {
+    _requireLogin();
+    await _post(
+      '/create-playlist/',
+      data: _playlistFields(form, action: 'add_new_complete'),
+      followRedirects: true,
+    );
+    _clearPlaylistCache();
+  }
+
+  Future<void> updatePlaylist({
+    required String playlistId,
+    required PlaylistFormData form,
+  }) async {
+    _requireLogin();
+    await _post(
+      '/edit-playlist/$playlistId/',
+      data: _playlistFields(form, action: 'change_complete'),
+      followRedirects: true,
+    );
+    _clearPlaylistCache();
+  }
+
+  Future<void> deletePlaylist(String playlistId) async {
+    _requireLogin();
+    final body = await _get(
+      '/my/playlists/',
+      query: <String, String>{
+        'mode': 'async',
+        'format': 'json',
+        'action': 'delete_playlists',
+        'delete[]': playlistId,
+      },
+    );
+    try {
+      final response = jsonDecode(body);
+      if (response is! Map || response['status'] != 'success') {
+        throw const ApiException('删除播放列表失败。');
+      }
+    } on FormatException {
+      throw const ApiException('删除播放列表时服务器返回了无效响应。');
+    }
+    _clearPlaylistCache();
+  }
+
   Future<List<SubscriptionItem>> loadSubscriptions({bool force = false}) async {
     _requireLogin();
     final userId = sessionStore.currentUserId!;
@@ -558,17 +693,71 @@ class Rule34VideoApi {
       return _subscriptionCache!;
     }
     if (force || _subscriptionCacheUserId != userId) {
-      _subscriptionResolutionRequests.clear();
+      _resetSubscriptionCache();
     }
-    final result = SiteParser.subscriptions(await _get('/my/subscriptions/'));
-    _subscriptionCache = result;
+    final result = <String, SubscriptionItem>{};
+    for (var page = 1; page <= 50; page += 1) {
+      final items = await loadSubscriptionsPage(page);
+      if (items.isEmpty) {
+        break;
+      }
+      final before = result.length;
+      for (final item in items) {
+        result[item.path] = item;
+      }
+      if (result.length == before) {
+        break;
+      }
+    }
+    _subscriptionCache = result.values.toList(growable: false);
     _subscriptionCacheUserId = userId;
-    return result;
+    return _subscriptionCache!;
+  }
+
+  Future<List<SubscriptionItem>> loadSubscriptionsPage(
+    int page, {
+    bool force = false,
+  }) async {
+    _requireLogin();
+    final userId = sessionStore.currentUserId!;
+    if (_subscriptionCacheUserId != userId) {
+      _resetSubscriptionCache();
+      _subscriptionCacheUserId = userId;
+    }
+    if (force) {
+      if (page == 1) {
+        _subscriptionPageCache.clear();
+        _subscriptionResolutionRequests.clear();
+      } else {
+        _subscriptionPageCache.remove(page);
+      }
+      _subscriptionCache = null;
+    }
+    final cached = _subscriptionPageCache[page];
+    if (cached != null) {
+      return cached;
+    }
+    final path = page > 1 ? '/my/subscriptions/$page/' : '/my/subscriptions/';
+    try {
+      final result = SiteParser.subscriptions(await _get(path));
+      _subscriptionPageCache[page] = result;
+      return result;
+    } on HttpStatusException catch (error) {
+      if (page > 1 && error.statusCode == 404) {
+        _subscriptionPageCache[page] = const [];
+        return const [];
+      }
+      rethrow;
+    }
   }
 
   Future<SubscriptionItem> resolveSubscription(SubscriptionItem subscription) {
     if (subscription.thumbnailUrl?.isNotEmpty == true) {
       return Future.value(subscription);
+    }
+    final knownAvatar = _entityAvatarByPath[subscription.path];
+    if (knownAvatar != null && knownAvatar.isNotEmpty) {
+      return Future.value(subscription.copyWith(thumbnailUrl: knownAvatar));
     }
     return _subscriptionResolutionRequests.putIfAbsent(
       subscription.path,
@@ -581,14 +770,9 @@ class Rule34VideoApi {
   ) async {
     try {
       final thumbnailUrl = switch (subscription.kind) {
-        SubscriptionKind.model => (await resolveCollection(
-          ContentCollectionItem(
-            id: _pathIdentifier(subscription.path),
-            title: subscription.title,
-            path: subscription.path,
-            kind: DiscoveryKind.model,
-          ),
-        )).thumbnailUrl,
+        SubscriptionKind.model => SiteParser.collectionAvatar(
+          await _get(subscription.path),
+        ),
         SubscriptionKind.member => await _memberSubscriptionAvatar(
           subscription.path,
         ),
@@ -597,6 +781,7 @@ class Rule34VideoApi {
       if (thumbnailUrl == null || thumbnailUrl.isEmpty) {
         return subscription;
       }
+      _entityAvatarByPath[subscription.path] = thumbnailUrl;
       return subscription.copyWith(thumbnailUrl: thumbnailUrl);
     } on Object {
       return subscription;
@@ -644,6 +829,54 @@ class Rule34VideoApi {
     _videoDetailsCache.removeWhere((key, _) => key.endsWith(':${video.id}'));
   }
 
+  Future<void> addVideoToPlaylist({
+    required VideoItem video,
+    required String playlistId,
+  }) {
+    return toggleVideoInPlaylist(
+      video: video,
+      playlistId: playlistId,
+      add: true,
+    );
+  }
+
+  Future<void> removeVideoFromPlaylist({
+    required VideoItem video,
+    required String playlistId,
+  }) {
+    return toggleVideoInPlaylist(
+      video: video,
+      playlistId: playlistId,
+      add: false,
+    );
+  }
+
+  Future<Set<String>> playlistIdsForVideo(VideoItem video) async {
+    _requireLogin();
+    return (await loadVideoDetails(video)).playlistIds;
+  }
+
+  Future<void> toggleVideoInPlaylist({
+    required VideoItem video,
+    required String playlistId,
+    required bool add,
+  }) async {
+    _requireLogin();
+    await _post(
+      video.detailPath,
+      query: const <String, String>{'mode': 'async'},
+      data: <String, String>{
+        'action': add ? 'add_to_favourites' : 'delete_from_favourites',
+        'video_id': video.id,
+        'fav_type': '10',
+        'playlist_id': playlistId,
+      },
+      ajax: true,
+    );
+    _clearPlaylistCache();
+    _videoDetailsCache.removeWhere((key, _) => key.endsWith(':${video.id}'));
+  }
+
   Future<void> toggleUploaderSubscription({
     required UploaderSummary uploader,
     required bool subscribe,
@@ -658,9 +891,7 @@ class Rule34VideoApi {
       },
       ajax: true,
     );
-    _subscriptionCache = null;
-    _subscriptionCacheUserId = null;
-    _subscriptionResolutionRequests.clear();
+    _resetSubscriptionCache();
   }
 
   Future<bool> isUploaderSubscribed(UploaderSummary uploader) async {
@@ -695,9 +926,7 @@ class Rule34VideoApi {
       },
       ajax: true,
     );
-    _subscriptionCache = null;
-    _subscriptionCacheUserId = null;
-    _subscriptionResolutionRequests.clear();
+    _resetSubscriptionCache();
   }
 
   Future<List<VideoItem>> _videoList(
@@ -816,6 +1045,18 @@ class Rule34VideoApi {
     final month = value.month.toString().padLeft(2, '0');
     final day = value.day.toString().padLeft(2, '0');
     return '${value.year}-$month-$day';
+  }
+
+  Map<String, String> _playlistFields(
+    PlaylistFormData form, {
+    required String action,
+  }) {
+    return <String, String>{
+      'title': form.title.trim(),
+      'description': form.description.trim(),
+      'is_private': form.isPrivate ? '1' : '0',
+      'action': action,
+    };
   }
 
   Future<String> _post(
@@ -939,9 +1180,8 @@ class Rule34VideoApi {
   }
 
   Future<void> _clearExpiredSession() async {
-    _subscriptionCache = null;
-    _subscriptionCacheUserId = null;
-    _subscriptionResolutionRequests.clear();
+    _resetSubscriptionCache();
+    _clearPlaylistCache();
     await sessionStore.clear();
   }
 
@@ -979,6 +1219,18 @@ class Rule34VideoApi {
     _favoriteCacheUserId = userId;
   }
 
+  void _resetSubscriptionCache() {
+    _subscriptionCache = null;
+    _subscriptionCacheUserId = null;
+    _subscriptionPageCache.clear();
+    _subscriptionResolutionRequests.clear();
+  }
+
+  void _clearPlaylistCache() {
+    _playlistCache = null;
+    _playlistCacheUserId = null;
+  }
+
   void _syncCurrentUserProfileCache(String userId) {
     if (_currentUserProfileCacheUserId == userId) {
       return;
@@ -998,13 +1250,6 @@ class Rule34VideoApi {
     return '${sessionStore.currentUserId ?? 'public'}:$videoId';
   }
 
-  String _pathIdentifier(String path) {
-    final segments = Uri(path: path).pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-    return segments.isEmpty ? path : segments.last;
-  }
-
   static BaseOptions _baseOptions() {
     return BaseOptions(
       baseUrl: 'https://rule34video.com',
@@ -1013,12 +1258,61 @@ class Rule34VideoApi {
       responseType: ResponseType.plain,
       followRedirects: false,
       headers: const {
-        'User-Agent': 'Flule34 Android/0.1',
+        'User-Agent': 'Flule34 Android/1.3.0',
         'Accept':
             'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       },
       validateStatus: (status) => status != null && status < 500,
     );
+  }
+
+  static int _comparePublishedNewest(VideoItem left, VideoItem right) {
+    final leftAge = _publishedAgeSeconds(left.publishedLabel);
+    final rightAge = _publishedAgeSeconds(right.publishedLabel);
+    if (leftAge == null && rightAge == null) {
+      return 0;
+    }
+    if (leftAge == null) {
+      return 1;
+    }
+    if (rightAge == null) {
+      return -1;
+    }
+    return leftAge.compareTo(rightAge);
+  }
+
+  static int? _publishedAgeSeconds(String? label) {
+    if (label == null) {
+      return null;
+    }
+    final normalized = label.trim().toLowerCase();
+    if (normalized == 'just now' || normalized == 'today') {
+      return 0;
+    }
+    if (normalized == 'yesterday') {
+      return const Duration(days: 1).inSeconds;
+    }
+    final relative = RegExp(
+      r'(\d+)\s*(second|minute|hour|day|week|month|year)s?\s+ago',
+    ).firstMatch(normalized);
+    if (relative != null) {
+      final amount = int.parse(relative.group(1)!);
+      final unitSeconds = switch (relative.group(2)) {
+        'second' => 1,
+        'minute' => 60,
+        'hour' => 3600,
+        'day' => 86400,
+        'week' => 604800,
+        'month' => 2592000,
+        'year' => 31536000,
+        _ => 0,
+      };
+      return amount * unitSeconds;
+    }
+    final date = DateTime.tryParse(normalized);
+    return date == null
+        ? null
+        : DateTime.now().difference(date).inSeconds.clamp(0, 1 << 62);
   }
 }
 

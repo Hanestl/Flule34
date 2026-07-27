@@ -55,11 +55,6 @@ class ProfilePage extends StatelessWidget {
               onTap: () => context.pushNamed(AppRouteNames.privacySettings),
             ),
             _SettingsTile(
-              icon: Icons.bug_report_outlined,
-              title: '调试日志',
-              onTap: () => context.pushNamed(AppRouteNames.debugLogs),
-            ),
-            _SettingsTile(
               icon: Icons.info_outline,
               title: '关于 Flule34',
               onTap: () => context.pushNamed(AppRouteNames.about),

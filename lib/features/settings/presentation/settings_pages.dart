@@ -39,6 +39,25 @@ class AppearanceSettingsPage extends ConsumerWidget {
           },
         ),
         const SizedBox(height: 16),
+        Text('首页视频布局', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 12),
+        SegmentedButton<HomeVideoLayout>(
+          segments: HomeVideoLayout.values
+              .map(
+                (value) => ButtonSegment<HomeVideoLayout>(
+                  value: value,
+                  label: Text(value.label),
+                ),
+              )
+              .toList(growable: false),
+          selected: {settings.homeVideoLayout},
+          onSelectionChanged: (selection) {
+            unawaited(
+              _save(context, repository.setHomeVideoLayout(selection.single)),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
         const _InfoCard(
           icon: Icons.contrast,
           text: '浅色使用白色与浅灰背景；深色使用中性灰背景；跟随系统会随手机的夜间模式自动切换。',
@@ -147,33 +166,11 @@ class PlaybackSettingsPage extends ConsumerWidget {
   }
 }
 
-class ContentSettingsPage extends ConsumerStatefulWidget {
+class ContentSettingsPage extends ConsumerWidget {
   const ContentSettingsPage({super.key});
 
   @override
-  ConsumerState<ContentSettingsPage> createState() =>
-      _ContentSettingsPageState();
-}
-
-class _ContentSettingsPageState extends ConsumerState<ContentSettingsPage> {
-  late final TextEditingController _hiddenKeywordsController;
-
-  @override
-  void initState() {
-    super.initState();
-    _hiddenKeywordsController = TextEditingController(
-      text: ref.read(appSettingsRepositoryProvider).settings.hiddenKeywords,
-    );
-  }
-
-  @override
-  void dispose() {
-    _hiddenKeywordsController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(appSettingsRepositoryProvider);
     return _SettingsScaffold(
       title: '内容设置',
@@ -207,29 +204,6 @@ class _ContentSettingsPageState extends ConsumerState<ContentSettingsPage> {
           onChanged: (value) {
             unawaited(_save(context, repository.setBlurThumbnails(value)));
           },
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _hiddenKeywordsController,
-          minLines: 1,
-          maxLines: 3,
-          decoration: InputDecoration(
-            labelText: '隐藏标题关键词',
-            helperText: '用逗号或换行分隔；匹配的视频不会出现在列表中。',
-            border: const OutlineInputBorder(),
-            suffixIcon: IconButton(
-              tooltip: '保存隐藏关键词',
-              onPressed: () => unawaited(
-                _save(
-                  context,
-                  repository.setHiddenKeywords(_hiddenKeywordsController.text),
-                ),
-              ),
-              icon: const Icon(Icons.save_outlined),
-            ),
-          ),
-          onSubmitted: (value) =>
-              unawaited(_save(context, repository.setHiddenKeywords(value))),
         ),
       ],
     );
@@ -273,7 +247,6 @@ class DownloadSettingsPage extends ConsumerWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('同时下载任务数'),
-          subtitle: const Text('限制并发可减少发热、带宽抢占和服务器压力。'),
           trailing: DropdownButton<int>(
             value: settings.downloadConcurrentTasks,
             items: [1, 2, 3, 4]

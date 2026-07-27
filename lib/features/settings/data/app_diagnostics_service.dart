@@ -60,8 +60,6 @@ final class AppDiagnosticsService {
       MapEntry('下载清晰度', _settings.downloadQuality.label),
       MapEntry('仅 Wi-Fi 下载', _settings.wifiOnlyDownloads ? '是' : '否'),
       MapEntry('更新通道', _settings.updateChannel.label),
-      MapEntry('调试日志', _settings.debugLoggingEnabled ? '已开启' : '已关闭'),
-      MapEntry('日志保留时间', '${_settings.debugLogRetentionDays} 天'),
       MapEntry('更新源', AppBuildConfig.updateApiUri?.toString() ?? '未配置'),
     ];
     if (Platform.isAndroid) {

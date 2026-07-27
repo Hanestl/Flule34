@@ -235,7 +235,7 @@ final class DriftLocalLibraryRepository implements LocalLibraryRepository {
     unawaited(
       _logs?.info(
         'local_library',
-        '视频已入库，libraryId=$libraryId，videoId=${video.id}。',
+        '视频已加入本地库，libraryId=$libraryId，videoId=${video.id}。',
       ),
     );
   }

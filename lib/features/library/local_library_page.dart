@@ -5,6 +5,7 @@ import '../../app/router/route_names.dart';
 import '../../core/database/app_database.dart';
 import '../../core/models/video_models.dart';
 import '../../shared/video_card.dart';
+import '../../shared/video_list_filters.dart';
 import 'data/local_library_repository.dart';
 import 'local_library_name_dialog.dart';
 
@@ -141,7 +142,7 @@ class LocalLibraryOverview extends StatelessWidget {
   }
 }
 
-class LocalLibraryPage extends StatelessWidget {
+class LocalLibraryPage extends StatefulWidget {
   const LocalLibraryPage({
     super.key,
     required this.repository,
@@ -154,55 +155,132 @@ class LocalLibraryPage extends StatelessWidget {
   final String title;
 
   @override
+  State<LocalLibraryPage> createState() => _LocalLibraryPageState();
+}
+
+class _LocalLibraryPageState extends State<LocalLibraryPage> {
+  final TextEditingController _searchController = TextEditingController();
+  var _query = '';
+  var _filters = const VideoListFilters();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: StreamBuilder<List<VideoItem>>(
-        stream: repository.watchVideos(libraryId),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final videos = snapshot.requireData;
-          if (videos.isEmpty) {
-            return const Center(child: Text('这个本地库里还没有视频。'));
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 28),
-            itemCount: videos.length,
-            itemBuilder: (context, index) {
-              final video = videos[index];
-              return Column(
-                children: [
-                  VideoCard(
-                    video: video,
-                    onTap: () => context.pushNamed(
-                      AppRouteNames.video,
-                      pathParameters: {'id': video.id, 'slug': video.slug},
-                      extra: video,
-                    ),
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          IconButton(
+            tooltip: '筛选',
+            onPressed: _showFilters,
+            icon: Badge(
+              isLabelVisible: _filters.activeCount > 0,
+              label: Text('${_filters.activeCount}'),
+              child: const Icon(Icons.tune),
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: SearchBar(
+              controller: _searchController,
+              leading: const Icon(Icons.search),
+              hintText: '搜索此库中的视频',
+              trailing: [
+                if (_query.isNotEmpty)
+                  IconButton(
+                    tooltip: '清除',
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _query = '');
+                    },
+                    icon: const Icon(Icons.close),
                   ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => repository.removeVideo(
-                        libraryId: libraryId,
-                        videoId: video.id,
+              ],
+              onChanged: (value) => setState(() => _query = value.trim()),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<VideoItem>>(
+              stream: widget.repository.watchVideos(widget.libraryId),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text(snapshot.error.toString()));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final sourceVideos = snapshot.requireData;
+                if (sourceVideos.isEmpty) {
+                  return const Center(child: Text('这个本地库里还没有视频。'));
+                }
+                final videos = _filteredVideos(sourceVideos);
+                if (videos.isEmpty) {
+                  return const Center(child: Text('没有符合搜索和筛选条件的视频。'));
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 28),
+                  itemCount: videos.length,
+                  itemBuilder: (context, index) {
+                    final video = videos[index];
+                    return VideoCard(
+                      video: video,
+                      contextActionLabel: '移出此库',
+                      onContextAction: () => _removeVideo(video),
+                      onTap: () => context.pushNamed(
+                        AppRouteNames.video,
+                        pathParameters: {'id': video.id, 'slug': video.slug},
+                        extra: video,
                       ),
-                      icon: const Icon(Icons.remove_circle_outline),
-                      label: const Text('移出此库'),
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  List<VideoItem> _filteredVideos(List<VideoItem> source) {
+    return filterAndSortVideos(source, query: _query, filters: _filters);
+  }
+
+  Future<void> _removeVideo(VideoItem video) async {
+    try {
+      await widget.repository.removeVideo(
+        libraryId: widget.libraryId,
+        videoId: video.id,
+      );
+      if (mounted) {
+        _message(context, '已从本地库移出。');
+      }
+    } catch (error) {
+      if (mounted) {
+        _message(context, error.toString());
+      }
+    }
+  }
+
+  Future<void> _showFilters() async {
+    final selected = await showVideoListFilters(
+      context,
+      initialValue: _filters,
+      title: '筛选此库',
+      defaultSortLabel: '最近添加',
+    );
+    if (selected != null && mounted) {
+      setState(() => _filters = selected);
+    }
   }
 }
 
@@ -222,7 +300,7 @@ class _EmptyLibraries extends StatelessWidget {
           Text('还没有本地库', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           const Text(
-            '创建自定义分类后，可以从任意视频的“入库”按钮保存到这里。',
+            '创建自定义分类后，可以从任意视频的“本地分类库”按钮保存到这里。',
             textAlign: TextAlign.center,
           ),
         ],

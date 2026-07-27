@@ -8,6 +8,7 @@ import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../shared/video_feed.dart';
 import '../auth/login_sheet.dart';
+import '../settings/domain/app_settings.dart';
 
 enum _HomeChannel {
   newest('最新', FeedKind.newest),
@@ -53,8 +54,12 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final settingsRepository = ref.watch(appSettingsRepositoryProvider);
     return AnimatedBuilder(
-      animation: widget.api.sessionStore,
+      animation: Listenable.merge([
+        widget.api.sessionStore,
+        settingsRepository,
+      ]),
       builder: (context, _) => Column(
         children: [
           Padding(
@@ -121,13 +126,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ],
               ),
             ),
-          Expanded(child: _buildFeed()),
+          Expanded(
+            child: _buildFeed(settingsRepository.settings.homeVideoLayout),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFeed() {
+  Widget _buildFeed(HomeVideoLayout layout) {
+    final columns = layout == HomeVideoLayout.doubleColumn ? 2 : 1;
     if (_channel == _HomeChannel.following) {
       if (!widget.api.sessionStore.isLoggedIn) {
         return _FollowingSignedOut(
@@ -138,6 +146,8 @@ class _HomePageState extends ConsumerState<HomePage> {
         key: ValueKey('following:${widget.api.sessionStore.currentUserId}'),
         loadPage: widget.api.loadFollowingFeed,
         emptyMessage: '关注的分类、艺术家或用户暂时没有可展示的视频。',
+        columns: columns,
+        sortNewest: true,
       );
     }
     final kind = _channel.feedKind!;
@@ -146,6 +156,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         '${kind.name}:${_orientation.name}:${_duration.name}:${_uploadPeriod.name}',
       ),
       loadPage: (page) => widget.api.loadFeed(kind, page, filters: _filters),
+      columns: columns,
     );
   }
 }

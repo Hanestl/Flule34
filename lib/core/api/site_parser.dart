@@ -113,7 +113,16 @@ class SiteParser {
     final thumbnail =
         _url(_flashValue(source, 'preview_url')) ??
         _url(_string(schema?['thumbnailUrl']));
-    final isFavorite = document.querySelector('a.delete.button_fav') != null;
+    final favoriteButton = document.querySelector(
+      '#tab_video_info a.button_fav, '
+      '.video-info a.button_fav, '
+      '.video-holder a.button_fav',
+    );
+    final favoriteButtonText = _clean(favoriteButton?.text)?.toLowerCase();
+    final isFavorite =
+        favoriteButton?.classes.contains('delete') == true ||
+        favoriteButtonText?.contains('remove from favorites') == true ||
+        favoriteButtonText?.contains('delete from favorites') == true;
     final video = fallback.copyWith(
       title: flashTitle ?? schemaTitle,
       thumbnailUrl: thumbnail,
@@ -158,7 +167,32 @@ class SiteParser {
             ?.group(1),
       ),
       uploader: _uploader(document),
+      playlistIds: _playlistIds(document),
     );
+  }
+
+  static Set<String> _playlistIds(dom.Document document) {
+    final result = <String>{};
+    for (final link in document.querySelectorAll(
+      'a[data-fav-type="10"][data-playlist-id]',
+    )) {
+      if (link.classes.contains('delete') ||
+          link.attributes['href'] != '#add_to_playlist') {
+        continue;
+      }
+      dom.Element? container = link.parent;
+      while (container != null && container.localName != 'li') {
+        container = container.parent;
+      }
+      if (container?.classes.contains('hidden') != true) {
+        continue;
+      }
+      final id = link.attributes['data-playlist-id']?.trim();
+      if (id != null && id.isNotEmpty && !id.contains('%')) {
+        result.add(id);
+      }
+    }
+    return Set.unmodifiable(result);
   }
 
   static UploaderSummary? _uploader(dom.Document document) {
@@ -293,6 +327,115 @@ class SiteParser {
     return result.values.toList(growable: false);
   }
 
+  static String? collectionAvatar(String source) {
+    final document = html_parser.parse(source);
+    return _imageUrl(
+      document.querySelector(
+        '.brand_image_wrapper img, .brand_image img, .model-avatar img',
+      ),
+    );
+  }
+
+  static List<PlaylistItem> playlists(String source) {
+    final document = html_parser.parse(source);
+    final result = <String, PlaylistItem>{};
+    for (final link in document.querySelectorAll(
+      'a[href*="/playlists/"], a[href*="/my/playlists/"]',
+    )) {
+      final href = link.attributes['href'];
+      final match = RegExp(
+        r'/(?:my/)?playlists/(\d+)(?:/([^/]+))?/?',
+      ).firstMatch(href ?? '');
+      if (match == null) {
+        continue;
+      }
+      final container = _closestItem(link) ?? link.parent;
+      final text = container?.text.replaceAll(RegExp(r'\s+'), ' ') ?? '';
+      final image =
+          container?.querySelector('img') ?? link.querySelector('img');
+      final title =
+          _clean(
+            container
+                ?.querySelector(
+                  '.thumb_title, .playlist-title, .title, .headline',
+                )
+                ?.text,
+          ) ??
+          _clean(link.attributes['title']) ??
+          '未命名播放列表';
+      final resolved = Uri.parse(_baseUri).resolve(href!).path;
+      result[match.group(1)!] = PlaylistItem(
+        id: match.group(1)!,
+        title: title,
+        path: resolved.endsWith('/') ? resolved : '$resolved/',
+        thumbnailUrl: _imageUrl(image),
+        videoCount:
+            _number(
+              RegExp(
+                r'([\d,]+)\s*videos?',
+                caseSensitive: false,
+              ).firstMatch(text)?.group(1),
+            ) ??
+            _compactNumber(_clean(container?.querySelector('.added')?.text)),
+        views:
+            _number(
+              RegExp(
+                r'([\d,]+)\s*views?',
+                caseSensitive: false,
+              ).firstMatch(text)?.group(1),
+            ) ??
+            _compactNumber(_clean(container?.querySelector('.views')?.text)),
+      );
+    }
+    return result.values.toList(growable: false);
+  }
+
+  static PlaylistFormData playlistForm(String source) {
+    final document = html_parser.parse(source);
+    final title = _clean(
+      document.querySelector('input[name="title"]')?.attributes['value'],
+    );
+    if (title == null) {
+      throw const FormatException('播放列表编辑页面缺少标题字段。');
+    }
+    final description =
+        document.querySelector('textarea[name="description"]')?.text.trim() ??
+        document
+            .querySelector('input[name="description"]')
+            ?.attributes['value']
+            ?.trim() ??
+        '';
+    final privacyInputs = document.querySelectorAll('[name="is_private"]');
+    var isPrivate = false;
+    for (final input in privacyInputs) {
+      final tag = input.localName;
+      if (tag == 'select') {
+        final selected = input.querySelector('option[selected]');
+        if (selected != null) {
+          isPrivate = selected.attributes['value'] == '1';
+          break;
+        }
+      }
+      final type = input.attributes['type']?.toLowerCase();
+      final checked = input.attributes.containsKey('checked');
+      if (type == 'radio' || type == 'checkbox') {
+        if (checked) {
+          isPrivate = input.attributes['value'] == '1';
+          break;
+        }
+        continue;
+      }
+      if (input.attributes['value'] == '1') {
+        isPrivate = true;
+      }
+    }
+    return PlaylistFormData(
+      title: title,
+      description: description,
+      isPrivate: isPrivate,
+    );
+  }
+
   static List<ContentCollectionItem> contentCollections(
     String source,
     DiscoveryKind kind,
@@ -413,32 +556,79 @@ class SiteParser {
   }
 
   static List<VideoSource> _sources(String source) {
-    const fields = <(String, String)>[
-      ('video_url', 'video_url_text'),
-      ('video_alt_url', 'video_alt_url_text'),
-      ('video_alt_url2', 'video_alt_url2_text'),
-      ('video_alt_url3', 'video_alt_url3_text'),
-    ];
+    final fields = <String>{'video_url'};
+    for (final match in RegExp(
+      r'''(?:["']?)(video_alt_url\d*)(?:["']?)\s*:''',
+      caseSensitive: false,
+    ).allMatches(source)) {
+      final field = match.group(1);
+      if (field != null) {
+        fields.add(field);
+      }
+    }
+    final orderedFields = fields.toList(growable: false)
+      ..sort(
+        (left, right) =>
+            _sourceFieldRank(left).compareTo(_sourceFieldRank(right)),
+      );
     final result = <String, VideoSource>{};
-    for (final field in fields) {
-      final url = _url(_flashValue(source, field.$1));
+    for (final field in orderedFields) {
+      final url = _url(_flashValue(source, field));
       if (url == null) {
         continue;
       }
-      final label =
-          _flashValue(source, field.$2) ??
+      final rawLabel =
+          _flashValue(source, '${field}_text') ??
           RegExp(
             r'_(\d+p?)\.mp4',
             caseSensitive: false,
           ).firstMatch(url)?.group(1) ??
           'MP4';
+      final height = _sourceHeight(rawLabel, url);
+      final label = switch (height) {
+        2160 when rawLabel.toLowerCase().contains('4k') => '2160p (4K)',
+        4320 when rawLabel.toLowerCase().contains('8k') => '4320p (8K)',
+        _ => rawLabel,
+      };
       result[url] = VideoSource(
         label: label,
         url: url,
-        isHd: label.contains('720') || label.contains('1080'),
+        isHd: (height ?? 0) >= 720,
       );
     }
     return result.values.toList(growable: false);
+  }
+
+  static int _sourceFieldRank(String field) {
+    if (field == 'video_url') {
+      return 0;
+    }
+    final suffix = RegExp(r'(\d+)$').firstMatch(field)?.group(1);
+    return int.tryParse(suffix ?? '') ?? 1;
+  }
+
+  static int? _sourceHeight(String label, String url) {
+    final normalized = label.toLowerCase();
+    if (normalized.contains('8k')) {
+      return 4320;
+    }
+    if (normalized.contains('4k')) {
+      return 2160;
+    }
+    final labelHeight = RegExp(
+      r'(\d{3,4})\s*p?',
+      caseSensitive: false,
+    ).firstMatch(label)?.group(1);
+    if (labelHeight != null) {
+      return int.tryParse(labelHeight);
+    }
+    return int.tryParse(
+      RegExp(
+            r'_(\d{3,4})p?\.mp4',
+            caseSensitive: false,
+          ).firstMatch(url)?.group(1) ??
+          '',
+    );
   }
 
   static Map<String, dynamic>? _videoSchema(dom.Document document) {

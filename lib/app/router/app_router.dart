@@ -12,13 +12,14 @@ import '../../features/downloads/presentation/downloads_list.dart';
 import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
 import '../../features/library/local_library_page.dart';
+import '../../features/library/playlist_page.dart';
+import '../../features/library/playlist_playback_page.dart';
 import '../../features/library/subscription_page.dart';
 import '../../features/profile/account_page.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/profile/uploader_page.dart';
 import '../../features/search/search_page.dart';
 import '../../features/settings/presentation/settings_pages.dart';
-import '../../features/settings/presentation/debug_log_page.dart';
 import '../../features/settings/presentation/support_pages.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/video/video_detail_page.dart';
@@ -156,11 +157,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => const DiagnosticsPage(),
                   ),
                   GoRoute(
-                    path: 'debug-logs',
-                    name: AppRouteNames.debugLogs,
-                    builder: (context, state) => const DebugLogPage(),
-                  ),
-                  GoRoute(
                     path: 'update',
                     name: AppRouteNames.update,
                     builder: (context, state) => const AppUpdatePage(),
@@ -258,6 +254,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   title: '视频 ${state.pathParameters['id']!}',
                 );
           return VideoDetailPage(api: api, video: video);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/playlist/:id',
+        name: AppRouteNames.playlist,
+        builder: (context, state) {
+          final extra = state.extra;
+          final id = state.pathParameters['id']!;
+          final playlist = extra is PlaylistItem
+              ? extra
+              : PlaylistItem(
+                  id: id,
+                  title: '播放列表 $id',
+                  path: '/my/playlists/$id/',
+                );
+          return PlaylistPage(api: api, playlist: playlist);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/playlist/:id/play',
+        name: AppRouteNames.playlistPlayback,
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! PlaylistPlaybackRequest) {
+            return const Scaffold(body: Center(child: Text('播放列表播放参数无效。')));
+          }
+          return PlaylistPlaybackPage(api: api, request: extra);
         },
       ),
       GoRoute(

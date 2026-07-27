@@ -9,58 +9,6 @@ import 'package:flule34/features/settings/data/app_settings_store.dart';
 import 'package:flule34/shared/video_feed.dart';
 
 void main() {
-  testWidgets('整页被关键词隐藏时仍可继续查找后续内容', (tester) async {
-    final settings = AppSettingsRepository(
-      _MemorySettingsStore(
-        strings: const {'flule34.settings.hidden_keywords': 'hidden'},
-      ),
-    );
-    addTearDown(settings.dispose);
-    await settings.load();
-    final container = ProviderContainer(
-      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
-    );
-    addTearDown(container.dispose);
-    var loads = 0;
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          home: Scaffold(
-            body: VideoFeed(
-              loadPage: (page) async {
-                loads += 1;
-                return switch (page) {
-                  1 => const [
-                    VideoItem(
-                      id: '1',
-                      title: 'hidden video',
-                      slug: 'hidden-video',
-                    ),
-                  ],
-                  2 => const [
-                    VideoItem(
-                      id: '2',
-                      title: 'visible video',
-                      slug: 'visible-video',
-                    ),
-                  ],
-                  _ => const [],
-                };
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('hidden video'), findsNothing);
-    expect(find.text('visible video'), findsOneWidget);
-    expect(loads, greaterThanOrEqualTo(2));
-  });
-
   testWidgets('下一页加载失败时在列表底部提供原位重试', (tester) async {
     final settings = AppSettingsRepository(_MemorySettingsStore());
     addTearDown(settings.dispose);
@@ -103,7 +51,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.fling(find.byType(ListView), const Offset(0, -5000), 10000);
+    await tester.fling(
+      find.byType(CustomScrollView),
+      const Offset(0, -5000),
+      10000,
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('重试加载下一页'), findsOneWidget);
@@ -113,6 +65,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('第二页'), findsOneWidget);
+  });
+
+  testWidgets('收藏和历史样式的视频流提供搜索与筛选入口', (tester) async {
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
+    final container = ProviderContainer(
+      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: VideoFeed(
+              showSearchAndFilters: true,
+              searchHint: '搜索收藏的视频',
+              loadPage: (page) async => page == 1
+                  ? const [
+                      VideoItem(id: '1', title: 'Hydra 精选', slug: 'hydra'),
+                      VideoItem(id: '2', title: '其他视频', slug: 'other'),
+                      VideoItem(id: '3', title: '填充 3', slug: 'fill-3'),
+                      VideoItem(id: '4', title: '填充 4', slug: 'fill-4'),
+                      VideoItem(id: '5', title: '填充 5', slug: 'fill-5'),
+                      VideoItem(id: '6', title: '填充 6', slug: 'fill-6'),
+                      VideoItem(id: '7', title: '填充 7', slug: 'fill-7'),
+                      VideoItem(id: '8', title: '填充 8', slug: 'fill-8'),
+                    ]
+                  : const [],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('搜索收藏的视频'), findsOneWidget);
+    expect(find.byTooltip('筛选'), findsOneWidget);
+    await tester.enterText(find.byType(SearchBar), 'Hydra');
+    await tester.pump();
+
+    expect(find.text('Hydra 精选'), findsOneWidget);
+    expect(find.text('其他视频'), findsNothing);
   });
 }
 

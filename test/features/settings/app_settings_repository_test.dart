@@ -15,6 +15,7 @@ void main() {
     await repository.load();
     expect(repository.settings.theme, AppThemePreference.system);
     expect(repository.settings.askDownloadQuality, isTrue);
+    expect(repository.settings.playbackQuality, VideoQualityPreference.p1080);
 
     await repository.setTheme(AppThemePreference.light);
     await repository.setNetworkPlaybackPolicy(NetworkPlaybackPolicy.dataSaver);
@@ -23,15 +24,13 @@ void main() {
       FullscreenOrientationPreference.device,
     );
     await repository.setDefaultOrientation(ContentOrientation.futa);
-    await repository.setHiddenKeywords('foo, bar');
     await repository.setDownloadConcurrentTasks(3);
     await repository.setSaveSearchHistory(false);
     await repository.setAutoplay(true);
     await repository.setRememberPlaybackProgress(false);
     await repository.setWifiOnlyDownloads(true);
     await repository.setUpdateChannel(UpdateChannel.prerelease);
-    await repository.setDebugLoggingEnabled(true);
-    await repository.setDebugLogRetentionDays(7);
+    await repository.setHomeVideoLayout(HomeVideoLayout.doubleColumn);
 
     final restored = AppSettingsRepository(store);
     addTearDown(restored.dispose);
@@ -47,15 +46,13 @@ void main() {
       FullscreenOrientationPreference.device,
     );
     expect(restored.settings.defaultOrientation, ContentOrientation.futa);
-    expect(restored.settings.hiddenKeywords, 'foo, bar');
     expect(restored.settings.downloadConcurrentTasks, 3);
     expect(restored.settings.saveSearchHistory, isFalse);
     expect(restored.settings.autoplay, isTrue);
     expect(restored.settings.rememberPlaybackProgress, isFalse);
     expect(restored.settings.wifiOnlyDownloads, isTrue);
     expect(restored.settings.updateChannel, UpdateChannel.prerelease);
-    expect(restored.settings.debugLoggingEnabled, isTrue);
-    expect(restored.settings.debugLogRetentionDays, 7);
+    expect(restored.settings.homeVideoLayout, HomeVideoLayout.doubleColumn);
   });
 
   test('旧纯黑主题迁移为中性深色主题', () async {
@@ -67,6 +64,17 @@ void main() {
     await repository.load();
 
     expect(repository.settings.theme, AppThemePreference.dark);
+  });
+
+  test('旧自动清晰度无感迁移为 1080p', () async {
+    final repository = AppSettingsRepository(
+      _MemorySettingsStore({'flule34.settings.playback_quality': 'automatic'}),
+    );
+    addTearDown(repository.dispose);
+
+    await repository.load();
+
+    expect(repository.settings.playbackQuality, VideoQualityPreference.p1080);
   });
 
   test('损坏或过时的枚举值回退到默认设置', () async {
@@ -88,7 +96,7 @@ void main() {
     expect(repository.settings.autoplay, AppSettings.defaults.autoplay);
   });
 
-  test('清晰度规则支持最高、精确值和最近值', () {
+  test('清晰度规则优先目标档位并只向下回退', () {
     const sources = [
       VideoSource(
         label: '360p',
@@ -105,11 +113,16 @@ void main() {
         url: 'https://example.com/1080.mp4',
         isHd: true,
       ),
+      VideoSource(
+        label: '2160p (4K)',
+        url: 'https://example.com/2160.mp4',
+        isHd: true,
+      ),
     ];
 
     expect(
       selectVideoSource(sources, VideoQualityPreference.highest).label,
-      '1080p',
+      '2160p (4K)',
     );
     expect(
       selectVideoSource(sources, VideoQualityPreference.p720).label,
@@ -118,6 +131,22 @@ void main() {
     expect(
       selectVideoSource(sources, VideoQualityPreference.p480).label,
       '360p',
+    );
+    const missing1080 = [
+      VideoSource(
+        label: '720p',
+        url: 'https://example.com/720.mp4',
+        isHd: true,
+      ),
+      VideoSource(
+        label: '2160p',
+        url: 'https://example.com/2160.mp4',
+        isHd: true,
+      ),
+    ];
+    expect(
+      selectVideoSource(missing1080, VideoQualityPreference.p1080).label,
+      '720p',
     );
   });
 }

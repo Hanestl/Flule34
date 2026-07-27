@@ -4,7 +4,7 @@ import '../../core/models/video_models.dart';
 import 'data/local_library_repository.dart';
 import 'local_library_name_dialog.dart';
 
-Future<String?> addVideoToLocalLibrary({
+Future<String?> manageVideoLocalLibraries({
   required BuildContext context,
   required LocalLibraryRepository repository,
   required VideoItem video,
@@ -26,7 +26,7 @@ Future<String?> addVideoToLocalLibrary({
     libraries = await repository.watchLibraries().first;
     final library = libraries.firstWhere((item) => item.id == id);
     await repository.addVideo(libraryId: id, video: video);
-    return library.name;
+    return '已加入“${library.name}”。';
   }
 
   final containedIds = await repository.libraryIdsForVideo(video.id);
@@ -77,9 +77,13 @@ Future<String?> addVideoToLocalLibrary({
     }
     final id = await repository.createLibrary(name);
     await repository.addVideo(libraryId: id, video: video);
-    return name.trim();
+    return '已加入“${name.trim()}”。';
   }
   final library = libraries.firstWhere((item) => item.id == selected);
+  if (containedIds.contains(library.id)) {
+    await repository.removeVideo(libraryId: library.id, videoId: video.id);
+    return '已从“${library.name}”移出。';
+  }
   await repository.addVideo(libraryId: library.id, video: video);
-  return library.name;
+  return '已加入“${library.name}”。';
 }

@@ -17,6 +17,67 @@ import '../playback/data/playback_repository.dart';
 import '../settings/domain/app_settings.dart';
 import '../settings/domain/quality_selection.dart';
 
+int videoPreCacheSizeForNetwork(NetworkClass network) {
+  return switch (network) {
+    NetworkClass.wifi => 16 * 1024 * 1024,
+    NetworkClass.mobile => 6 * 1024 * 1024,
+    NetworkClass.other => 10 * 1024 * 1024,
+    NetworkClass.offline => 0,
+  };
+}
+
+int playlistVideoPreCacheSizeForNetwork(NetworkClass network) {
+  return switch (network) {
+    NetworkClass.wifi => 64 * 1024 * 1024,
+    NetworkClass.mobile => 24 * 1024 * 1024,
+    NetworkClass.other => 40 * 1024 * 1024,
+    NetworkClass.offline => 0,
+  };
+}
+
+String videoCacheKey(String videoId, VideoSource source) {
+  final quality = source.label.replaceAll(RegExp(r'[^0-9A-Za-z]+'), '_');
+  return 'flule34_${videoId}_$quality';
+}
+
+double videoFullScreenAspectRatio(
+  Size screenSize,
+  FullscreenOrientationPreference preference,
+) {
+  final current = screenSize.width / screenSize.height;
+  if (preference == FullscreenOrientationPreference.landscape && current < 1) {
+    return 1 / current;
+  }
+  return current;
+}
+
+bool initialVideoControlsVisible(bool isFullScreen) => !isFullScreen;
+
+bool videoControlsVisibleAfterFullscreenEvent(
+  BetterPlayerEventType event,
+  bool current,
+) {
+  return switch (event) {
+    BetterPlayerEventType.openFullscreen => false,
+    BetterPlayerEventType.hideFullscreen => true,
+    _ => current,
+  };
+}
+
+bool videoControlsUseFullscreenLayoutAfterEvent(
+  BetterPlayerEventType event,
+  bool current,
+) {
+  return switch (event) {
+    BetterPlayerEventType.hideFullscreen => false,
+    _ => current,
+  };
+}
+
+bool videoControlsAnimateOpacityAfterEvent(BetterPlayerEventType event) {
+  return event != BetterPlayerEventType.openFullscreen;
+}
+
 class VideoPlayerHandle {
   bool get isFullScreen => _isFullScreen?.call() ?? false;
 
@@ -24,18 +85,44 @@ class VideoPlayerHandle {
     await _pause?.call();
   }
 
+  Future<void> preCache(VideoDetails details, {bool aggressive = false}) async {
+    _pendingPreCache = (details: details, aggressive: aggressive);
+    await _preCache?.call(details, aggressive);
+  }
+
+  Future<void> stopPreCache() async {
+    _pendingPreCache = null;
+    await _stopPreCache?.call();
+  }
+
   Future<void> Function()? _pause;
   bool Function()? _isFullScreen;
+  Future<void> Function(VideoDetails details, bool aggressive)? _preCache;
+  Future<void> Function()? _stopPreCache;
+  ({VideoDetails details, bool aggressive})? _pendingPreCache;
 
-  void _attach(Future<void> Function() pause, bool Function() isFullScreen) {
+  void _attach(
+    Future<void> Function() pause,
+    bool Function() isFullScreen,
+    Future<void> Function(VideoDetails details, bool aggressive) preCache,
+    Future<void> Function() stopPreCache,
+  ) {
     _pause = pause;
     _isFullScreen = isFullScreen;
+    _preCache = preCache;
+    _stopPreCache = stopPreCache;
+    final pending = _pendingPreCache;
+    if (pending != null) {
+      unawaited(preCache(pending.details, pending.aggressive));
+    }
   }
 
   void _detach(Future<void> Function() pause) {
     if (_pause == pause) {
       _pause = null;
       _isFullScreen = null;
+      _preCache = null;
+      _stopPreCache = null;
     }
   }
 }
@@ -49,6 +136,9 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
     this.embedded = false,
     this.autoplay,
     this.handle,
+    this.looping,
+    this.resumePlayback = true,
+    this.onFinished,
   });
 
   final Rule34VideoApi api;
@@ -57,6 +147,9 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   final bool embedded;
   final bool? autoplay;
   final VideoPlayerHandle? handle;
+  final bool? looping;
+  final bool resumePlayback;
+  final VoidCallback? onFinished;
 
   @override
   ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
@@ -66,7 +159,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
   static const _mediaHeaders = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.1',
+    'User-Agent': 'Flule34 Android/1.3.0',
   };
 
   BetterPlayerController? _controller;
@@ -84,7 +177,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _lastSavedSecond = -1;
   var _lastKnownPlaying = false;
   var _wakeLockEnabled = false;
-  var _resumeMessageShown = false;
   var _playbackSpeed = 1.0;
   var _hasPreparedSource = false;
   var _startupLogged = false;
@@ -92,8 +184,18 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _bufferingCount = 0;
   var _bufferingTotal = Duration.zero;
   DateTime? _bufferingStartedAt;
-  late final Stopwatch _startupStopwatch;
+  late Stopwatch _startupStopwatch;
   String? _error;
+  var _finishedNotified = false;
+  var _switchingVideo = false;
+  final Completer<BetterPlayerController> _controllerReady = Completer();
+  BetterPlayerDataSource? _preCacheDataSource;
+  String? _preCacheKey;
+  var _preCacheOperation = 0;
+
+  bool get _effectiveLooping =>
+      widget.looping ??
+      ref.read(appSettingsRepositoryProvider).settings.loopPlayback;
 
   @override
   void initState() {
@@ -110,6 +212,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     widget.handle?._attach(
       _pauseForNavigation,
       () => _controller?.isFullScreen ?? false,
+      _preCacheDetails,
+      _stopPreCache,
     );
     unawaited(_start());
   }
@@ -122,7 +226,38 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       widget.handle?._attach(
         _pauseForNavigation,
         () => _controller?.isFullScreen ?? false,
+        _preCacheDetails,
+        _stopPreCache,
       );
+    }
+    if (oldWidget.looping != widget.looping && _controller != null) {
+      unawaited(_controller!.setLooping(_effectiveLooping));
+    }
+    if (oldWidget.video.id != widget.video.id) {
+      final previousValue = _videoController?.value;
+      if (previousValue?.initialized == true) {
+        unawaited(_persistForVideo(oldWidget.video, previousValue!));
+      }
+      _operation += 1;
+      _sources = List.of(widget.sources);
+      _selectedSource = selectVideoSource(
+        _sources,
+        ref.read(appSettingsRepositoryProvider).settings.playbackQuality,
+      );
+      _failedUrls.clear();
+      _initializing = true;
+      _refreshingSource = false;
+      _switchingVideo = true;
+      _error = null;
+      _finishedNotified = false;
+      _lastSavedSecond = -1;
+      _startupLogged = false;
+      _playbackStarted = false;
+      _bufferingCount = 0;
+      _bufferingTotal = Duration.zero;
+      _bufferingStartedAt = null;
+      _startupStopwatch = Stopwatch()..start();
+      unawaited(_start());
     }
   }
 
@@ -135,16 +270,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (!mounted) {
       return;
     }
-    final quality = switch (settings.networkPlaybackPolicy) {
-      NetworkPlaybackPolicy.automatic
-          when network == NetworkClass.mobile &&
-              settings.playbackQuality == VideoQualityPreference.automatic =>
-        VideoQualityPreference.p480,
-      NetworkPlaybackPolicy.dataSaver when network == NetworkClass.mobile =>
-        VideoQualityPreference.p360,
-      NetworkPlaybackPolicy.dataSaver => VideoQualityPreference.p720,
-      _ => settings.playbackQuality,
-    };
+    final quality = _qualityForNetwork(settings, network);
     _selectedSource = selectVideoSource(_sources, quality);
     unawaited(
       _logs.info(
@@ -176,7 +302,29 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
   }
 
+  VideoQualityPreference _qualityForNetwork(
+    AppSettings settings,
+    NetworkClass network,
+  ) {
+    if (settings.networkPlaybackPolicy == NetworkPlaybackPolicy.dataSaver) {
+      return network == NetworkClass.mobile
+          ? VideoQualityPreference.p360
+          : VideoQualityPreference.p720;
+    }
+    if (settings.networkPlaybackPolicy == NetworkPlaybackPolicy.automatic &&
+        network == NetworkClass.mobile) {
+      final target = settings.playbackQuality.targetHeight;
+      return target == null || target > 480
+          ? VideoQualityPreference.p480
+          : settings.playbackQuality;
+    }
+    return settings.playbackQuality;
+  }
+
   Future<Duration> _resumePosition() async {
+    if (!widget.resumePlayback) {
+      return Duration.zero;
+    }
     try {
       return await _playback.loadPositionForAccount(
             videoId: widget.video.id,
@@ -201,6 +349,12 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     widget.handle?._detach(_pauseForNavigation);
     WidgetsBinding.instance.removeObserver(this);
     _operation += 1;
+    _preCacheOperation += 1;
+    final preCacheDataSource = _preCacheDataSource;
+    final controller = _controller;
+    if (preCacheDataSource != null && controller != null) {
+      unawaited(controller.stopPreCache(preCacheDataSource));
+    }
     final value = _videoController?.value;
     _unbindVideoController();
     if (value != null) {
@@ -263,6 +417,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   BetterPlayerController _createController() {
     final settings = ref.read(appSettingsRepositoryProvider).settings;
+    final screenSize = MediaQuery.sizeOf(context);
     final orientations =
         settings.fullscreenOrientation ==
             FullscreenOrientationPreference.landscape
@@ -274,10 +429,14 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     return BetterPlayerController(
       BetterPlayerConfiguration(
         autoPlay: false,
-        looping: settings.loopPlayback,
+        looping: _effectiveLooping,
         aspectRatio: 16 / 9,
+        fullScreenAspectRatio: videoFullScreenAspectRatio(
+          screenSize,
+          settings.fullscreenOrientation,
+        ),
         fit: BoxFit.contain,
-        expandToFill: false,
+        expandToFill: true,
         handleLifecycle: false,
         autoDispose: false,
         useRootNavigator: true,
@@ -334,6 +493,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
     final settings = ref.read(appSettingsRepositoryProvider).settings;
     final controller = _controller ??= _createController();
+    if (!_controllerReady.isCompleted) {
+      _controllerReady.complete(controller);
+    }
     final dataSource = BetterPlayerDataSource.network(
       source.url,
       headers: headers,
@@ -341,7 +503,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         useCache: true,
         maxCacheSize: 1024 * 1024 * 1024,
         maxCacheFileSize: 512 * 1024 * 1024,
-        key: _cacheKey(source),
+        key: videoCacheKey(widget.video.id, source),
       ),
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
         minBufferMs: 30000,
@@ -359,6 +521,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       ),
     );
     try {
+      _finishedNotified = false;
       await controller.setupDataSource(dataSource);
       if (!mounted || operation != _operation) {
         return false;
@@ -378,7 +541,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                 duration.inMilliseconds,
               ),
             );
-      await controller.setLooping(settings.loopPlayback);
+      await controller.setLooping(_effectiveLooping);
       await controller.setSpeed(targetSpeed);
       if (safeTarget > Duration.zero) {
         await controller.seekTo(safeTarget);
@@ -392,17 +555,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       setState(() {
         _selectedSource = source;
         _initializing = false;
+        _switchingVideo = false;
         _error = null;
       });
       if (!mounted) {
         return false;
-      }
-      if (!_resumeMessageShown &&
-          targetPosition >= const Duration(seconds: 5)) {
-        _resumeMessageShown = true;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已从 ${_time(safeTarget)} 继续播放。')),
-        );
       }
       return true;
     } catch (error) {
@@ -418,15 +575,120 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       }
       setState(() {
         _initializing = false;
+        _switchingVideo = false;
         _error = '无法播放此视频源：${redactSensitiveText(error)}';
       });
       return false;
     }
   }
 
-  String _cacheKey(VideoSource source) {
-    final quality = source.label.replaceAll(RegExp(r'[^0-9A-Za-z]+'), '_');
-    return 'flule34_${widget.video.id}_$quality';
+  Future<void> _preCacheDetails(VideoDetails details, bool aggressive) async {
+    final operation = ++_preCacheOperation;
+    late final BetterPlayerController controller;
+    try {
+      controller = await _controllerReady.future.timeout(
+        const Duration(seconds: 5),
+      );
+    } on TimeoutException {
+      if (mounted && operation == _preCacheOperation) {
+        unawaited(_logs.warning('playback', '下一视频预缓存已取消：播放器控制器未及时就绪。'));
+      }
+      return;
+    }
+    if (!mounted ||
+        operation != _preCacheOperation ||
+        details.sources.isEmpty) {
+      return;
+    }
+    final network = await _currentNetworkClass();
+    if (!mounted ||
+        operation != _preCacheOperation ||
+        network == NetworkClass.offline) {
+      return;
+    }
+    final settings = ref.read(appSettingsRepositoryProvider).settings;
+    final source = selectVideoSource(
+      details.sources,
+      _qualityForNetwork(settings, network),
+    );
+    final key = videoCacheKey(details.video.id, source);
+    if (_preCacheKey == key) {
+      return;
+    }
+    final previous = _preCacheDataSource;
+    if (previous != null) {
+      try {
+        await controller.stopPreCache(previous);
+      } on Object {
+        // 停止过时预缓存失败不应影响新的预缓存任务。
+      }
+    }
+    if (!mounted || operation != _preCacheOperation) {
+      return;
+    }
+    final headers = <String, String>{..._mediaHeaders};
+    final cookie = await widget.api.sessionCookieHeader();
+    if (cookie != null) {
+      headers['Cookie'] = cookie;
+    }
+    if (!mounted || operation != _preCacheOperation) {
+      return;
+    }
+    final preCacheSize = aggressive
+        ? playlistVideoPreCacheSizeForNetwork(network)
+        : videoPreCacheSizeForNetwork(network);
+    final dataSource = BetterPlayerDataSource.network(
+      source.url,
+      headers: headers,
+      cacheConfiguration: BetterPlayerCacheConfiguration(
+        useCache: true,
+        preCacheSize: preCacheSize,
+        maxCacheSize: 1024 * 1024 * 1024,
+        maxCacheFileSize: 512 * 1024 * 1024,
+        key: key,
+      ),
+    );
+    _preCacheDataSource = dataSource;
+    _preCacheKey = key;
+    try {
+      await controller.preCache(dataSource);
+      if (mounted && operation == _preCacheOperation) {
+        unawaited(
+          _logs.info(
+            'playback',
+            '${aggressive ? '播放列表' : ''}下一视频预缓存完成：video=${details.video.id}，'
+                '清晰度=${source.label}，大小=${preCacheSize ~/ (1024 * 1024)}MB。',
+          ),
+        );
+      }
+    } catch (error, stackTrace) {
+      if (mounted && operation == _preCacheOperation) {
+        unawaited(
+          _logs.warning(
+            'playback',
+            '下一视频预缓存失败：video=${details.video.id}。',
+            error: error,
+            stackTrace: stackTrace,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopPreCache() async {
+    _preCacheOperation += 1;
+    final dataSource = _preCacheDataSource;
+    _preCacheDataSource = null;
+    _preCacheKey = null;
+    final controller = _controller;
+    if (dataSource == null || controller == null) {
+      return;
+    }
+    try {
+      await controller.stopPreCache(dataSource);
+    } on Object {
+      // 预缓存只是体验优化，取消失败不能阻断播放。
+    }
   }
 
   void _bindVideoController() {
@@ -490,6 +752,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
             ),
           );
         }
+      case BetterPlayerEventType.finished:
+        if (!_finishedNotified) {
+          _finishedNotified = true;
+          widget.onFinished?.call();
+        }
       default:
         break;
     }
@@ -541,7 +808,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       unawaited(_updateWakeLock(keepAwake));
     }
     final second = value.position.inSeconds;
-    if (value.initialized &&
+    if (!_switchingVideo &&
+        value.initialized &&
         second >= 0 &&
         (second - _lastSavedSecond).abs() >= 5) {
       _lastSavedSecond = second;
@@ -587,6 +855,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (details.sources.isEmpty) {
         setState(() {
           _initializing = false;
+          _switchingVideo = false;
           _error = '刷新后仍未找到可播放的视频源。';
         });
         return false;
@@ -604,6 +873,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (!force && _failedUrls.contains(nextSource.url)) {
         setState(() {
           _initializing = false;
+          _switchingVideo = false;
           _error = '视频地址刷新后仍不可用，请稍后重试。';
         });
         return false;
@@ -618,6 +888,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (mounted) {
         setState(() {
           _initializing = false;
+          _switchingVideo = false;
           _error = '刷新视频地址失败：${redactSensitiveText(error)}';
         });
       }
@@ -645,13 +916,17 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   Future<void> _persist(VideoPlayerValue value) {
+    return _persistForVideo(widget.video, value);
+  }
+
+  Future<void> _persistForVideo(VideoItem video, VideoPlayerValue value) {
     final duration = value.duration;
     if (!value.initialized || duration == null) {
       return Future.value();
     }
     return _playback.savePositionForAccount(
       userId: _playbackUserId,
-      video: widget.video,
+      video: video,
       position: value.position,
       duration: duration,
     );
@@ -689,7 +964,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                 fit: BoxFit.cover,
                 errorWidget: (context, _, _) => const SizedBox.shrink(),
               ),
-            if (_initializing)
+            if (_initializing && !_switchingVideo)
               ColoredBox(
                 color: Colors.black54,
                 child: Center(
@@ -742,16 +1017,28 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   static const _speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
   ValueNotifier<VideoPlayerValue>? _videoController;
   Timer? _hideTimer;
-  var _visible = true;
+  late bool _visible;
+  late bool _useFullscreenLayout;
+  var _animateOpacity = true;
   Duration? _dragPosition;
   List<({Duration start, Duration end})> _stableBuffered = const [];
 
   @override
   void initState() {
     super.initState();
+    _visible = initialVideoControlsVisible(widget.controller.isFullScreen);
+    _useFullscreenLayout = widget.controller.isFullScreen;
     widget.controller.addEventsListener(_onPlayerEvent);
     _bindVideoController();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scheduleHide());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      widget.onVisibilityChanged(_visible);
+      if (_visible) {
+        _scheduleHide();
+      }
+    });
   }
 
   @override
@@ -761,6 +1048,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
       oldWidget.controller.removeEventsListener(_onPlayerEvent);
       widget.controller.addEventsListener(_onPlayerEvent);
       _stableBuffered = const [];
+      _useFullscreenLayout = widget.controller.isFullScreen;
       _bindVideoController();
     } else if (oldWidget.selectedSource.url != widget.selectedSource.url) {
       _stableBuffered = const [];
@@ -782,10 +1070,46 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
       case BetterPlayerEventType.changedResolution:
-      case BetterPlayerEventType.openFullscreen:
-      case BetterPlayerEventType.hideFullscreen:
         _bindVideoController();
         setState(() {});
+      case BetterPlayerEventType.openFullscreen:
+        _hideTimer?.cancel();
+        _bindVideoController();
+        setState(() {
+          _visible = videoControlsVisibleAfterFullscreenEvent(
+            event.betterPlayerEventType,
+            _visible,
+          );
+          _useFullscreenLayout = videoControlsUseFullscreenLayoutAfterEvent(
+            event.betterPlayerEventType,
+            _useFullscreenLayout,
+          );
+          _animateOpacity = videoControlsAnimateOpacityAfterEvent(
+            event.betterPlayerEventType,
+          );
+        });
+        widget.onVisibilityChanged(false);
+      case BetterPlayerEventType.hideFullscreen:
+        _bindVideoController();
+        setState(() {
+          _visible = videoControlsVisibleAfterFullscreenEvent(
+            event.betterPlayerEventType,
+            _visible,
+          );
+          _useFullscreenLayout = videoControlsUseFullscreenLayoutAfterEvent(
+            event.betterPlayerEventType,
+            _useFullscreenLayout,
+          );
+          _animateOpacity = videoControlsAnimateOpacityAfterEvent(
+            event.betterPlayerEventType,
+          );
+        });
+        widget.onVisibilityChanged(true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _scheduleHide();
+          }
+        });
       case BetterPlayerEventType.setupDataSource:
         _stableBuffered = const [];
         _bindVideoController();
@@ -888,6 +1212,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
       fit: StackFit.expand,
       children: [
         GestureDetector(
+          key: const ValueKey('video-controls-tap-area'),
           behavior: HitTestBehavior.opaque,
           onTap: _toggleControls,
           onDoubleTapDown: (details) {
@@ -905,12 +1230,15 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
         IgnorePointer(
           ignoring: !_visible,
           child: AnimatedOpacity(
+            key: const ValueKey('video-controls-opacity'),
             opacity: _visible ? 1 : 0,
-            duration: const Duration(milliseconds: 160),
+            duration: _animateOpacity
+                ? const Duration(milliseconds: 160)
+                : Duration.zero,
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (widget.controller.isFullScreen)
+                if (_useFullscreenLayout)
                   Align(
                     alignment: Alignment.topCenter,
                     child: _buildTopRow(context),
@@ -939,7 +1267,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
           children: [
             IconButton(
               tooltip: '退出全屏',
-              onPressed: widget.controller.exitFullScreen,
+              onPressed: () => unawaited(_exitFullScreen()),
               icon: const Icon(
                 Icons.arrow_back,
                 color: Colors.white,
@@ -975,11 +1303,12 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
       height: 1,
       shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
     );
-    final isFullScreen = widget.controller.isFullScreen;
+    final isFullScreen = _useFullscreenLayout;
+    final horizontalInset = isFullScreen ? 18.0 : 6.0;
     return SafeArea(
       top: false,
       bottom: isFullScreen,
-      minimum: const EdgeInsets.fromLTRB(6, 0, 6, 3),
+      minimum: EdgeInsets.fromLTRB(horizontalInset, 0, horizontalInset, 3),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1044,22 +1373,40 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
                   onSelected: (speed) =>
                       unawaited(widget.controller.setSpeed(speed)),
                 ),
-                _CompactIconButton(
-                  tooltip: widget.controller.isFullScreen ? '退出全屏' : '全屏',
-                  onPressed: widget.controller.isFullScreen
-                      ? widget.controller.exitFullScreen
-                      : widget.controller.enterFullScreen,
-                  icon: widget.controller.isFullScreen
-                      ? Icons.fullscreen_exit
-                      : Icons.fullscreen,
-                ),
-                if (isFullScreen) const SizedBox(width: 20),
+                if (!isFullScreen)
+                  _CompactIconButton(
+                    tooltip: '全屏',
+                    onPressed: _enterFullScreen,
+                    icon: Icons.fullscreen,
+                  ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _enterFullScreen() {
+    _hideTimer?.cancel();
+    setState(() {
+      _visible = false;
+      _animateOpacity = false;
+    });
+    widget.onVisibilityChanged(false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !widget.controller.isFullScreen) {
+        widget.controller.enterFullScreen();
+      }
+    });
+  }
+
+  Future<void> _exitFullScreen() async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final popped = await navigator.maybePop();
+    if (!popped && widget.controller.isFullScreen) {
+      widget.controller.exitFullScreen();
+    }
   }
 }
 
@@ -1114,11 +1461,12 @@ class _CompactPopup<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return PopupMenuButton<T>(
       tooltip: tooltip,
       initialValue: selected,
       onSelected: onSelected,
-      color: const Color(0xff242529),
+      color: colors.surfaceContainerHigh,
       constraints: const BoxConstraints(minWidth: 92, maxWidth: 150),
       itemBuilder: (context) => values
           .map(
@@ -1130,10 +1478,13 @@ class _CompactPopup<T> extends StatelessWidget {
                   SizedBox(
                     width: 22,
                     child: value == selected
-                        ? const Icon(Icons.check, size: 17)
+                        ? Icon(Icons.check, size: 17, color: colors.onSurface)
                         : null,
                   ),
-                  Text(labelFor(value)),
+                  Text(
+                    labelFor(value),
+                    style: TextStyle(color: colors.onSurface),
+                  ),
                 ],
               ),
             ),

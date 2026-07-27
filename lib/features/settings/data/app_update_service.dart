@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/config/app_build_config.dart';
+import '../../../core/logging/app_log_service.dart';
 import '../domain/app_settings.dart';
 
 enum AppUpdateStatus { unconfigured, upToDate, updateAvailable, failed }
@@ -50,6 +53,8 @@ final class AppUpdateService {
     PackageInfoLoader? packageInfoLoader,
     AbiLoader? abiLoader,
     Uri? updateApiUri,
+    Uri? releaseFeedUri,
+    AppLogService? logService,
   }) : _client =
            client ??
            Dio(
@@ -65,13 +70,17 @@ final class AppUpdateService {
        _ownsClient = client == null,
        _packageInfoLoader = packageInfoLoader ?? PackageInfo.fromPlatform,
        _abiLoader = abiLoader ?? _loadSupportedAbis,
-       _updateApiUri = updateApiUri ?? AppBuildConfig.updateApiUri;
+       _updateApiUri = updateApiUri ?? AppBuildConfig.updateApiUri,
+       _releaseFeedUri = releaseFeedUri ?? _defaultReleaseFeedUri(),
+       _logs = logService;
 
   final Dio _client;
   final bool _ownsClient;
   final PackageInfoLoader _packageInfoLoader;
   final AbiLoader _abiLoader;
   final Uri? _updateApiUri;
+  final Uri? _releaseFeedUri;
+  final AppLogService? _logs;
 
   Uri? get configuredSource => _updateApiUri;
 
@@ -124,13 +133,102 @@ final class AppUpdateService {
         release: release,
         message: available ? '发现新版本 ${release.version}。' : '当前已是最新版本。',
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      final feed = _releaseFeedUri;
+      if (feed != null) {
+        try {
+          final release = await _checkReleaseFeed(feed, channel);
+          if (release != null) {
+            final available =
+                compareVersions(release.version, currentVersion) > 0;
+            unawaited(
+              _logs?.warning(
+                'update',
+                'GitHub API 检查失败，已通过 Releases Feed 完成检查。',
+                error: error,
+                stackTrace: stackTrace,
+              ),
+            );
+            return AppUpdateResult(
+              status: available
+                  ? AppUpdateStatus.updateAvailable
+                  : AppUpdateStatus.upToDate,
+              currentVersion: currentVersion,
+              release: release,
+              message: available ? '发现新版本 ${release.version}。' : '当前已是最新版本。',
+            );
+          }
+        } catch (feedError, feedStackTrace) {
+          unawaited(
+            _logs?.warning(
+              'update',
+              'GitHub API 与 Releases Feed 均检查失败。',
+              error: feedError,
+              stackTrace: feedStackTrace,
+            ),
+          );
+        }
+      }
       return AppUpdateResult(
         status: AppUpdateStatus.failed,
         currentVersion: currentVersion,
-        message: '检查更新失败：$error',
+        message: _failureMessage(error),
       );
     }
+  }
+
+  Future<AppRelease?> _checkReleaseFeed(
+    Uri source,
+    UpdateChannel channel,
+  ) async {
+    final response = await _client.getUri<String>(
+      source,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: const {'Accept': 'application/atom+xml,application/xml'},
+      ),
+    );
+    final body = response.data ?? '';
+    for (final match in RegExp(
+      r'<entry\b[^>]*>(.*?)</entry>',
+      caseSensitive: false,
+      dotAll: true,
+    ).allMatches(body)) {
+      final entry = match.group(1) ?? '';
+      final pageValue = RegExp(
+        r'''<link\b[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']''',
+        caseSensitive: false,
+      ).firstMatch(entry)?.group(1);
+      final pageUri = _httpsUri(pageValue);
+      if (pageUri == null) {
+        continue;
+      }
+      final rawVersion = pageUri.pathSegments.isEmpty
+          ? null
+          : pageUri.pathSegments.last;
+      if (rawVersion == null || rawVersion.isEmpty) {
+        continue;
+      }
+      final version = rawVersion.replaceFirst(RegExp(r'^[vV]'), '');
+      final title = _xmlText(entry, 'title') ?? rawVersion;
+      final prerelease =
+          version.contains('-') ||
+          RegExp(
+            r'\b(?:alpha|beta|preview|rc|pre-release)\b',
+            caseSensitive: false,
+          ).hasMatch(title);
+      if (channel == UpdateChannel.stable && prerelease) {
+        continue;
+      }
+      return AppRelease(
+        version: version,
+        title: title,
+        pageUri: pageUri,
+        prerelease: prerelease,
+        publishedAt: DateTime.tryParse(_xmlText(entry, 'updated') ?? ''),
+      );
+    }
+    return null;
   }
 
   static int compareVersions(String left, String right) {
@@ -227,6 +325,55 @@ final class AppUpdateService {
 
   static Future<List<String>> _loadSupportedAbis() async {
     return (await DeviceInfoPlugin().androidInfo).supportedAbis;
+  }
+
+  static Uri? _defaultReleaseFeedUri() {
+    final repository = AppBuildConfig.repositoryUri;
+    if (repository == null) {
+      return null;
+    }
+    final path = repository.path.endsWith('/')
+        ? '${repository.path}releases.atom'
+        : '${repository.path}/releases.atom';
+    return repository.replace(path: path, query: null, fragment: null);
+  }
+
+  static String _failureMessage(Object error) {
+    if (error is DioException) {
+      final status = error.response?.statusCode;
+      if (status == 403 || status == 429) {
+        return 'GitHub 暂时拒绝了更新请求，请稍后重试或更换网络。';
+      }
+      return switch (error.type) {
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.receiveTimeout ||
+        DioExceptionType.sendTimeout => '检查更新超时，请稍后重试。',
+        DioExceptionType.connectionError => '无法连接 GitHub，请检查网络后重试。',
+        _ => '暂时无法检查更新，请稍后重试。',
+      };
+    }
+    return '暂时无法检查更新，请稍后重试。';
+  }
+
+  static String? _xmlText(String source, String tag) {
+    final value = RegExp(
+      '<${RegExp.escape(tag)}\\b[^>]*>(.*?)</${RegExp.escape(tag)}>',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(source)?.group(1);
+    if (value == null) {
+      return null;
+    }
+    final cleaned = value
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&amp;', '&')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return cleaned.isEmpty ? null : cleaned;
   }
 
   static List<int> _versionParts(String version) {

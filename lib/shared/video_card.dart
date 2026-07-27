@@ -10,6 +10,7 @@ import '../core/api/rule34video_api.dart';
 import '../core/models/video_models.dart';
 import '../features/auth/login_sheet.dart';
 import '../features/library/local_library_picker.dart';
+import '../features/library/playlist_picker.dart';
 import '../features/settings/domain/quality_selection.dart';
 
 class VideoCard extends ConsumerWidget {
@@ -18,41 +19,79 @@ class VideoCard extends ConsumerWidget {
     required this.video,
     required this.onTap,
     this.progress,
+    this.compact = false,
+    this.contextActionLabel,
+    this.onContextAction,
   });
 
   final VideoItem video;
   final VoidCallback onTap;
   final double? progress;
+  final bool compact;
+  final String? contextActionLabel;
+  final Future<void> Function()? onContextAction;
 
   Future<void> _showActions(BuildContext context, WidgetRef ref) async {
     final api = ref.read(rule34VideoApiProvider);
-    var isFavorite = video.isFavorite == true;
-    if (api.sessionStore.isLoggedIn && video.isFavorite == null) {
-      try {
-        isFavorite = await api.favoriteStatus(video);
-      } catch (error) {
-        if (context.mounted) {
-          _message(context, error.toString());
-        }
-        return;
-      }
-    }
-    if (!context.mounted) {
-      return;
-    }
+    final loggedIn = api.sessionStore.isLoggedIn;
+    final initialFavorite =
+        video.isFavorite ??
+        (loggedIn ? api.cachedFavoriteStatus(video.id) : null);
+    final Future<bool>? favoriteFuture = loggedIn
+        ? initialFavorite == null
+              ? api.favoriteStatus(video)
+              : Future.value(initialFavorite)
+        : null;
+    final detailsFuture = api.loadVideoDetails(video);
+    unawaited(
+      detailsFuture.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+    );
     final action = await showModalBottomSheet<_VideoCardAction>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            ListTile(
-              leading: Icon(
-                isFavorite ? Icons.favorite : Icons.favorite_border,
+            if (!loggedIn)
+              ListTile(
+                leading: const Icon(Icons.favorite_border),
+                title: const Text('收藏'),
+                onTap: () => Navigator.pop(context, _VideoCardAction.favorite),
+              )
+            else
+              FutureBuilder<bool>(
+                future: favoriteFuture,
+                initialData: initialFavorite,
+                builder: (context, snapshot) {
+                  final value = snapshot.data;
+                  final loading = value == null && !snapshot.hasError;
+                  return ListTile(
+                    leading: loading
+                        ? const SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            value == true
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                          ),
+                    title: Text(
+                      loading
+                          ? '正在读取收藏状态'
+                          : snapshot.hasError
+                          ? '收藏状态读取失败，点击重试'
+                          : value == true
+                          ? '取消收藏'
+                          : '收藏',
+                    ),
+                    onTap: loading
+                        ? null
+                        : () =>
+                              Navigator.pop(context, _VideoCardAction.favorite),
+                  );
+                },
               ),
-              title: Text(isFavorite ? '取消收藏' : '收藏'),
-              onTap: () => Navigator.pop(context, _VideoCardAction.favorite),
-            ),
             ListTile(
               leading: const Icon(Icons.download_outlined),
               title: const Text('下载'),
@@ -60,15 +99,29 @@ class VideoCard extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.library_add_outlined),
-              title: const Text('入库'),
+              title: const Text('本地分类库'),
               onTap: () =>
                   Navigator.pop(context, _VideoCardAction.localLibrary),
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add),
+              title: const Text('播放列表'),
+              onTap: () => Navigator.pop(context, _VideoCardAction.playlist),
             ),
             ListTile(
               leading: const Icon(Icons.share_outlined),
               title: const Text('分享'),
               onTap: () => Navigator.pop(context, _VideoCardAction.share),
             ),
+            if (contextActionLabel != null && onContextAction != null) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.remove_circle_outline),
+                title: Text(contextActionLabel!),
+                onTap: () =>
+                    Navigator.pop(context, _VideoCardAction.contextAction),
+              ),
+            ],
           ],
         ),
       ),
@@ -84,12 +137,21 @@ class VideoCard extends ConsumerWidget {
           if (!await _ensureLogin(context, api) || !context.mounted) {
             return;
           }
+          final isFavorite = favoriteFuture == null
+              ? await api.favoriteStatus(video)
+              : await favoriteFuture;
           await api.toggleFavorite(video: video, add: !isFavorite);
           if (context.mounted) {
             _message(context, isFavorite ? '已取消收藏。' : '已加入收藏。');
           }
         case _VideoCardAction.download:
-          final details = await api.loadVideoDetails(video);
+          final details = await _loadDetailsWithProgress(
+            context,
+            detailsFuture,
+          );
+          if (details == null) {
+            return;
+          }
           if (!context.mounted) {
             return;
           }
@@ -111,14 +173,28 @@ class VideoCard extends ConsumerWidget {
             _message(context, '${source.label} 已加入下载队列。');
           }
         case _VideoCardAction.localLibrary:
-          final name = await addVideoToLocalLibrary(
+          final message = await manageVideoLocalLibraries(
             context: context,
             repository: ref.read(localLibraryRepositoryProvider),
             video: video,
           );
-          if (name != null && context.mounted) {
-            _message(context, '已加入“$name”。');
+          if (message != null && context.mounted) {
+            _message(context, message);
           }
+        case _VideoCardAction.playlist:
+          if (!await _ensureLogin(context, api) || !context.mounted) {
+            return;
+          }
+          final message = await manageVideoAccountPlaylists(
+            context: context,
+            api: api,
+            video: video,
+          );
+          if (message != null && context.mounted) {
+            _message(context, message);
+          }
+        case _VideoCardAction.contextAction:
+          await onContextAction?.call();
       }
     } catch (error) {
       if (context.mounted) {
@@ -155,6 +231,48 @@ class VideoCard extends ConsumerWidget {
     );
   }
 
+  Future<VideoDetails?> _loadDetailsWithProgress(
+    BuildContext context,
+    Future<VideoDetails> future,
+  ) async {
+    final shouldShowProgress = await Future.any<bool>([
+      future.then((_) => false, onError: (Object _, StackTrace _) => false),
+      Future<bool>.delayed(const Duration(milliseconds: 120), () => true),
+    ]);
+    if (!shouldShowProgress) {
+      return future;
+    }
+    if (!context.mounted) {
+      return null;
+    }
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final progressRoute = DialogRoute<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 18),
+            Expanded(child: Text('正在读取可用清晰度…')),
+          ],
+        ),
+      ),
+    );
+    unawaited(navigator.push(progressRoute));
+    try {
+      return await future;
+    } finally {
+      final routeNavigator = progressRoute.navigator;
+      if (routeNavigator != null) {
+        routeNavigator.removeRoute(progressRoute);
+      }
+    }
+  }
+
   void _message(BuildContext context, String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
@@ -168,7 +286,9 @@ class VideoCard extends ConsumerWidget {
         final blurThumbnail = settingsRepository.settings.blurThumbnails;
         return Card(
           clipBehavior: Clip.antiAlias,
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          margin: compact
+              ? const EdgeInsets.all(5)
+              : const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: InkWell(
             onTap: onTap,
             child: Column(
@@ -265,7 +385,9 @@ class VideoCard extends ConsumerWidget {
                     minHeight: 3,
                   ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  padding: compact
+                      ? const EdgeInsets.fromLTRB(9, 8, 9, 9)
+                      : const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -276,34 +398,67 @@ class VideoCard extends ConsumerWidget {
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MetaText(
-                              text: video.publishedLabel ?? '',
-                              alignment: TextAlign.left,
+                      if (compact) ...[
+                        _MetaText(
+                          text: video.publishedLabel ?? '',
+                          alignment: TextAlign.left,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _MetaText(
+                                icon: Icons.thumb_up_alt_outlined,
+                                text: video.rating == null
+                                    ? ''
+                                    : video.ratingVotes == null
+                                    ? '${video.rating}%'
+                                    : '${video.rating}% (${formatCount(video.ratingVotes!)})',
+                                alignment: TextAlign.left,
+                              ),
                             ),
-                          ),
-                          Expanded(
-                            child: _MetaText(
-                              text: video.rating == null
-                                  ? ''
-                                  : video.ratingVotes == null
-                                  ? '${video.rating}%'
-                                  : '${video.rating}% (${formatCount(video.ratingVotes!)})',
-                              alignment: TextAlign.center,
+                            Expanded(
+                              child: _MetaText(
+                                icon: Icons.visibility_outlined,
+                                text: video.views == null
+                                    ? ''
+                                    : formatCount(video.views!),
+                                alignment: TextAlign.right,
+                              ),
                             ),
-                          ),
-                          Expanded(
-                            child: _MetaText(
-                              text: video.views == null
-                                  ? ''
-                                  : formatCount(video.views!),
-                              alignment: TextAlign.right,
+                          ],
+                        ),
+                      ] else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _MetaText(
+                                text: video.publishedLabel ?? '',
+                                alignment: TextAlign.left,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                            Expanded(
+                              child: _MetaText(
+                                icon: Icons.thumb_up_alt_outlined,
+                                text: video.rating == null
+                                    ? ''
+                                    : video.ratingVotes == null
+                                    ? '${video.rating}%'
+                                    : '${video.rating}% (${formatCount(video.ratingVotes!)})',
+                                alignment: TextAlign.center,
+                              ),
+                            ),
+                            Expanded(
+                              child: _MetaText(
+                                icon: Icons.visibility_outlined,
+                                text: video.views == null
+                                    ? ''
+                                    : formatCount(video.views!),
+                                alignment: TextAlign.right,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -316,7 +471,14 @@ class VideoCard extends ConsumerWidget {
   }
 }
 
-enum _VideoCardAction { favorite, download, localLibrary, share }
+enum _VideoCardAction {
+  favorite,
+  download,
+  localLibrary,
+  playlist,
+  share,
+  contextAction,
+}
 
 class _Thumbnail extends StatelessWidget {
   const _Thumbnail({required this.url, this.fallbackUrl});
@@ -361,21 +523,42 @@ class _BrokenThumbnail extends StatelessWidget {
 }
 
 class _MetaText extends StatelessWidget {
-  const _MetaText({required this.text, required this.alignment});
+  const _MetaText({required this.text, required this.alignment, this.icon});
 
   final String text;
   final TextAlign alignment;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: alignment,
-      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: switch (alignment) {
+        TextAlign.center => MainAxisAlignment.center,
+        TextAlign.right || TextAlign.end => MainAxisAlignment.end,
+        _ => MainAxisAlignment.start,
+      },
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 3),
+        ],
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: alignment,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: color),
+          ),
+        ),
+      ],
     );
   }
 }

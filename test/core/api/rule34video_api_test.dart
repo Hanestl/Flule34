@@ -387,6 +387,9 @@ void main() {
             </div>
           ''');
         }
+        if (options.uri.path == '/my/subscriptions/2/') {
+          return _htmlResponse('<html></html>');
+        }
         return _htmlResponse('<html></html>');
       }),
     );
@@ -399,8 +402,50 @@ void main() {
     expect(paths, [
       '/my/history/3/',
       '/my/subscriptions/',
+      '/my/subscriptions/2/',
       '/models/example-artist/2/',
     ]);
+  });
+
+  test('关注视频按发布时间从新到旧返回', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        return switch (options.uri.path) {
+          '/my/subscriptions/' => _htmlResponse('''
+              <div class="item"><a href="/models/older/">较旧来源</a></div>
+              <div class="item"><a href="/models/newer/">较新来源</a></div>
+            '''),
+          '/my/subscriptions/2/' => _htmlResponse('<html></html>'),
+          '/models/older/' => _htmlResponse(
+            _videoListItem(
+              id: '1',
+              slug: 'older-video',
+              title: '较旧视频',
+              published: '3 days ago',
+            ),
+          ),
+          '/models/newer/' => _htmlResponse(
+            _videoListItem(
+              id: '2',
+              slug: 'newer-video',
+              title: '较新视频',
+              published: '2 hours ago',
+            ),
+          ),
+          _ => _htmlResponse('<html></html>'),
+        };
+      }),
+    );
+    addTearDown(api.close);
+
+    final videos = await api.loadFollowingFeed(1);
+
+    expect(videos.map((item) => item.id), ['2', '1']);
   });
 
   test('订阅缓存按账号隔离，切换账号后必须重新请求', () async {
@@ -411,6 +456,9 @@ void main() {
     final api = Rule34VideoApi(
       sessionStore: harness.sessionStore,
       httpClientAdapter: _TestAdapter((options) {
+        if (options.uri.path == '/my/subscriptions/2/') {
+          return _htmlResponse('<html></html>');
+        }
         requests += 1;
         final userId = harness.sessionStore.currentUserId!;
         return _htmlResponse('''
@@ -447,12 +495,12 @@ void main() {
           (value) => value + 1,
           ifAbsent: () => 1,
         );
-        if (options.uri.path == '/models/') {
+        if (options.uri.path == '/models/hydrafxx/') {
           return _htmlResponse('''
-            <div class="item">
-              <a href="/models/hydrafxx/" title="HydraFXX">
+            <div class="brand_image">
+              <div class="brand_image_wrapper">
                 <img src="/contents/models/87/s1_hydra.png" alt="HydraFXX">
-              </a>
+              </div>
             </div>
           ''');
         }
@@ -494,8 +542,134 @@ void main() {
       resolvedUploader.thumbnailUrl,
       'https://rule34video.com/contents/avatars/98000/98965.png',
     );
-    expect(requests['/models/'], 1);
+    expect(requests['/models/hydrafxx/'], 1);
     expect(requests['/members/98965/'], 1);
+  });
+
+  test('账号播放列表可分页读取并使用已验证参数加入和移除视频', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final requests = <RequestOptions>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options);
+        if (options.uri.path == '/my/playlists/') {
+          return _htmlResponse('''
+            <div class="item">
+              <a href="/my/playlists/42/example/" title="Example playlist">
+                Example playlist
+              </a>
+            </div>
+          ''');
+        }
+        if (options.uri.path == '/my/playlists/2/') {
+          return _htmlResponse('<html></html>');
+        }
+        return _htmlResponse('<success/>');
+      }),
+    );
+    addTearDown(api.close);
+
+    final playlist = (await api.loadMyPlaylists()).single;
+    await api.addVideoToPlaylist(
+      video: const VideoItem(id: '123', title: 'Example', slug: 'example'),
+      playlistId: playlist.id,
+    );
+    await api.removeVideoFromPlaylist(
+      video: const VideoItem(id: '123', title: 'Example', slug: 'example'),
+      playlistId: playlist.id,
+    );
+
+    expect(requests.map((item) => item.uri.path), [
+      '/my/playlists/',
+      '/my/playlists/2/',
+      '/video/123/example/',
+      '/video/123/example/',
+    ]);
+    expect(requests.last.method, 'POST');
+    expect(requests.last.data, containsPair('fav_type', '10'));
+    expect(requests.last.data, containsPair('playlist_id', '42'));
+    expect(
+      requests.last.data,
+      containsPair('action', 'delete_from_favourites'),
+    );
+  });
+
+  test('账号播放列表使用网站表单协议创建、编辑和删除', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final requests = <RequestOptions>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options);
+        if (options.method == 'GET' &&
+            options.uri.path == '/edit-playlist/42/') {
+          return _htmlResponse('''
+            <input name="title" value="原名称">
+            <textarea name="description">原描述</textarea>
+            <input type="radio" name="is_private" value="1" checked>
+          ''');
+        }
+        if (options.method == 'GET' && options.uri.path == '/my/playlists/') {
+          return _htmlResponse('{"status":"success"}');
+        }
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+
+    final current = await api.loadPlaylistForm('42');
+    await api.createPlaylist(
+      const PlaylistFormData(
+        title: '新列表',
+        description: '新描述',
+        isPrivate: false,
+      ),
+    );
+    await api.updatePlaylist(
+      playlistId: '42',
+      form: const PlaylistFormData(
+        title: '新名称',
+        description: '更新描述',
+        isPrivate: true,
+      ),
+    );
+    await api.deletePlaylist('42');
+
+    expect(current.title, '原名称');
+    expect(current.description, '原描述');
+    expect(current.isPrivate, isTrue);
+    expect(requests.map((item) => item.uri.path), [
+      '/edit-playlist/42/',
+      '/create-playlist/',
+      '/edit-playlist/42/',
+      '/my/playlists/',
+    ]);
+    expect(_requestFields(requests[1].data), {
+      'title': '新列表',
+      'description': '新描述',
+      'is_private': '0',
+      'action': 'add_new_complete',
+    });
+    expect(_requestFields(requests[2].data), {
+      'title': '新名称',
+      'description': '更新描述',
+      'is_private': '1',
+      'action': 'change_complete',
+    });
+    expect(requests[3].uri.queryParameters, containsPair('mode', 'async'));
+    expect(requests[3].uri.queryParameters, containsPair('format', 'json'));
+    expect(
+      requests[3].uri.queryParameters,
+      containsPair('action', 'delete_playlists'),
+    );
+    expect(requests[3].uri.queryParametersAll['delete[]'], ['42']);
   });
 
   test('发现目录和集合视频使用正确的路径与排序参数', () async {
@@ -913,6 +1087,28 @@ ResponseBody _htmlResponse(String body) {
       Headers.contentTypeHeader: ['text/html; charset=utf-8'],
     },
   );
+}
+
+String _videoListItem({
+  required String id,
+  required String slug,
+  required String title,
+  required String published,
+}) {
+  return '''
+    <div class="item thumb video_$id">
+      <a class="th js-open-popup" href="/video/$id/$slug/" title="$title">
+        <img class="thumb" data-original="/$id.jpg" alt="$title">
+      </a>
+      <div class="time">1:00</div>
+      <div class="thumb_title">$title</div>
+      <div class="thumb_info">
+        <div class="added">$published</div>
+        <div class="rating">100% (1)</div>
+        <div class="views">1</div>
+      </div>
+    </div>
+  ''';
 }
 
 String? _header(RequestOptions options, String name) {
