@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api/rule34video_api.dart';
 import '../core/database/app_database.dart';
+import '../core/logging/app_log_service.dart';
 import '../core/session/secret_store.dart';
 import '../core/session/secure_cookie_storage.dart';
 import '../core/session/session_store.dart';
@@ -14,6 +15,8 @@ import '../core/services/share_service.dart';
 import '../features/downloads/data/background_download_platform_service.dart';
 import '../features/downloads/data/download_repository.dart';
 import '../features/downloads/domain/download_models.dart';
+import '../features/library/data/local_library_repository.dart';
+import '../features/library/data/curated_library_seeder.dart';
 import '../features/playback/data/playback_repository.dart';
 import '../features/search/data/search_history_repository.dart';
 import '../features/settings/data/app_settings_repository.dart';
@@ -23,9 +26,30 @@ final appSettingsStoreProvider = Provider<AppSettingsStore>((ref) {
   return SharedPreferencesAppSettingsStore();
 });
 
+final appLogServiceProvider = Provider<AppLogService>((ref) {
+  return sharedAppLogService;
+});
+
 final appSettingsRepositoryProvider = Provider<AppSettingsRepository>((ref) {
   final repository = AppSettingsRepository(ref.watch(appSettingsStoreProvider));
-  ref.onDispose(repository.dispose);
+  final logs = ref.watch(appLogServiceProvider);
+  void syncLogSettings() {
+    if (!repository.isLoaded) {
+      return;
+    }
+    unawaited(
+      logs.configure(
+        enabled: repository.settings.debugLoggingEnabled,
+        retentionDays: repository.settings.debugLogRetentionDays,
+      ),
+    );
+  }
+
+  repository.addListener(syncLogSettings);
+  ref.onDispose(() {
+    repository.removeListener(syncLogSettings);
+    repository.dispose();
+  });
   return repository;
 });
 
@@ -82,6 +106,7 @@ final downloadPlatformServiceProvider = Provider<DownloadPlatformService>((
         .watch(appSettingsRepositoryProvider)
         .settings
         .downloadConcurrentTasks,
+    logService: ref.watch(appLogServiceProvider),
   );
 });
 
@@ -91,6 +116,7 @@ final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
     ref.watch(rule34VideoApiProvider),
     ref.watch(downloadPlatformServiceProvider),
     ref.watch(appSettingsRepositoryProvider),
+    logService: ref.watch(appLogServiceProvider),
   );
   ref.onDispose(repository.dispose);
   return repository;
@@ -101,6 +127,21 @@ final playbackRepositoryProvider = Provider<PlaybackRepository>((ref) {
     ref.watch(appDatabaseProvider),
     ref.watch(sessionStoreProvider),
     ref.watch(appSettingsRepositoryProvider),
+  );
+});
+
+final localLibraryRepositoryProvider = Provider<LocalLibraryRepository>((ref) {
+  return DriftLocalLibraryRepository(
+    ref.watch(appDatabaseProvider),
+    logService: ref.watch(appLogServiceProvider),
+  );
+});
+
+final curatedLibrarySeederProvider = Provider<CuratedLibrarySeeder>((ref) {
+  return CuratedLibrarySeeder(
+    ref.watch(appDatabaseProvider),
+    const AssetCuratedLibraryManifestLoader(),
+    logService: ref.watch(appLogServiceProvider),
   );
 });
 
@@ -115,9 +156,22 @@ final searchHistoryRepositoryProvider = Provider<SearchHistoryRepository>((
 });
 
 final appInitializationProvider = FutureProvider<void>((ref) async {
-  await ref.read(appSettingsRepositoryProvider).load();
-  final sessionStore = ref.read(sessionStoreProvider);
-  await sessionStore.load();
-  await ref.read(rule34VideoApiProvider).restoreSession();
-  await ref.read(downloadRepositoryProvider).initialize();
+  final logs = ref.read(appLogServiceProvider);
+  try {
+    await ref.read(appSettingsRepositoryProvider).load();
+    await ref.read(curatedLibrarySeederProvider).seedIfNeeded();
+    final sessionStore = ref.read(sessionStoreProvider);
+    await sessionStore.load();
+    await ref.read(rule34VideoApiProvider).restoreSession();
+    await ref.read(downloadRepositoryProvider).initialize();
+    unawaited(logs.info('bootstrap', 'App 初始化完成。'));
+  } catch (error, stackTrace) {
+    await logs.error(
+      'bootstrap',
+      'App 初始化失败。',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    rethrow;
+  }
 });

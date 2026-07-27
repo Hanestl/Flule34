@@ -40,6 +40,9 @@ android {
     lint {
         // Pub 插件可能位于不同盘符；只审计本应用模块，第三方依赖由其上游维护。
         checkDependencies = false
+        // Flutter 会在 Windows 上把 local.properties 重写为反斜杠路径，
+        // AGP 9 的 PropertyEscape 检查会对此产生误报。
+        disable += "PropertyEscape"
     }
 
     signingConfigs {
@@ -62,6 +65,12 @@ android {
             }
         }
     }
+}
+
+dependencies {
+    // background_downloader 9.5.6 的 URI 下载实现直接使用 DocumentFile，
+    // 但插件自身未声明该运行时依赖，必须由应用显式补齐。
+    implementation("androidx.documentfile:documentfile:1.1.0")
 }
 
 tasks.matching { task ->

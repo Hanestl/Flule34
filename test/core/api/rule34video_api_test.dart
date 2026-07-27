@@ -55,9 +55,41 @@ void main() {
       ),
       contains('PHPSESSID=session-value'),
     );
+    final credentials = await harness.sessionStore.loadCredentials();
+    expect(credentials?.email, 'user@example.com');
+    expect(credentials?.password, 'password');
   });
 
-  test('服务器明确返回未登录页面时清除恢复中的会话', () async {
+  test('没有可用 Cookie 时会使用安全存储中的账号密码自动登录', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.saveCredentials(
+      email: 'user@example.com',
+      password: 'password',
+    );
+    var loginRequests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        if (options.method == 'POST' && options.uri.path == '/login/') {
+          loginRequests += 1;
+          return _htmlResponse(
+            "<script>pageContext = { userId: '2421071' };</script>",
+          );
+        }
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.restoreSession();
+
+    expect(loginRequests, 1);
+    expect(harness.sessionStore.currentUserId, '2421071');
+  });
+
+  test('启动校验遇到无法识别的页面时保留本地身份并清理失效 Cookie', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -77,13 +109,130 @@ void main() {
 
     await api.restoreSession();
 
-    expect(harness.sessionStore.isLoggedIn, isFalse);
+    expect(harness.sessionStore.currentUserId, '2421071');
     expect(
       await harness.sessionStore.cookieHeaderFor(
         Uri.parse('https://rule34video.com/'),
       ),
       isNull,
     );
+  });
+
+  test('视频详情遇到过期登录重定向时仍使用公开请求继续播放', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.cookieJar.saveFromResponse(
+      Uri.parse('https://rule34video.com/'),
+      [Cookie('PHPSESSID', 'expired')..path = '/'],
+    );
+    await harness.sessionStore.authenticate('2421071');
+    var authenticatedRequests = 0;
+    var publicRequests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        final cookie = _header(options, HttpHeaders.cookieHeader);
+        if (cookie != null) {
+          authenticatedRequests += 1;
+          return ResponseBody.fromString(
+            '',
+            302,
+            headers: {
+              HttpHeaders.locationHeader: ['/?login'],
+            },
+          );
+        }
+        publicRequests += 1;
+        return _htmlResponse('''
+          <link rel="canonical" href="/video/4505897/example/">
+          <script>
+            flashvars = {
+              video_url: 'https://cdn.example.com/video_720p.mp4',
+              video_url_text: '720p'
+            };
+          </script>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+
+    final details = await api.loadVideoDetails(
+      const VideoItem(id: '4505897', title: 'Example', slug: 'example'),
+    );
+
+    expect(details.sources.single.label, '720p');
+    expect(authenticatedRequests, 1);
+    expect(publicRequests, 1);
+    expect(harness.sessionStore.isLoggedIn, isFalse);
+  });
+
+  test('视频详情短时缓存复用结果且强制刷新会重新请求', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    var requests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((_) {
+        requests += 1;
+        return _htmlResponse('''
+          <link rel="canonical" href="/video/4505897/example/">
+          <script>
+            flashvars = {
+              video_url: 'https://cdn.example.com/video-$requests.mp4',
+              video_url_text: '720p'
+            };
+          </script>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+    const video = VideoItem(id: '4505897', title: 'Example', slug: 'example');
+
+    final first = await api.loadVideoDetails(video);
+    final cached = await api.loadVideoDetails(video);
+    final refreshed = await api.refreshVideoDetails(video);
+
+    expect(requests, 2);
+    expect(first.sources.single.url, endsWith('video-1.mp4'));
+    expect(cached.sources.single.url, endsWith('video-1.mp4'));
+    expect(refreshed.sources.single.url, endsWith('video-2.mp4'));
+  });
+
+  test('当前账号资料优先读取数据库缓存且网络刷新在进程内去重', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    await harness.database.recordAuthenticatedAccount(
+      '2421071',
+      displayName: '缓存名称',
+      avatarUrl: 'https://example.com/cached.jpg',
+    );
+    var requests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((_) {
+        requests += 1;
+        return _htmlResponse('''
+          <div class="channel_logo">
+            <div class="avatar"><img src="/fresh.jpg"></div>
+            <h2 class="title">刷新名称</h2>
+          </div>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+
+    final cached = await api.loadCachedCurrentUserProfile();
+    final firstFresh = await api.loadCurrentUserProfile();
+    final secondFresh = await api.loadCurrentUserProfile();
+
+    expect(cached?.displayName, '缓存名称');
+    expect(firstFresh.displayName, '刷新名称');
+    expect(secondFresh.displayName, '刷新名称');
+    expect(requests, 1);
   });
 
   test('受保护页面重定向到登录页时清除过期会话', () async {
@@ -156,7 +305,7 @@ void main() {
     );
   });
 
-  test('已登录请求收到 403 时清除过期会话', () async {
+  test('普通 403 保留登录状态并按 HTTP 错误上报', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -172,10 +321,16 @@ void main() {
 
     await expectLater(
       api.toggleFavorite(video: video, add: true),
-      throwsA(isA<SessionExpiredException>()),
+      throwsA(
+        isA<HttpStatusException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          403,
+        ),
+      ),
     );
 
-    expect(harness.sessionStore.isLoggedIn, isFalse);
+    expect(harness.sessionStore.isLoggedIn, isTrue);
   });
 
   test('网络异常文本不会暴露临时媒体凭据', () async {
@@ -213,7 +368,7 @@ void main() {
     );
   });
 
-  test('账号媒体库接口使用正确的分页路径', () async {
+  test('账号历史和订阅接口使用正确的分页路径', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -223,13 +378,6 @@ void main() {
       sessionStore: harness.sessionStore,
       httpClientAdapter: _TestAdapter((options) {
         paths.add(options.uri.path);
-        if (options.uri.path == '/my/playlists/') {
-          return _htmlResponse('''
-            <div class="item">
-              <a href="/my/playlists/77/" title="测试列表">测试列表</a>
-            </div>
-          ''');
-        }
         if (options.uri.path == '/my/subscriptions/') {
           return _htmlResponse('''
             <div class="item">
@@ -244,18 +392,12 @@ void main() {
     );
     addTearDown(api.close);
 
-    await api.loadWatchLater(2);
     await api.loadHistory(3);
-    final playlist = (await api.loadMyPlaylists()).single;
-    await api.loadPlaylistVideos(playlist, 2);
     final subscription = (await api.loadSubscriptions()).single;
     await api.loadSubscriptionVideos(subscription, 2);
 
     expect(paths, [
-      '/my/favourites/videos-watch-later/2/',
       '/my/history/3/',
-      '/my/playlists/',
-      '/my/playlists/77/2/',
       '/my/subscriptions/',
       '/models/example-artist/2/',
     ]);
@@ -290,6 +432,70 @@ void main() {
     await harness.sessionStore.authenticate('2002');
     expect((await api.loadSubscriptions()).single.title, 'Artist 2002');
     expect(requests, 2);
+  });
+
+  test('订阅中的艺术家和上传者头像会按路径补全并去重', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final requests = <String, int>{};
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.update(
+          options.uri.path,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
+        if (options.uri.path == '/models/') {
+          return _htmlResponse('''
+            <div class="item">
+              <a href="/models/hydrafxx/" title="HydraFXX">
+                <img src="/contents/models/87/s1_hydra.png" alt="HydraFXX">
+              </a>
+            </div>
+          ''');
+        }
+        if (options.uri.path == '/members/98965/') {
+          return _htmlResponse('''
+            <div class="channel_logo">
+              <div class="avatar">
+                <img src="/contents/avatars/98000/98965.png" alt="">
+              </div>
+              <h2 class="title">Oppai3Dporn</h2>
+            </div>
+          ''');
+        }
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+    const artist = SubscriptionItem(
+      title: 'HydraFXX',
+      path: '/models/hydrafxx/',
+      kind: SubscriptionKind.model,
+    );
+    const uploader = SubscriptionItem(
+      title: 'Oppai3Dporn',
+      path: '/members/98965/',
+      kind: SubscriptionKind.member,
+    );
+
+    final resolvedArtist = await api.resolveSubscription(artist);
+    final resolvedUploader = await api.resolveSubscription(uploader);
+    await api.resolveSubscription(artist);
+    await api.resolveSubscription(uploader);
+
+    expect(
+      resolvedArtist.thumbnailUrl,
+      'https://rule34video.com/contents/models/87/s1_hydra.png',
+    );
+    expect(
+      resolvedUploader.thumbnailUrl,
+      'https://rule34video.com/contents/avatars/98000/98965.png',
+    );
+    expect(requests['/models/'], 1);
+    expect(requests['/members/98965/'], 1);
   });
 
   test('发现目录和集合视频使用正确的路径与排序参数', () async {
@@ -328,6 +534,48 @@ void main() {
     expect(requests[1].path, '/models/2/');
     expect(requests.last.path, '/models/example-artist/2/');
     expect(requests.last.queryParameters['sort_by'], 'video_viewed');
+  });
+
+  test('艺术家集合可补全数值筛选 ID、真实路径和头像', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    Uri? request;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        request = options.uri;
+        return _htmlResponse('''
+          <div class="item">
+            <a href="/models/hydrafxx/" title="HydraFXX">
+              <img src="/contents/models/87/s1_hydra.png" alt="HydraFXX">
+            </a>
+            <span>201 videos</span>
+          </div>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+    const collection = ContentCollectionItem(
+      id: '87',
+      filterId: '87',
+      title: 'HydraFXX',
+      path: '/models/87/',
+      kind: DiscoveryKind.model,
+      total: 1449,
+    );
+
+    final resolved = await api.resolveCollection(collection);
+
+    expect(request?.path, '/models/');
+    expect(request?.queryParameters['q'], 'HydraFXX');
+    expect(resolved.id, '87');
+    expect(resolved.filterId, '87');
+    expect(resolved.path, '/models/hydrafxx/');
+    expect(
+      resolved.thumbnailUrl,
+      'https://rule34video.com/contents/models/87/s1_hydra.png',
+    );
   });
 
   test('标签目录第二页使用 AJAX Block 而不是标签 ID 页面', () async {
@@ -376,7 +624,7 @@ void main() {
 
     await api.searchVideos(
       'example query',
-      2,
+      1,
       filters: const SearchFilters(
         sort: VideoSort.topRated,
         orientation: ContentOrientation.straight,
@@ -387,6 +635,12 @@ void main() {
           SearchSuggestion(
             id: '23',
             title: 'sound',
+            total: 1,
+            kind: SearchSuggestionKind.tag,
+          ),
+          SearchSuggestion(
+            id: '24',
+            title: 'voice',
             total: 1,
             kind: SearchSuggestionKind.tag,
           ),
@@ -407,22 +661,133 @@ void main() {
             kind: SearchSuggestionKind.model,
           ),
         ],
+        excludedTags: [
+          SearchSuggestion(
+            id: '66',
+            title: 'watermark',
+            total: 1,
+            kind: SearchSuggestionKind.tag,
+          ),
+        ],
+        excludedCategories: [
+          SearchSuggestion(
+            id: '88',
+            title: 'Compilation',
+            total: 1,
+            kind: SearchSuggestionKind.category,
+          ),
+        ],
+        excludedModels: [
+          SearchSuggestion(
+            id: '99',
+            title: 'Excluded Artist',
+            total: 1,
+            kind: SearchSuggestionKind.model,
+          ),
+        ],
       ),
     );
 
-    expect(request?.path, '/search/example%20query/2/');
+    expect(request?.path, '/search/example%20query/');
     expect(request?.queryParameters['sort_by'], 'rating');
     expect(request?.queryParameters['flag1'], '2109');
     expect(request?.queryParameters['duration_from'], '300');
     expect(request?.queryParameters['duration_to'], '1200');
     expect(request?.queryParameters['flag2'], '1');
-    expect(request?.queryParameters['tag_ids'], '23');
-    expect(request?.queryParameters['category_ids'], '199');
-    expect(request?.queryParameters['model_ids'], '639');
+    expect(request?.queryParameters['tag_ids'], 'all,23,24');
+    expect(request?.queryParameters['category_ids'], 'all,199');
+    expect(request?.queryParameters['model_ids'], 'all,639');
+    expect(
+      request?.queryParameters['temp_skip_items'],
+      'tag:66,cat:88,model:99',
+    );
     expect(
       request?.queryParameters['post_date_from'],
       matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')),
     );
+  });
+
+  test('空关键词也可仅依靠筛选条件搜索', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    Uri? request;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        request = options.uri;
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.searchVideos(
+      '',
+      1,
+      filters: const SearchFilters(
+        tags: [
+          SearchSuggestion(
+            id: '23',
+            title: 'sound',
+            total: 1,
+            kind: SearchSuggestionKind.tag,
+          ),
+        ],
+      ),
+    );
+
+    expect(request?.path, '/search/');
+    expect(request?.queryParameters['tag_ids'], 'all,23');
+  });
+
+  test('搜索第二页使用网站 AJAX Block 分页协议', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final requests = <Uri>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options.uri);
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+    const filters = SearchFilters(
+      sort: VideoSort.newest,
+      duration: VideoDurationPreset.short,
+      models: [
+        SearchSuggestion(
+          id: '87',
+          title: 'HydraFXX',
+          total: 1449,
+          kind: SearchSuggestionKind.model,
+        ),
+      ],
+    );
+
+    await api.searchVideos('', 2, filters: filters);
+    await api.searchVideos('tifa', 3, filters: filters);
+
+    for (final request in requests) {
+      expect(request.path, '/search/');
+      expect(request.queryParameters['mode'], 'async');
+      expect(request.queryParameters['function'], 'get_block');
+      expect(
+        request.queryParameters['block_id'],
+        'custom_list_videos_videos_list_search',
+      );
+      expect(request.queryParameters['sort_by'], 'post_date');
+      expect(request.queryParameters['duration_from'], '0');
+      expect(request.queryParameters['duration_to'], '300');
+      expect(request.queryParameters['model_ids'], 'all,87');
+    }
+    expect(requests[0].queryParameters['q'], '');
+    expect(requests[0].queryParameters['from_videos'], '2');
+    expect(requests[0].queryParameters['from_albums'], '2');
+    expect(requests[1].queryParameters['q'], 'tifa');
+    expect(requests[1].queryParameters['from_videos'], '3');
+    expect(requests[1].queryParameters['from_albums'], '3');
   });
 
   test('标签、分类和艺术家自动补全使用各自的参数协议', () async {
@@ -459,7 +824,7 @@ void main() {
     expect(requests[2].queryParameters.containsKey('term'), isFalse);
   });
 
-  test('评分、元数据投票、播放列表和订阅使用已验证协议', () async {
+  test('订阅与取消订阅使用已验证协议', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -483,9 +848,6 @@ void main() {
       kind: DiscoveryKind.category,
     );
 
-    await api.rateVideo(video: video, like: true);
-    await api.voteMetadata(video: video, item: category, upvote: false);
-    await api.addVideoToPlaylist(video: video, playlistId: '77');
     await api.toggleSubscription(video: video, item: category, subscribe: true);
     await api.toggleSubscription(
       video: video,
@@ -501,16 +863,45 @@ void main() {
       ),
       isTrue,
     );
-    expect(bodies[0], {'action': 'rate', 'video_id': '4505897', 'vote': '5'});
-    expect(bodies[1]['category_id'], '199');
-    expect(bodies[1]['vote'], '-1');
-    expect(bodies[2]['fav_type'], '10');
-    expect(bodies[2]['playlist_id'], '77');
-    expect(bodies[3], {'action': 'subscribe', 'subscribe_category_id': '199'});
-    expect(bodies[4], {
+    expect(bodies[0], {'action': 'subscribe', 'subscribe_category_id': '199'});
+    expect(bodies[1], {
       'action': 'unsubscribe',
       'unsubscribe_category_id': '199',
     });
+  });
+
+  test('上传者订阅使用用户订阅参数', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final requests = <RequestOptions>[];
+    final bodies = <Map<String, String>>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options);
+        bodies.add(_requestFields(options.data));
+        return _htmlResponse('<success/>');
+      }),
+    );
+    addTearDown(api.close);
+    const uploader = UploaderSummary(id: '42', name: 'Uploader');
+
+    await api.toggleUploaderSubscription(uploader: uploader, subscribe: true);
+    await api.toggleUploaderSubscription(uploader: uploader, subscribe: false);
+
+    expect(requests.map((request) => request.uri.path).toSet(), {
+      '/members/42/',
+    });
+    expect(
+      requests.every(
+        (request) => request.uri.queryParameters['mode'] == 'async',
+      ),
+      isTrue,
+    );
+    expect(bodies[0], {'action': 'subscribe', 'subscribe_user_id': '42'});
+    expect(bodies[1], {'action': 'unsubscribe', 'unsubscribe_user_id': '42'});
   });
 }
 

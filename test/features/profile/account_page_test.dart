@@ -40,7 +40,7 @@ final class _SwitchingProfileApi extends Rule34VideoApi {
   final Map<String, Completer<MemberProfile>> _profiles = {};
 
   @override
-  Future<MemberProfile> loadCurrentUserProfile() {
+  Future<MemberProfile> loadCurrentUserProfile({bool force = false}) {
     final userId = sessionStore.currentUserId!;
     return _profiles.putIfAbsent(userId, Completer<MemberProfile>.new).future;
   }

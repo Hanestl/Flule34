@@ -29,19 +29,12 @@ class SiteParser {
           _clean(link?.attributes['title']) ??
           _clean(image?.attributes['alt']) ??
           '未命名视频';
-      final thumbnail = _url(
-        image?.attributes['data-webp'] ?? image?.attributes['data-original'],
-      );
-      final preview = _url(
-        card.querySelector('div.img.wrap_image')?.attributes['data-preview'],
-      );
-
+      final thumbnail = _imageUrl(image);
       result[match.group(1)!] = VideoItem(
         id: match.group(1)!,
         slug: match.group(2)!,
         title: title,
         thumbnailUrl: thumbnail,
-        previewUrl: preview,
         duration: _clean(card.querySelector('.time')?.text),
         publishedLabel: _clean(card.querySelector('.thumb_info .added')?.text),
         views: _compactNumber(
@@ -71,13 +64,28 @@ class SiteParser {
       return null;
     }
 
+    final details = <String, String>{};
+    for (final item in document.querySelectorAll('.box_information li')) {
+      final label = _clean(item.querySelector('span')?.text);
+      final text = _clean(item.text);
+      if (label == null || text == null) {
+        continue;
+      }
+      final value = text.replaceFirst(label, '').trim();
+      if (value.isNotEmpty) {
+        details[label] = value;
+      }
+    }
     return MemberProfile(
       id: userId,
       displayName: displayName,
-      avatarUrl: _url(header?.querySelector('.avatar img')?.attributes['src']),
+      avatarUrl: _imageUrl(header?.querySelector('.avatar img')),
       subscribersLabel: _clean(
         header?.querySelector('.subscribers_count')?.text,
       ),
+      coverUrl: _imageUrl(document.querySelector('.channel_bg img')),
+      verified: header?.querySelector('.verified-status') != null,
+      details: Map.unmodifiable(details),
     );
   }
 
@@ -105,6 +113,7 @@ class SiteParser {
     final thumbnail =
         _url(_flashValue(source, 'preview_url')) ??
         _url(_string(schema?['thumbnailUrl']));
+    final isFavorite = document.querySelector('a.delete.button_fav') != null;
     final video = fallback.copyWith(
       title: flashTitle ?? schemaTitle,
       thumbnailUrl: thumbnail,
@@ -115,6 +124,7 @@ class SiteParser {
       publishedLabel:
           _clean(_string(schema?['uploadDate'])) ?? fallback.publishedLabel,
       views: _viewsFromSchema(schema) ?? fallback.views,
+      isFavorite: isFavorite,
     );
 
     return VideoDetails(
@@ -136,7 +146,7 @@ class SiteParser {
           ? _split(_flashValue(source, 'video_models'))
           : modelTitles,
       sources: _sources(source),
-      isFavorite: document.querySelector('a.delete.button_fav') != null,
+      isFavorite: isFavorite,
       metadataItems: metadataItems,
       relatedVideos: videoList(source)
           .where((item) => item.id != fallback.id)
@@ -147,7 +157,36 @@ class SiteParser {
             .firstMatch(document.querySelector('.voters.count')?.text ?? '')
             ?.group(1),
       ),
+      uploader: _uploader(document),
     );
+  }
+
+  static UploaderSummary? _uploader(dom.Document document) {
+    for (final column in document.querySelectorAll('.col')) {
+      final label = _clean(column.querySelector('.label')?.text)?.toLowerCase();
+      if (label != 'uploaded by') {
+        continue;
+      }
+      final link = column.querySelector('a[href*="/members/"]');
+      final href = link?.attributes['href'];
+      final match = RegExp(r'/members/(\d+)/?').firstMatch(href ?? '');
+      final id = match?.group(1);
+      if (link == null || id == null) {
+        continue;
+      }
+      final image = link.querySelector('img');
+      final name = _clean(image?.attributes['alt']) ?? _clean(link.text);
+      if (name == null) {
+        continue;
+      }
+      return UploaderSummary(
+        id: id,
+        name: name,
+        avatarUrl: _imageUrl(image),
+        verified: link.querySelector('.verified-status') != null,
+      );
+    }
+    return null;
   }
 
   static List<VideoMetadataItem> _videoMetadata(dom.Document document) {
@@ -177,6 +216,7 @@ class SiteParser {
         title: title,
         path: path,
         kind: kind,
+        thumbnailUrl: _imageUrl(link?.querySelector('img')),
         upScore: _number(chip.attributes['data-up-score']) ?? 0,
         downScore: _number(chip.attributes['data-down-score']) ?? 0,
       );
@@ -219,56 +259,6 @@ class SiteParser {
         .toList(growable: false);
   }
 
-  static List<PlaylistItem> playlists(String source) {
-    final document = html_parser.parse(source);
-    final result = <String, PlaylistItem>{};
-    for (final link in document.querySelectorAll(
-      'a[href*="/playlists/"], a[href*="/my/playlists/"]',
-    )) {
-      final href = link.attributes['href'];
-      final match = RegExp(
-        r'/(?:my/)?playlists/(\d+)(?:/([^/]+))?/?',
-      ).firstMatch(href ?? '');
-      if (match == null) {
-        continue;
-      }
-      final container = _closestItem(link) ?? link.parent;
-      final text = container?.text.replaceAll(RegExp(r'\s+'), ' ') ?? '';
-      final image =
-          container?.querySelector('img') ?? link.querySelector('img');
-      final title =
-          _clean(link.attributes['title']) ??
-          _clean(image?.attributes['alt']) ??
-          _clean(container?.querySelector('.title')?.text) ??
-          _clean(link.text) ??
-          '未命名播放列表';
-      final resolved = Uri.parse(_baseUri).resolve(href!).path;
-      result[match.group(1)!] = PlaylistItem(
-        id: match.group(1)!,
-        title: title,
-        path: resolved.endsWith('/') ? resolved : '$resolved/',
-        thumbnailUrl: _url(
-          image?.attributes['data-webp'] ??
-              image?.attributes['data-original'] ??
-              image?.attributes['src'],
-        ),
-        videoCount: _number(
-          RegExp(
-            r'([\d,]+)\s*videos?',
-            caseSensitive: false,
-          ).firstMatch(text)?.group(1),
-        ),
-        views: _number(
-          RegExp(
-            r'([\d,]+)\s*views?',
-            caseSensitive: false,
-          ).firstMatch(text)?.group(1),
-        ),
-      );
-    }
-    return result.values.toList(growable: false);
-  }
-
   static List<SubscriptionItem> subscriptions(String source) {
     final document = html_parser.parse(source);
     final result = <String, SubscriptionItem>{};
@@ -279,7 +269,8 @@ class SiteParser {
         if (href == null || kind == null) {
           continue;
         }
-        final image = container.querySelector('img');
+        final image =
+            link.querySelector('img') ?? container.querySelector('img');
         final title =
             _clean(link.attributes['title']) ??
             _clean(image?.attributes['alt']) ??
@@ -294,11 +285,7 @@ class SiteParser {
           title: title,
           path: normalizedPath,
           kind: kind,
-          thumbnailUrl: _url(
-            image?.attributes['data-webp'] ??
-                image?.attributes['data-original'] ??
-                image?.attributes['src'],
-          ),
+          thumbnailUrl: _imageUrl(image),
         );
         break;
       }
@@ -340,16 +327,14 @@ class SiteParser {
       final path = Uri.parse(_baseUri).resolve(href!).path;
       final normalizedPath = path.endsWith('/') ? path : '$path/';
       final text = container?.text.replaceAll(RegExp(r'\s+'), ' ') ?? '';
+      final thumbnailUrl = _imageUrl(image);
       result[normalizedPath] = ContentCollectionItem(
         id: id,
         title: title,
         path: normalizedPath,
         kind: kind,
-        thumbnailUrl: _url(
-          image?.attributes['data-webp'] ??
-              image?.attributes['data-original'] ??
-              image?.attributes['src'],
-        ),
+        filterId: _collectionFilterId(kind, id, thumbnailUrl),
+        thumbnailUrl: thumbnailUrl,
         total: _number(
           RegExp(
             r'([\d,]+)\s*videos?',
@@ -412,6 +397,19 @@ class SiteParser {
       r'''(?:["']?userId["']?)\s*:\s*["']?(\d+)["']?''',
       caseSensitive: false,
     ).firstMatch(source)?.group(1);
+  }
+
+  static bool isVideoDetailsPage(String source, String videoId) {
+    final document = html_parser.parse(source);
+    final canonical = document
+        .querySelector('link[rel="canonical"]')
+        ?.attributes['href'];
+    if (canonical != null &&
+        RegExp('/video/${RegExp.escape(videoId)}/').hasMatch(canonical)) {
+      return true;
+    }
+    return document.querySelector('[data-video-id="$videoId"]') != null ||
+        _flashValue(source, 'video_id') == videoId;
   }
 
   static List<VideoSource> _sources(String source) {
@@ -564,6 +562,40 @@ class SiteParser {
     return uri.hasScheme
         ? uri.toString()
         : Uri.parse(_baseUri).resolveUri(uri).toString();
+  }
+
+  static String? _imageUrl(dom.Element? image) {
+    if (image == null) {
+      return null;
+    }
+    for (final attribute in const ['data-webp', 'data-original', 'src']) {
+      final value = _url(image.attributes[attribute]);
+      if (value != null) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  static String _collectionFilterId(
+    DiscoveryKind kind,
+    String pathId,
+    String? thumbnailUrl,
+  ) {
+    final segment = switch (kind) {
+      DiscoveryKind.model => 'models',
+      DiscoveryKind.category => 'categories',
+      _ => null,
+    };
+    if (segment != null && thumbnailUrl != null) {
+      final match = RegExp(
+        '/contents/$segment/(\\d+)/',
+      ).firstMatch(thumbnailUrl);
+      if (match != null) {
+        return match.group(1)!;
+      }
+    }
+    return pathId;
   }
 
   static String? _clean(String? value) {

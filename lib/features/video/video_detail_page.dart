@@ -1,15 +1,22 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../app/router/app_router.dart';
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../core/services/share_service.dart';
 import '../../shared/video_card.dart';
+import '../../shared/site_avatar.dart';
 import '../auth/login_sheet.dart';
 import '../downloads/data/download_repository.dart';
+import '../library/data/local_library_repository.dart';
+import '../library/local_library_picker.dart';
 import '../settings/data/app_settings_repository.dart';
 import '../settings/domain/quality_selection.dart';
 import 'video_player_page.dart';
@@ -24,27 +31,90 @@ class VideoDetailPage extends ConsumerStatefulWidget {
   ConsumerState<VideoDetailPage> createState() => _VideoDetailPageState();
 }
 
-class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
+class _VideoDetailPageState extends ConsumerState<VideoDetailPage>
+    with RouteAware {
   late Future<VideoDetails> _detailsFuture;
+  final VideoPlayerHandle _playerHandle = VideoPlayerHandle();
+  PageRoute<dynamic>? _route;
 
   @override
   void initState() {
     super.initState();
-    _detailsFuture = widget.api.loadVideoDetails(widget.video);
+    _detailsFuture = _loadDetails();
   }
 
   @override
   void didUpdateWidget(covariant VideoDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.api != widget.api || oldWidget.video.id != widget.video.id) {
-      _detailsFuture = widget.api.loadVideoDetails(widget.video);
+      _detailsFuture = _loadDetails();
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic> && route != _route) {
+      if (_route != null) {
+        appRouteObserver.unsubscribe(this);
+      }
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPushNext() {
+    if (shouldPauseVideoForRoutePush(_playerHandle.isFullScreen)) {
+      _playerHandle.pause();
+    }
+  }
+
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    super.dispose();
   }
 
   void _reload() {
     setState(() {
-      _detailsFuture = widget.api.loadVideoDetails(widget.video);
+      _detailsFuture = _loadDetails(force: true);
     });
+  }
+
+  Future<VideoDetails> _loadDetails({bool force = false}) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final details = force
+          ? await widget.api.refreshVideoDetails(widget.video)
+          : await widget.api.loadVideoDetails(widget.video);
+      stopwatch.stop();
+      unawaited(
+        ref
+            .read(appLogServiceProvider)
+            .info(
+              'playback',
+              '视频详情加载完成：video=${widget.video.id}，耗时=${stopwatch.elapsedMilliseconds}ms，'
+                  '清晰度数量=${details.sources.length}，强制刷新=$force。',
+            ),
+      );
+      return details;
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      unawaited(
+        ref
+            .read(appLogServiceProvider)
+            .warning(
+              'playback',
+              '视频详情加载失败：video=${widget.video.id}，耗时=${stopwatch.elapsedMilliseconds}ms，'
+                  '强制刷新=$force。',
+              error: error,
+              stackTrace: stackTrace,
+            ),
+      );
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   @override
@@ -55,7 +125,7 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
         future: _detailsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return _DetailLoading(video: widget.video);
           }
           if (snapshot.hasError) {
             return _DetailLoadError(
@@ -69,12 +139,57 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage> {
             downloads: ref.watch(downloadRepositoryProvider),
             settings: ref.watch(appSettingsRepositoryProvider),
             shareService: ref.watch(shareServiceProvider),
+            playerHandle: _playerHandle,
+            localLibraryRepository: ref.watch(localLibraryRepositoryProvider),
           );
         },
       ),
     );
   }
 }
+
+class _DetailLoading extends StatelessWidget {
+  const _DetailLoading({required this.video});
+
+  static const _headers = <String, String>{
+    'Referer': 'https://rule34video.com/',
+    'User-Agent': 'Flule34 Android/1.1',
+  };
+
+  final VideoItem video;
+
+  @override
+  Widget build(BuildContext context) {
+    final thumbnailUrl = video.thumbnailUrl;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ColoredBox(
+          color: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (thumbnailUrl != null)
+                CachedNetworkImage(
+                  imageUrl: thumbnailUrl,
+                  httpHeaders: _headers,
+                  fit: BoxFit.cover,
+                  errorWidget: (context, _, _) => const SizedBox.shrink(),
+                ),
+              const ColoredBox(color: Colors.black38),
+              const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+bool shouldPauseVideoForRoutePush(bool isFullScreen) => !isFullScreen;
 
 class _DetailLoadError extends StatelessWidget {
   const _DetailLoadError({required this.message, required this.onRetry});
@@ -113,6 +228,8 @@ class _VideoDetailsBody extends StatefulWidget {
     required this.downloads,
     required this.settings,
     required this.shareService,
+    required this.playerHandle,
+    required this.localLibraryRepository,
   });
 
   final Rule34VideoApi api;
@@ -120,6 +237,8 @@ class _VideoDetailsBody extends StatefulWidget {
   final DownloadRepository downloads;
   final AppSettingsRepository settings;
   final ShareService shareService;
+  final VideoPlayerHandle playerHandle;
+  final LocalLibraryRepository localLibraryRepository;
 
   @override
   State<_VideoDetailsBody> createState() => _VideoDetailsBodyState();
@@ -131,8 +250,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
   final Set<String> _subscriptionPaths = {};
   final Set<String> _updatingMetadata = {};
   var _updatingFavorite = false;
-  var _updatingRating = false;
-  var _addingPlaylist = false;
   var _addingDownload = false;
   var _loadingSubscriptions = false;
   var _subscriptionsLoaded = false;
@@ -214,9 +331,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     if (_addingDownload) {
       return;
     }
-    if (!await _ensureLogin() || !mounted) {
-      return;
-    }
     final preferences = widget.settings.settings;
     final source = preferences.askDownloadQuality
         ? await showModalBottomSheet<VideoSource>(
@@ -266,27 +380,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
   }
 
-  Future<void> _rate(bool like) async {
-    if (_updatingRating || !await _ensureLogin() || !mounted) {
-      return;
-    }
-    setState(() => _updatingRating = true);
-    try {
-      await widget.api.rateVideo(video: _details.video, like: like);
-      if (mounted) {
-        _showMessage(like ? '已提交喜欢。' : '已提交不喜欢。');
-      }
-    } catch (error) {
-      if (mounted) {
-        _showMessage(error.toString());
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _updatingRating = false);
-      }
-    }
-  }
-
   Future<void> _share() async {
     try {
       await widget.shareService.shareVideo(_details.video);
@@ -297,65 +390,19 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
   }
 
-  Future<void> _addToPlaylist() async {
-    if (_addingPlaylist || !await _ensureLogin() || !mounted) {
-      return;
-    }
-    setState(() => _addingPlaylist = true);
+  Future<void> _addToLocalLibrary() async {
     try {
-      final playlists = await widget.api.loadMyPlaylists();
-      if (!mounted) {
-        return;
-      }
-      if (playlists.isEmpty) {
-        _showMessage('账号中还没有播放列表；新建播放列表功能将在接口确认后接入。');
-        return;
-      }
-      final playlist = await showModalBottomSheet<PlaylistItem>(
+      final name = await addVideoToLocalLibrary(
         context: context,
-        showDragHandle: true,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-        ),
-        builder: (context) => ListView(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: Text(
-                '加入播放列表',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            for (final item in playlists)
-              ListTile(
-                leading: const Icon(Icons.playlist_play),
-                title: Text(item.title),
-                subtitle: item.videoCount == null
-                    ? null
-                    : Text('${item.videoCount} 个视频'),
-                onTap: () => Navigator.pop(context, item),
-              ),
-          ],
-        ),
-      );
-      if (playlist == null || !mounted) {
-        return;
-      }
-      await widget.api.addVideoToPlaylist(
+        repository: widget.localLibraryRepository,
         video: _details.video,
-        playlistId: playlist.id,
       );
-      if (mounted) {
-        _showMessage('已加入“${playlist.title}”。');
+      if (name != null && mounted) {
+        _showMessage('已加入“$name”。');
       }
     } catch (error) {
       if (mounted) {
         _showMessage(error.toString());
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _addingPlaylist = false);
       }
     }
   }
@@ -384,16 +431,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                 onTap: () =>
                     Navigator.pop(context, _MetadataAction.subscription),
               ),
-            ListTile(
-              leading: const Icon(Icons.arrow_upward),
-              title: const Text('赞成此关联'),
-              onTap: () => Navigator.pop(context, _MetadataAction.upvote),
-            ),
-            ListTile(
-              leading: const Icon(Icons.arrow_downward),
-              title: const Text('反对此关联'),
-              onTap: () => Navigator.pop(context, _MetadataAction.downvote),
-            ),
           ],
         ),
       ),
@@ -411,10 +448,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
         );
       case _MetadataAction.subscription:
         await _toggleSubscription(item);
-      case _MetadataAction.upvote:
-        await _voteMetadata(item, true);
-      case _MetadataAction.downvote:
-        await _voteMetadata(item, false);
     }
   }
 
@@ -459,35 +492,6 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
   }
 
-  Future<void> _voteMetadata(VideoMetadataItem item, bool upvote) async {
-    if (!await _ensureLogin() || !mounted) {
-      return;
-    }
-    final key = 'vote:${item.kind.name}:${item.id}';
-    if (_updatingMetadata.contains(key)) {
-      return;
-    }
-    setState(() => _updatingMetadata.add(key));
-    try {
-      await widget.api.voteMetadata(
-        video: _details.video,
-        item: item,
-        upvote: upvote,
-      );
-      if (mounted) {
-        _showMessage('投票已提交。');
-      }
-    } catch (error) {
-      if (mounted) {
-        _showMessage(error.toString());
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _updatingMetadata.remove(key));
-      }
-    }
-  }
-
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -505,6 +509,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
             sources: details.sources,
             embedded: true,
             autoplay: true,
+            handle: widget.playerHandle,
           )
         : const AspectRatio(
             aspectRatio: 16 / 9,
@@ -577,28 +582,16 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                           onPressed: _toggleFavorite,
                         ),
                         _ActionButton(
-                          icon: Icons.thumb_up_alt_outlined,
-                          label: '喜欢',
-                          busy: _updatingRating,
-                          onPressed: () => _rate(true),
-                        ),
-                        _ActionButton(
-                          icon: Icons.thumb_down_alt_outlined,
-                          label: '不喜欢',
-                          busy: _updatingRating,
-                          onPressed: () => _rate(false),
-                        ),
-                        _ActionButton(
-                          icon: Icons.playlist_add,
-                          label: '播放列表',
-                          busy: _addingPlaylist,
-                          onPressed: _addToPlaylist,
-                        ),
-                        _ActionButton(
                           icon: Icons.download,
                           label: '下载',
                           busy: _addingDownload,
                           onPressed: details.sources.isEmpty ? null : _download,
+                        ),
+                        _ActionButton(
+                          icon: Icons.library_add_outlined,
+                          label: '入库',
+                          busy: false,
+                          onPressed: _addToLocalLibrary,
                         ),
                         _ActionButton(
                           icon: Icons.share_outlined,
@@ -647,6 +640,43 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                       updatingKeys: _updatingMetadata,
                       onTap: _openMetadataActions,
                     ),
+                    if (details.uploader case final uploader?) ...[
+                      const SizedBox(height: 24),
+                      Text(
+                        '上传者',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: ListTile(
+                          leading: SiteAvatar(
+                            imageUrl: uploader.avatarUrl,
+                            fallbackIcon: Icons.person_outline,
+                          ),
+                          title: Row(
+                            children: [
+                              Flexible(child: Text(uploader.name)),
+                              if (uploader.verified) ...[
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.verified,
+                                  size: 18,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ],
+                            ],
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => context.pushNamed(
+                            AppRouteNames.uploader,
+                            pathParameters: {'id': uploader.id},
+                            queryParameters: {'name': uploader.name},
+                            extra: uploader,
+                          ),
+                        ),
+                      ),
+                    ],
                     if (details.relatedVideos.isNotEmpty) ...[
                       const SizedBox(height: 28),
                       Text(
@@ -657,14 +687,20 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                       for (final video in details.relatedVideos)
                         VideoCard(
                           video: video,
-                          onTap: () => context.pushNamed(
-                            AppRouteNames.video,
-                            pathParameters: {
-                              'id': video.id,
-                              'slug': video.slug,
-                            },
-                            extra: video,
-                          ),
+                          onTap: () async {
+                            await widget.playerHandle.pause();
+                            if (!context.mounted) {
+                              return;
+                            }
+                            context.pushNamed(
+                              AppRouteNames.video,
+                              pathParameters: {
+                                'id': video.id,
+                                'slug': video.slug,
+                              },
+                              extra: video,
+                            );
+                          },
                         ),
                     ],
                   ],
@@ -678,7 +714,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
   }
 }
 
-enum _MetadataAction { open, subscription, upvote, downvote }
+enum _MetadataAction { open, subscription }
 
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
@@ -766,21 +802,13 @@ class _MetadataSection extends StatelessWidget {
                           (key) => key.endsWith('${item.kind.name}:${item.id}'),
                         );
                         return ActionChip(
-                          avatar: busy
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Icon(
-                                  subscribed
-                                      ? Icons.notifications_active
-                                      : _kindIcon(item.kind),
-                                  size: 18,
-                                ),
-                          label: Text(item.title),
+                          avatar: _metadataAvatar(
+                            context,
+                            item: item,
+                            subscribed: subscribed,
+                            busy: busy,
+                          ),
+                          label: Text(_metadataLabel(item)),
                           onPressed: busy ? null : () => onTap(item),
                         );
                       })
@@ -797,4 +825,58 @@ class _MetadataSection extends StatelessWidget {
     DiscoveryKind.model => Icons.brush_outlined,
     DiscoveryKind.channel => Icons.live_tv_outlined,
   };
+
+  Widget _metadataAvatar(
+    BuildContext context, {
+    required VideoMetadataItem item,
+    required bool subscribed,
+    required bool busy,
+  }) {
+    if (busy) {
+      return const SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    final avatar = item.thumbnailUrl == null
+        ? Icon(_kindIcon(item.kind), size: 18)
+        : SiteAvatar(
+            imageUrl: item.thumbnailUrl,
+            radius: 9,
+            fallbackIcon: _kindIcon(item.kind),
+          );
+    if (!subscribed) {
+      return avatar;
+    }
+    return SizedBox.square(
+      dimension: 20,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(child: avatar),
+          Positioned(
+            right: -3,
+            bottom: -3,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                shape: BoxShape.circle,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.notifications, size: 8, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _metadataLabel(VideoMetadataItem item) {
+    if (item.upScore == 0 && item.downScore == 0) {
+      return item.title;
+    }
+    return '${item.title} · ↑${item.upScore} ↓${item.downScore}';
+  }
 }

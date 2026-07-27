@@ -11,6 +11,14 @@ final class SessionUser {
   final String id;
 }
 
+@immutable
+final class StoredCredentials {
+  const StoredCredentials({required this.email, required this.password});
+
+  final String email;
+  final String password;
+}
+
 class SessionStore extends ChangeNotifier {
   SessionStore({
     required this.cookieJar,
@@ -19,6 +27,8 @@ class SessionStore extends ChangeNotifier {
   });
 
   static const _userIdKey = 'flule34.session.user_id';
+  static const _emailKey = 'flule34.session.email';
+  static const _passwordKey = 'flule34.session.password';
   static final _validUserId = RegExp(r'^\d+$');
 
   final PersistCookieJar cookieJar;
@@ -67,8 +77,42 @@ class SessionStore extends ChangeNotifier {
     return cookies.map(_cookiePair).join('; ');
   }
 
-  Future<void> clear() async {
-    await Future.wait([cookieJar.deleteAll(), secretStore.delete(_userIdKey)]);
+  Future<StoredCredentials?> loadCredentials() async {
+    final values = await Future.wait([
+      secretStore.read(_emailKey),
+      secretStore.read(_passwordKey),
+    ]);
+    final email = values[0]?.trim() ?? '';
+    final password = values[1] ?? '';
+    if (email.isEmpty || password.isEmpty) {
+      return null;
+    }
+    return StoredCredentials(email: email, password: password);
+  }
+
+  Future<void> saveCredentials({
+    required String email,
+    required String password,
+  }) async {
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty || password.isEmpty) {
+      throw ArgumentError('账号和密码不能为空。');
+    }
+    await Future.wait([
+      secretStore.write(_emailKey, normalizedEmail),
+      secretStore.write(_passwordKey, password),
+    ]);
+  }
+
+  Future<void> clearCookies() => cookieJar.deleteAll();
+
+  Future<void> clear({bool forgetCredentials = false}) async {
+    await Future.wait([
+      cookieJar.deleteAll(),
+      secretStore.delete(_userIdKey),
+      if (forgetCredentials) secretStore.delete(_emailKey),
+      if (forgetCredentials) secretStore.delete(_passwordKey),
+    ]);
     if (_currentUser == null) {
       return;
     }

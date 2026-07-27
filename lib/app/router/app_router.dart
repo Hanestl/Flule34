@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models/video_models.dart';
+import '../../core/database/app_database.dart';
 import '../../features/discover/discover_page.dart';
 import '../../features/discover/collection_page.dart';
 import '../../features/discover/discovery_directory_page.dart';
@@ -10,12 +11,14 @@ import '../../features/discover/rankings_page.dart';
 import '../../features/downloads/presentation/downloads_list.dart';
 import '../../features/home/home_page.dart';
 import '../../features/library/library_page.dart';
-import '../../features/library/playlist_page.dart';
+import '../../features/library/local_library_page.dart';
 import '../../features/library/subscription_page.dart';
 import '../../features/profile/account_page.dart';
 import '../../features/profile/profile_page.dart';
+import '../../features/profile/uploader_page.dart';
 import '../../features/search/search_page.dart';
 import '../../features/settings/presentation/settings_pages.dart';
+import '../../features/settings/presentation/debug_log_page.dart';
 import '../../features/settings/presentation/support_pages.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/video/video_detail_page.dart';
@@ -27,6 +30,7 @@ final _homeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'home');
 final _discoverNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'discover');
 final _libraryNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'library');
 final _profileNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'profile');
+final appRouteObserver = RouteObserver<PageRoute<dynamic>>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final api = ref.watch(rule34VideoApiProvider);
@@ -34,6 +38,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
+    observers: [appRouteObserver],
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -66,7 +71,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/library',
                 name: AppRouteNames.library,
-                builder: (context, state) => LibraryPage(api: api),
+                builder: (context, state) => LibraryPage(
+                  api: api,
+                  localLibraryRepository: ref.read(
+                    localLibraryRepositoryProvider,
+                  ),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'local/:id',
+                    name: AppRouteNames.localLibrary,
+                    builder: (context, state) {
+                      final extra = state.extra;
+                      final id = int.tryParse(state.pathParameters['id'] ?? '');
+                      return LocalLibraryPage(
+                        repository: ref.read(localLibraryRepositoryProvider),
+                        libraryId: id ?? -1,
+                        title: extra is LocalLibrary ? extra.name : '本地库',
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -129,6 +154,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'diagnostics',
                     name: AppRouteNames.diagnostics,
                     builder: (context, state) => const DiagnosticsPage(),
+                  ),
+                  GoRoute(
+                    path: 'debug-logs',
+                    name: AppRouteNames.debugLogs,
+                    builder: (context, state) => const DebugLogPage(),
                   ),
                   GoRoute(
                     path: 'update',
@@ -232,22 +262,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        path: '/playlist/:id',
-        name: AppRouteNames.playlist,
-        builder: (context, state) {
-          final extra = state.extra;
-          final playlist = extra is PlaylistItem
-              ? extra
-              : PlaylistItem(
-                  id: state.pathParameters['id']!,
-                  title: '播放列表 ${state.pathParameters['id']!}',
-                  path: '/my/playlists/${state.pathParameters['id']!}/',
-                );
-          return PlaylistPage(api: api, playlist: playlist);
-        },
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/subscription/:kind',
         name: AppRouteNames.subscription,
         builder: (context, state) {
@@ -265,6 +279,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   kind: kind,
                 );
           return SubscriptionPage(api: api, subscription: subscription);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/uploader/:id',
+        name: AppRouteNames.uploader,
+        builder: (context, state) {
+          final extra = state.extra;
+          final uploader = extra is UploaderSummary
+              ? extra
+              : UploaderSummary(
+                  id: state.pathParameters['id'] ?? '',
+                  name: state.uri.queryParameters['name'] ?? '上传者',
+                );
+          return UploaderPage(api: api, uploader: uploader);
         },
       ),
     ],

@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 abstract final class AppTheme {
   static const _seed = Color(0xff4f6f91);
@@ -36,20 +38,47 @@ abstract final class AppTheme {
   );
 
   static ThemeData _base(ColorScheme colorScheme, Color background) {
+    final dark = colorScheme.brightness == Brightness.dark;
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: background,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      systemStatusBarContrastEnforced: false,
+      systemNavigationBarColor: colorScheme.surface,
+      systemNavigationBarIconBrightness: dark
+          ? Brightness.light
+          : Brightness.dark,
+      systemNavigationBarContrastEnforced: false,
+    );
     return ThemeData(
       colorScheme: colorScheme,
       scaffoldBackgroundColor: background,
       canvasColor: background,
       useMaterial3: true,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: PredictiveBackPageTransitionsBuilder(
+            fallbackColor: background,
+          ),
+          TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: const CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: ZoomPageTransitionsBuilder(
+            backgroundColor: background,
+          ),
+          TargetPlatform.linux: ZoomPageTransitionsBuilder(
+            backgroundColor: background,
+          ),
+        },
+      ),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         backgroundColor: background,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: overlayStyle,
       ),
       cardTheme: CardThemeData(
         color: colorScheme.surfaceContainerLow,
         elevation: 0,
-        margin: EdgeInsets.zero,
+        margin: const EdgeInsets.only(bottom: 8),
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 68,

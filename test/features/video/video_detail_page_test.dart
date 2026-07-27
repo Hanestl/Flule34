@@ -18,7 +18,12 @@ import 'package:flule34/features/video/video_detail_page.dart';
 import '../../helpers/test_session_harness.dart';
 
 void main() {
-  testWidgets('视频详情固定播放器并保留评分与播放列表入口', (tester) async {
+  test('全屏内部路由不会触发详情页暂停策略', () {
+    expect(shouldPauseVideoForRoutePush(true), isFalse);
+    expect(shouldPauseVideoForRoutePush(false), isTrue);
+  });
+
+  testWidgets('视频详情固定播放器并只读展示评分', (tester) async {
     final originalPlatform = VideoPlayerPlatform.instance;
     final platform = _FakeVideoPlayerPlatform();
     VideoPlayerPlatform.instance = platform;
@@ -60,9 +65,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('喜欢'), findsOneWidget);
-    expect(find.text('不喜欢'), findsOneWidget);
-    expect(find.text('播放列表'), findsOneWidget);
+    expect(find.text('喜欢'), findsNothing);
+    expect(find.text('不喜欢'), findsNothing);
+    expect(find.text('播放列表'), findsNothing);
+    expect(find.text('入库'), findsOneWidget);
+    expect(find.text('3D · ↑12 ↓3'), findsOneWidget);
     expect(find.textContaining('评论'), findsNothing);
     expect(find.text('播放'), findsNothing);
     final playerFinder = find.byKey(const ValueKey('inline-video-player'));
@@ -141,13 +148,22 @@ const _details = VideoDetails(
   categories: ['3D'],
   tags: ['example'],
   models: ['Artist'],
+  metadataItems: [
+    VideoMetadataItem(
+      id: '1',
+      title: '3D',
+      path: '/categories/1/3d/',
+      kind: DiscoveryKind.category,
+      upScore: 12,
+      downScore: 3,
+    ),
+  ],
   isFavorite: false,
 );
 
 class _FakeVideoApi extends Rule34VideoApi {
   _FakeVideoApi(SessionStore sessionStore) : super(sessionStore: sessionStore);
 
-  bool? ratedLike;
   int detailLoads = 0;
 
   @override
@@ -160,11 +176,6 @@ class _FakeVideoApi extends Rule34VideoApi {
   Future<List<SubscriptionItem>> loadSubscriptions({
     bool force = false,
   }) async => const [];
-
-  @override
-  Future<void> rateVideo({required VideoItem video, required bool like}) async {
-    ratedLike = like;
-  }
 
   @override
   void close() {}
@@ -297,7 +308,11 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   Future<bool> cancel(String taskId) async => true;
 
   @override
-  Future<bool> delete({required String taskId, String? fileUri}) async => true;
+  Future<bool> delete({
+    required String taskId,
+    String? fileUri,
+    bool deleteExternalFile = true,
+  }) async => true;
 
   @override
   void dispose() {}
@@ -309,30 +324,18 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   Future<bool> ensureNotificationPermission() async => true;
 
   @override
-  Future<Uri?> activateDirectory(Uri uri) async => uri;
+  Future<bool> ensureSharedStoragePermission() async => true;
+
+  @override
+  Future<DownloadFileInspection> inspectFile(String fileUri) async =>
+      const DownloadFileInspection(exists: true, readable: true);
 
   @override
   Future<void> initialize() async {}
-
-  @override
-  Future<DownloadDirectorySelection?> pickCustomDirectory() async => null;
-
-  @override
-  Future<DownloadDirectorySelection?> pickDefaultDirectory() async =>
-      DownloadDirectorySelection(
-        uri: Uri.parse('content://downloads/Flule34'),
-        label: 'Downloads/Flule34',
-      );
 
   @override
   Future<void> setMaxConcurrent(int value) async {}
 
   @override
   Future<bool> openFile(String fileUri) async => true;
-
-  @override
-  Future<bool> pause(String taskId) async => true;
-
-  @override
-  Future<bool> resume(String taskId) async => true;
 }

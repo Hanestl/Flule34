@@ -49,4 +49,23 @@ void main() {
     );
     expect(harness.sessionStore.isLoggedIn, isFalse);
   });
+
+  test('账号密码会持久化，并且只有明确忘记时才删除', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+
+    await harness.sessionStore.saveCredentials(
+      email: 'user@example.com',
+      password: 'password',
+    );
+    await harness.sessionStore.clear();
+
+    final saved = await harness.sessionStore.loadCredentials();
+    expect(saved?.email, 'user@example.com');
+    expect(saved?.password, 'password');
+
+    await harness.sessionStore.clear(forgetCredentials: true);
+    expect(await harness.sessionStore.loadCredentials(), isNull);
+  });
 }

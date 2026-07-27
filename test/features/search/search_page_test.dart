@@ -92,24 +92,44 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.tap(find.byTooltip('筛选'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -360),
+    await tester.tap(find.byTooltip('筛选与排序'));
+    await tester.pumpAndSettle();
+    expect(find.text('必须同时包含'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('发布时间'),
+      300,
+      scrollable: find.byType(Scrollable).last,
     );
-    await tester.pump();
-    await tester.tap(find.text('过去 1 周'));
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -360),
+    final uploadPeriodTile = find.ancestor(
+      of: find.text('发布时间'),
+      matching: find.byType(ListTile),
     );
-    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: uploadPeriodTile,
+        matching: find.byType(DropdownButton<UploadPeriod>),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('过去 1 周').last);
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('仅显示已验证上传者'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.text('仅显示已验证上传者'));
-    await tester.tap(find.text('应用'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.scrollUntilVisible(
+      find.text('最低点赞率'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('最低点赞率'), findsOneWidget);
+    expect(find.text('最低投票数'), findsOneWidget);
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
 
     final history = await harness.database
         .select(harness.database.searchHistories)

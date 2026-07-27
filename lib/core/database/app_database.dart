@@ -41,6 +41,8 @@ class DownloadRecords extends Table {
   TextColumn get videoId => text()();
   TextColumn get title => text()();
   TextColumn get quality => text()();
+  TextColumn get thumbnailUrl => text().nullable()();
+  TextColumn get fileName => text().nullable()();
   TextColumn get state => text()();
   TextColumn get taskId => text().nullable()();
   TextColumn get filePath => text().nullable()();
@@ -72,8 +74,58 @@ class SearchHistories extends Table {
   Set<Column<Object>> get primaryKey => {userId, normalizedQuery};
 }
 
+class LocalLibraries extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get normalizedName => text()();
+  TextColumn get seedKey => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {normalizedName},
+  ];
+}
+
+class CuratedLibrarySeeds extends Table {
+  TextColumn get seedKey => text()();
+  IntColumn get packVersion => integer()();
+  BoolColumn get dismissed => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get appliedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {seedKey};
+}
+
+class LocalLibraryVideos extends Table {
+  IntColumn get libraryId =>
+      integer().references(LocalLibraries, #id, onDelete: KeyAction.cascade)();
+  TextColumn get videoId => text()();
+  TextColumn get title => text()();
+  TextColumn get slug => text()();
+  TextColumn get thumbnailUrl => text().nullable()();
+  TextColumn get durationLabel => text().nullable()();
+  TextColumn get publishedLabel => text().nullable()();
+  IntColumn get views => integer().nullable()();
+  IntColumn get rating => integer().nullable()();
+  IntColumn get ratingVotes => integer().nullable()();
+  DateTimeColumn get addedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {libraryId, videoId};
+}
+
 @DriftDatabase(
-  tables: [UserAccounts, PlaybackPositions, DownloadRecords, SearchHistories],
+  tables: [
+    UserAccounts,
+    PlaybackPositions,
+    DownloadRecords,
+    SearchHistories,
+    LocalLibraries,
+    CuratedLibrarySeeds,
+    LocalLibraryVideos,
+  ],
 )
 final class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
@@ -90,7 +142,7 @@ final class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -116,6 +168,27 @@ final class AppDatabase extends _$AppDatabase {
       },
       from2To3: (migrator, schema) async {
         await migrator.createTable(schema.searchHistories);
+      },
+      from3To4: (migrator, schema) async {
+        await migrator.createTable(schema.localLibraries);
+        await migrator.createTable(schema.localLibraryVideos);
+      },
+      from4To5: (migrator, schema) async {
+        await migrator.addColumn(
+          schema.downloadRecords,
+          schema.downloadRecords.thumbnailUrl,
+        );
+        await migrator.addColumn(
+          schema.downloadRecords,
+          schema.downloadRecords.fileName,
+        );
+      },
+      from5To6: (migrator, schema) async {
+        await migrator.addColumn(
+          schema.localLibraries,
+          schema.localLibraries.seedKey,
+        );
+        await migrator.createTable(schema.curatedLibrarySeeds);
       },
     ),
     beforeOpen: (_) async {
@@ -286,6 +359,12 @@ final class AppDatabase extends _$AppDatabase {
           ..where((record) => record.userId.equals(userId))
           ..orderBy([(record) => OrderingTerm.desc(record.updatedAt)]))
         .watch();
+  }
+
+  Future<List<DownloadRecord>> allDownloads() {
+    return (select(
+      downloadRecords,
+    )..orderBy([(record) => OrderingTerm.desc(record.updatedAt)])).get();
   }
 
   Future<List<DownloadRecord>> activeDownloads(String userId) {

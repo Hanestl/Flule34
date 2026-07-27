@@ -142,10 +142,6 @@ class PlaybackSettingsPage extends ConsumerWidget {
             );
           },
         ),
-        const _InfoCard(
-          icon: Icons.auto_awesome_outlined,
-          text: '从视频卡片进入观看页属于明确播放操作，因此会直接播放；网络策略只影响首次选择的清晰度。',
-        ),
       ],
     );
   }
@@ -203,27 +199,6 @@ class _ContentSettingsPageState extends ConsumerState<ContentSettingsPage> {
             },
           ),
         ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('视频预览'),
-          subtitle: const Text('长按视频封面时播放网站提供的短预览。'),
-          trailing: DropdownButton<VideoPreviewPolicy>(
-            value: settings.videoPreviewPolicy,
-            items: VideoPreviewPolicy.values
-                .map(
-                  (value) =>
-                      DropdownMenuItem(value: value, child: Text(value.label)),
-                )
-                .toList(growable: false),
-            onChanged: (value) {
-              if (value != null) {
-                unawaited(
-                  _save(context, repository.setVideoPreviewPolicy(value)),
-                );
-              }
-            },
-          ),
-        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('模糊视频封面'),
@@ -267,26 +242,10 @@ class DownloadSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(appSettingsRepositoryProvider);
-    final downloads = ref.watch(downloadRepositoryProvider);
     return _SettingsScaffold(
       title: '下载设置',
       repository: repository,
       builder: (context, settings) => [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.folder_outlined),
-          title: const Text('下载目录'),
-          subtitle: Text(settings.downloadDirectoryLabel),
-          trailing: const Icon(Icons.edit_outlined),
-          onTap: () async {
-            final selected = await downloads.chooseDownloadDirectory();
-            if (selected != null && context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('下载目录已改为 ${selected.label}。')),
-              );
-            }
-          },
-        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('每次下载前询问清晰度'),
@@ -334,8 +293,7 @@ class DownloadSettingsPage extends ConsumerWidget {
         ),
         const _InfoCard(
           icon: Icons.folder_outlined,
-          text:
-              '默认目录为 Downloads/Flule34。首次下载时需要授权 Downloads 目录；视频会直接写入所选公共目录，不保留 App 私有副本。',
+          text: '视频保存路径：Download/Flule34',
         ),
       ],
     );
@@ -369,10 +327,6 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
           builder: (context, _) => ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const _InfoCard(
-                icon: Icons.lock_outline,
-                text: '收藏、观看进度和搜索历史按登录账号管理；下载是本机功能，文件保存在用户选择的公共目录。',
-              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('保存搜索历史'),

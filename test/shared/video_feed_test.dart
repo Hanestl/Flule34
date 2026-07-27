@@ -56,13 +56,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('当前加载的视频都被隐藏标题关键词过滤了。'), findsOneWidget);
     expect(find.text('hidden video'), findsNothing);
-    await tester.tap(find.text('继续查找未隐藏内容'));
-    await tester.pumpAndSettle();
-
     expect(find.text('visible video'), findsOneWidget);
-    expect(loads, 2);
+    expect(loads, greaterThanOrEqualTo(2));
   });
 
   testWidgets('下一页加载失败时在列表底部提供原位重试', (tester) async {

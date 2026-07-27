@@ -12,10 +12,12 @@ class VideoFeed extends ConsumerStatefulWidget {
     super.key,
     required this.loadPage,
     this.emptyMessage = '没有找到视频。',
+    this.itemFilter,
   });
 
   final Future<List<VideoItem>> Function(int page) loadPage;
   final String emptyMessage;
+  final bool Function(VideoItem video)? itemFilter;
 
   @override
   ConsumerState<VideoFeed> createState() => _VideoFeedState();
@@ -65,20 +67,26 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       }
     });
     try {
-      final page = await widget.loadPage(_page);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
+      var attempts = 0;
+      do {
+        final page = await widget.loadPage(_page);
+        if (!mounted) {
+          return;
+        }
         final newItems = page
             .where((item) => !_videos.any((saved) => saved.id == item.id))
             .toList(growable: false);
-        _videos.addAll(newItems);
-        _page += 1;
-        // 网站不同列表的分页数量并不完全一致。只要本页仍返回了新内容，
-        // 就允许再探测一页；最后一页之后的空响应会可靠地结束分页。
-        _hasMore = page.isNotEmpty && newItems.isNotEmpty;
-      });
+        setState(() {
+          _videos.addAll(newItems);
+          _page += 1;
+          // 网站不同列表的分页数量并不完全一致。只要本页仍返回了新内容，
+          // 就允许再探测一页；最后一页之后的空响应会可靠地结束分页。
+          _hasMore = page.isNotEmpty && newItems.isNotEmpty;
+        });
+        attempts += 1;
+      } while (_hasMore &&
+          attempts < 3 &&
+          _videos.where(_isVisible).length < 8);
     } catch (error) {
       if (!mounted) {
         return;
@@ -94,23 +102,8 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final hiddenKeywords = ref
-        .watch(appSettingsRepositoryProvider)
-        .settings
-        .hiddenKeywords
-        .split(',')
-        .map((item) => item.trim().toLowerCase())
-        .where((item) => item.isNotEmpty)
-        .toList(growable: false);
-    final visibleVideos = hiddenKeywords.isEmpty
-        ? _videos
-        : _videos
-              .where(
-                (video) => !hiddenKeywords.any(
-                  (keyword) => video.title.toLowerCase().contains(keyword),
-                ),
-              )
-              .toList(growable: false);
+    ref.watch(appSettingsRepositoryProvider);
+    final visibleVideos = _videos.where(_isVisible).toList(growable: false);
     if (_videos.isEmpty && _loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -194,6 +187,21 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
 
   @override
   bool get wantKeepAlive => true;
+
+  bool _isVisible(VideoItem video) {
+    if (widget.itemFilter case final filter? when !filter(video)) {
+      return false;
+    }
+    final hiddenKeywords = ref
+        .read(appSettingsRepositoryProvider)
+        .settings
+        .hiddenKeywords
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .where((item) => item.isNotEmpty);
+    final title = video.title.toLowerCase();
+    return !hiddenKeywords.any(title.contains);
+  }
 }
 
 class _StateMessage extends StatelessWidget {

@@ -98,6 +98,7 @@ class ContentCollectionItem {
     required this.title,
     required this.path,
     required this.kind,
+    this.filterId,
     this.thumbnailUrl,
     this.total,
   });
@@ -106,8 +107,31 @@ class ContentCollectionItem {
   final String title;
   final String path;
   final DiscoveryKind kind;
+  final String? filterId;
   final String? thumbnailUrl;
   final int? total;
+
+  String get effectiveFilterId => filterId ?? id;
+
+  ContentCollectionItem copyWith({
+    String? id,
+    String? title,
+    String? path,
+    DiscoveryKind? kind,
+    String? filterId,
+    String? thumbnailUrl,
+    int? total,
+  }) {
+    return ContentCollectionItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      path: path ?? this.path,
+      kind: kind ?? this.kind,
+      filterId: filterId ?? this.filterId,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      total: total ?? this.total,
+    );
+  }
 }
 
 class DiscoveryDirectorySpec {
@@ -140,6 +164,7 @@ class SearchSuggestion {
     title: title,
     path: '/${kind.discoveryKind.pathSegment}/$id/',
     kind: kind.discoveryKind,
+    filterId: id,
     total: total,
   );
 }
@@ -154,7 +179,14 @@ class SearchFilters {
     this.tags = const [],
     this.categories = const [],
     this.models = const [],
+    this.excludedTags = const [],
+    this.excludedCategories = const [],
+    this.excludedModels = const [],
+    this.minRating,
+    this.minRatingVotes,
   });
+
+  static const Object _unset = Object();
 
   final VideoSort sort;
   final ContentOrientation orientation;
@@ -164,6 +196,11 @@ class SearchFilters {
   final List<SearchSuggestion> tags;
   final List<SearchSuggestion> categories;
   final List<SearchSuggestion> models;
+  final List<SearchSuggestion> excludedTags;
+  final List<SearchSuggestion> excludedCategories;
+  final List<SearchSuggestion> excludedModels;
+  final int? minRating;
+  final int? minRatingVotes;
 
   bool get isEmpty =>
       sort == VideoSort.relevance &&
@@ -173,7 +210,56 @@ class SearchFilters {
       !verifiedOnly &&
       tags.isEmpty &&
       categories.isEmpty &&
-      models.isEmpty;
+      models.isEmpty &&
+      excludedTags.isEmpty &&
+      excludedCategories.isEmpty &&
+      excludedModels.isEmpty &&
+      minRating == null &&
+      minRatingVotes == null;
+
+  bool get hasServerFilters =>
+      sort != VideoSort.relevance ||
+      orientation != ContentOrientation.all ||
+      uploadPeriod != UploadPeriod.anytime ||
+      duration != VideoDurationPreset.any ||
+      verifiedOnly ||
+      tags.isNotEmpty ||
+      categories.isNotEmpty ||
+      models.isNotEmpty ||
+      excludedTags.isNotEmpty ||
+      excludedCategories.isNotEmpty ||
+      excludedModels.isNotEmpty;
+
+  bool get hasQualityFilters => minRating != null || minRatingVotes != null;
+
+  int get activeCount {
+    var count = 0;
+    if (sort != VideoSort.relevance) count += 1;
+    if (orientation != ContentOrientation.all) count += 1;
+    if (uploadPeriod != UploadPeriod.anytime) count += 1;
+    if (duration != VideoDurationPreset.any) count += 1;
+    if (verifiedOnly) count += 1;
+    count += tags.length + categories.length + models.length;
+    count +=
+        excludedTags.length + excludedCategories.length + excludedModels.length;
+    if (minRating != null) count += 1;
+    if (minRatingVotes != null) count += 1;
+    return count;
+  }
+
+  bool matchesQuality(VideoItem video) {
+    final ratingThreshold = minRating;
+    if (ratingThreshold != null &&
+        (video.rating == null || video.rating! < ratingThreshold)) {
+      return false;
+    }
+    final votesThreshold = minRatingVotes;
+    if (votesThreshold != null &&
+        (video.ratingVotes == null || video.ratingVotes! < votesThreshold)) {
+      return false;
+    }
+    return true;
+  }
 
   SearchFilters copyWith({
     VideoSort? sort,
@@ -184,6 +270,11 @@ class SearchFilters {
     List<SearchSuggestion>? tags,
     List<SearchSuggestion>? categories,
     List<SearchSuggestion>? models,
+    List<SearchSuggestion>? excludedTags,
+    List<SearchSuggestion>? excludedCategories,
+    List<SearchSuggestion>? excludedModels,
+    Object? minRating = _unset,
+    Object? minRatingVotes = _unset,
   }) {
     return SearchFilters(
       sort: sort ?? this.sort,
@@ -194,6 +285,15 @@ class SearchFilters {
       tags: tags ?? this.tags,
       categories: categories ?? this.categories,
       models: models ?? this.models,
+      excludedTags: excludedTags ?? this.excludedTags,
+      excludedCategories: excludedCategories ?? this.excludedCategories,
+      excludedModels: excludedModels ?? this.excludedModels,
+      minRating: identical(minRating, _unset)
+          ? this.minRating
+          : minRating as int?,
+      minRatingVotes: identical(minRatingVotes, _unset)
+          ? this.minRatingVotes
+          : minRatingVotes as int?,
     );
   }
 }
@@ -221,49 +321,72 @@ class VideoItem {
     required this.title,
     required this.slug,
     this.thumbnailUrl,
-    this.previewUrl,
     this.duration,
     this.publishedLabel,
     this.views,
     this.rating,
     this.ratingVotes,
+    this.isFavorite,
   });
+
+  static const Object _unset = Object();
 
   final String id;
   final String title;
   final String slug;
   final String? thumbnailUrl;
-  final String? previewUrl;
   final String? duration;
   final String? publishedLabel;
   final int? views;
   final int? rating;
   final int? ratingVotes;
+  final bool? isFavorite;
 
   String get detailPath => '/video/$id/$slug/';
+
+  String? get highResolutionThumbnailUrl {
+    final value = thumbnailUrl;
+    if (value == null) {
+      return null;
+    }
+    final uri = Uri.tryParse(value);
+    if (uri == null) {
+      return null;
+    }
+    final upgradedPath = uri.path.replaceFirst(
+      RegExp(r'/\d+x\d+/\d+\.[^/]+$'),
+      '/preview.jpg',
+    );
+    if (upgradedPath == uri.path) {
+      return value;
+    }
+    return uri.replace(path: upgradedPath).toString();
+  }
 
   VideoItem copyWith({
     String? title,
     String? slug,
     String? thumbnailUrl,
-    String? previewUrl,
     String? duration,
     String? publishedLabel,
     int? views,
     int? rating,
     int? ratingVotes,
+    Object? isFavorite = _unset,
   }) {
     return VideoItem(
       id: id,
       title: title ?? this.title,
       slug: slug ?? this.slug,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
-      previewUrl: previewUrl ?? this.previewUrl,
       duration: duration ?? this.duration,
       publishedLabel: publishedLabel ?? this.publishedLabel,
       views: views ?? this.views,
       rating: rating ?? this.rating,
       ratingVotes: ratingVotes ?? this.ratingVotes,
+      isFavorite: identical(isFavorite, _unset)
+          ? this.isFavorite
+          : isFavorite as bool?,
     );
   }
 }
@@ -292,6 +415,7 @@ class VideoDetails {
     this.metadataItems = const [],
     this.relatedVideos = const [],
     this.ratingVotes,
+    this.uploader,
   });
 
   final VideoItem video;
@@ -304,6 +428,44 @@ class VideoDetails {
   final List<VideoMetadataItem> metadataItems;
   final List<VideoItem> relatedVideos;
   final int? ratingVotes;
+  final UploaderSummary? uploader;
+
+  VideoDetails copyWith({
+    VideoItem? video,
+    List<VideoSource>? sources,
+    bool? isFavorite,
+  }) {
+    return VideoDetails(
+      video: video ?? this.video,
+      sources: sources ?? this.sources,
+      categories: categories,
+      tags: tags,
+      models: models,
+      isFavorite: isFavorite ?? this.isFavorite,
+      description: description,
+      metadataItems: metadataItems,
+      relatedVideos: relatedVideos,
+      ratingVotes: ratingVotes,
+      uploader: uploader,
+    );
+  }
+}
+
+class UploaderSummary {
+  const UploaderSummary({
+    required this.id,
+    required this.name,
+    this.avatarUrl,
+    this.verified = false,
+  });
+
+  final String id;
+  final String name;
+  final String? avatarUrl;
+  final bool verified;
+
+  String get profilePath => '/members/$id/';
+  String get videosPath => '/members/$id/videos/';
 }
 
 class VideoMetadataItem {
@@ -312,6 +474,7 @@ class VideoMetadataItem {
     required this.title,
     required this.path,
     required this.kind,
+    this.thumbnailUrl,
     this.upScore = 0,
     this.downScore = 0,
   });
@@ -320,14 +483,20 @@ class VideoMetadataItem {
   final String title;
   final String path;
   final DiscoveryKind kind;
+  final String? thumbnailUrl;
   final int upScore;
   final int downScore;
 
   bool get canSubscribe =>
       kind == DiscoveryKind.category || kind == DiscoveryKind.model;
 
-  ContentCollectionItem get collection =>
-      ContentCollectionItem(id: id, title: title, path: path, kind: kind);
+  ContentCollectionItem get collection => ContentCollectionItem(
+    id: id,
+    title: title,
+    path: path,
+    kind: kind,
+    thumbnailUrl: thumbnailUrl,
+  );
 }
 
 class TagSuggestion {
@@ -340,24 +509,6 @@ class TagSuggestion {
   final String id;
   final String title;
   final int total;
-}
-
-class PlaylistItem {
-  const PlaylistItem({
-    required this.id,
-    required this.title,
-    required this.path,
-    this.thumbnailUrl,
-    this.videoCount,
-    this.views,
-  });
-
-  final String id;
-  final String title;
-  final String path;
-  final String? thumbnailUrl;
-  final int? videoCount;
-  final int? views;
 }
 
 enum SubscriptionKind {
@@ -384,4 +535,13 @@ class SubscriptionItem {
   final String path;
   final SubscriptionKind kind;
   final String? thumbnailUrl;
+
+  SubscriptionItem copyWith({String? thumbnailUrl}) {
+    return SubscriptionItem(
+      title: title,
+      path: path,
+      kind: kind,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+    );
+  }
 }

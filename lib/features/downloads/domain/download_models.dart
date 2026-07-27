@@ -33,7 +33,6 @@ final class DownloadRequest {
     required this.id,
     required this.url,
     required this.filename,
-    required this.directoryUri,
     required this.displayName,
     required this.metadata,
     required this.headers,
@@ -43,18 +42,50 @@ final class DownloadRequest {
   final String id;
   final String url;
   final String filename;
-  final Uri directoryUri;
   final String displayName;
   final String metadata;
   final Map<String, String> headers;
   final bool requiresWiFi;
 }
 
-final class DownloadDirectorySelection {
-  const DownloadDirectorySelection({required this.uri, required this.label});
+final class DownloadFileInspection {
+  const DownloadFileInspection({
+    required this.exists,
+    required this.readable,
+    this.name,
+    this.size,
+  });
 
-  final Uri uri;
-  final String label;
+  final bool exists;
+  final bool readable;
+  final String? name;
+  final int? size;
+}
+
+final class DownloadFileValidation {
+  const DownloadFileValidation({
+    required this.valid,
+    required this.exists,
+    required this.readable,
+    this.actualName,
+    this.actualBytes,
+    this.reason,
+  });
+
+  const DownloadFileValidation.notApplicable()
+    : valid = true,
+      exists = false,
+      readable = false,
+      actualName = null,
+      actualBytes = null,
+      reason = null;
+
+  final bool valid;
+  final bool exists;
+  final bool readable;
+  final String? actualName;
+  final int? actualBytes;
+  final String? reason;
 }
 
 sealed class DownloadPlatformEvent {
@@ -68,11 +99,13 @@ final class DownloadStatusEvent extends DownloadPlatformEvent {
     required super.taskId,
     required this.state,
     this.filePath,
+    this.actualBytes,
     this.errorMessage,
   });
 
   final DownloadTaskState state;
   final String? filePath;
+  final int? actualBytes;
   final String? errorMessage;
 }
 
@@ -96,23 +129,21 @@ abstract interface class DownloadPlatformService {
 
   Future<bool> ensureNotificationPermission();
 
-  Future<DownloadDirectorySelection?> pickDefaultDirectory();
-
-  Future<DownloadDirectorySelection?> pickCustomDirectory();
-
-  Future<Uri?> activateDirectory(Uri uri);
+  Future<bool> ensureSharedStoragePermission();
 
   Future<bool> enqueue(DownloadRequest request);
-
-  Future<bool> pause(String taskId);
-
-  Future<bool> resume(String taskId);
 
   Future<bool> cancel(String taskId);
 
   Future<bool> openFile(String fileUri);
 
-  Future<bool> delete({required String taskId, String? fileUri});
+  Future<DownloadFileInspection> inspectFile(String fileUri);
+
+  Future<bool> delete({
+    required String taskId,
+    String? fileUri,
+    bool deleteExternalFile = true,
+  });
 
   void dispose();
 }

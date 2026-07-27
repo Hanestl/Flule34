@@ -1,9 +1,11 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/account_models.dart';
 import '../../core/services/external_link_service.dart';
+import '../../shared/site_avatar.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key, required this.api});
@@ -39,15 +41,37 @@ class _AccountPageState extends State<AccountPage> {
     }
     setState(() {
       _observedUserId = nextUserId;
-      _profile = nextUserId == null
-          ? null
-          : widget.api.loadCurrentUserProfile();
+      _profile = nextUserId == null ? null : _loadProfile();
     });
   }
 
-  void _reload() {
+  void _reload({bool force = false}) {
     if (widget.api.sessionStore.isLoggedIn) {
-      _profile = widget.api.loadCurrentUserProfile();
+      _profile = _loadProfile(force: force);
+    }
+  }
+
+  Future<MemberProfile> _loadProfile({bool force = false}) async {
+    final userId = widget.api.sessionStore.currentUserId!;
+    if (!force) {
+      final cached = await widget.api.loadCachedCurrentUserProfile();
+      if (cached != null) {
+        unawaited(_refreshAfterCached(userId));
+        return cached;
+      }
+    }
+    return widget.api.loadCurrentUserProfile(force: force);
+  }
+
+  Future<void> _refreshAfterCached(String userId) async {
+    try {
+      final fresh = await widget.api.loadCurrentUserProfile();
+      if (!mounted || widget.api.sessionStore.currentUserId != userId) {
+        return;
+      }
+      setState(() => _profile = Future.value(fresh));
+    } on Object {
+      // 已显示本地缓存，后台刷新失败时保持现状。
     }
   }
 
@@ -68,7 +92,7 @@ class _AccountPageState extends State<AccountPage> {
           }
           return RefreshIndicator(
             onRefresh: () async {
-              setState(_reload);
+              setState(() => _reload(force: true));
               await _profile;
             },
             child: ListView(
@@ -83,17 +107,7 @@ class _AccountPageState extends State<AccountPage> {
                     loading:
                         snapshot.connectionState == ConnectionState.waiting,
                     error: snapshot.hasError,
-                    onRetry: () => setState(_reload),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Card(
-                  child: ListTile(
-                    leading: Icon(Icons.shield_outlined),
-                    title: Text('会话安全'),
-                    subtitle: Text(
-                      '登录 Cookie 和稳定用户 ID 保存在 Android 安全存储中，密码不会由 App 保存。',
-                    ),
+                    onRetry: () => setState(() => _reload(force: true)),
                   ),
                 ),
                 _WebsiteTile(
@@ -170,14 +184,10 @@ class _ProfileCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            CircleAvatar(
+            SiteAvatar(
               radius: 38,
-              backgroundImage: avatarUrl == null
-                  ? null
-                  : CachedNetworkImageProvider(avatarUrl),
-              child: avatarUrl == null
-                  ? const Icon(Icons.person, size: 40)
-                  : null,
+              imageUrl: avatarUrl,
+              fallbackIcon: Icons.person,
             ),
             const SizedBox(height: 14),
             Text(
@@ -225,6 +235,7 @@ class _WebsiteTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),
@@ -284,7 +295,7 @@ Future<void> _confirmLogout(BuildContext context, Rule34VideoApi api) async {
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('退出登录？'),
-      content: const Text('活动下载会被取消；已完成文件和记录会保留，并在重新登录该账号后显示。'),
+      content: const Text('将删除本机保存的账号、密码和登录会话；设备下载与本地分类库不会受影响。'),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),

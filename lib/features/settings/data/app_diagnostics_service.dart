@@ -40,9 +40,7 @@ final class AppDiagnosticsService {
   Future<DiagnosticReport> collect() async {
     final packageInfo = await _packageInfoLoader();
     final userId = _sessionStore.currentUserId;
-    final downloads = userId == null
-        ? const <DownloadRecord>[]
-        : await _database.watchDownloads(userId).first;
+    final downloads = await _database.allDownloads();
     final entries = <MapEntry<String, String>>[
       MapEntry(
         'App',
@@ -56,12 +54,14 @@ final class AppDiagnosticsService {
       const MapEntry('构建时间', AppBuildConfig.buildTime),
       MapEntry('数据库结构', 'v${_database.schemaVersion}'),
       MapEntry('当前账号 ID', userId == null ? '不存在' : '存在'),
-      MapEntry('当前账号下载记录', downloads.length.toString()),
+      MapEntry('本机下载记录', downloads.length.toString()),
       MapEntry('主题', _settings.theme.label),
       MapEntry('播放清晰度', _settings.playbackQuality.label),
       MapEntry('下载清晰度', _settings.downloadQuality.label),
       MapEntry('仅 Wi-Fi 下载', _settings.wifiOnlyDownloads ? '是' : '否'),
       MapEntry('更新通道', _settings.updateChannel.label),
+      MapEntry('调试日志', _settings.debugLoggingEnabled ? '已开启' : '已关闭'),
+      MapEntry('日志保留时间', '${_settings.debugLogRetentionDays} 天'),
       MapEntry('更新源', AppBuildConfig.updateApiUri?.toString() ?? '未配置'),
     ];
     if (Platform.isAndroid) {

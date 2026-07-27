@@ -30,7 +30,6 @@ void main() {
     expect(videos.single.slug, 'example-video');
     expect(videos.single.title, 'Example video');
     expect(videos.single.thumbnailUrl, 'https://rule34video.com/thumbnail.jpg');
-    expect(videos.single.previewUrl, 'https://rule34video.com/preview.mp4');
     expect(videos.single.duration, '2:34');
     expect(videos.single.publishedLabel, '23 minutes ago');
     expect(videos.single.rating, 100);
@@ -53,7 +52,9 @@ void main() {
     const source = '''
       <div class="channel_logo">
         <div class="avatar">
-          <img src="/contents/avatars/98000/98965.png" alt="">
+          <img src="data:image/gif;base64,placeholder"
+               data-original="/contents/avatars/98000/98965.png"
+               alt="">
         </div>
         <h2 class="title">Oppai3Dporn</h2>
         <div class="subscribers_count">25K <span>Subscribers</span></div>
@@ -72,36 +73,12 @@ void main() {
     expect(profile.subscribersLabel, '25K Subscribers');
   });
 
-  test('解析账号播放列表及统计信息', () {
-    const source = '''
-      <div class="item thumb playlist_77">
-        <a class="th" href="/my/playlists/77/" title="稍后整理">
-          <img data-original="/playlist.jpg" alt="稍后整理">
-        </a>
-        <div class="title">稍后整理</div>
-        <div>12 videos · 3,456 views</div>
-      </div>
-    ''';
-
-    final playlists = SiteParser.playlists(source);
-
-    expect(playlists, hasLength(1));
-    expect(playlists.single.id, '77');
-    expect(playlists.single.title, '稍后整理');
-    expect(playlists.single.path, '/my/playlists/77/');
-    expect(playlists.single.videoCount, 12);
-    expect(playlists.single.views, 3456);
-    expect(
-      playlists.single.thumbnailUrl,
-      'https://rule34video.com/playlist.jpg',
-    );
-  });
-
   test('解析账号订阅实体并识别类型', () {
     const source = '''
       <div class="item">
         <a href="/models/example-artist/" title="Example Artist">
-          <img data-original="/artist.jpg" alt="Example Artist">
+          <img data-original="/contents/models/87/artist.jpg"
+               alt="Example Artist">
         </a>
       </div>
       <div class="item">
@@ -114,6 +91,10 @@ void main() {
     expect(subscriptions, hasLength(2));
     expect(subscriptions.first.kind.name, 'model');
     expect(subscriptions.first.path, '/models/example-artist/');
+    expect(
+      subscriptions.first.thumbnailUrl,
+      'https://rule34video.com/contents/models/87/artist.jpg',
+    );
     expect(subscriptions.last.kind.name, 'category');
     expect(subscriptions.last.title, 'Example Category');
   });
@@ -122,7 +103,8 @@ void main() {
     const source = '''
       <div class="item">
         <a href="/models/example-artist/" title="Example Artist">
-          <img data-original="/artist.jpg" alt="Example Artist">
+          <img data-original="/contents/models/87/artist.jpg"
+               alt="Example Artist">
         </a>
         <span>42 videos</span>
       </div>
@@ -133,6 +115,7 @@ void main() {
 
     expect(items, hasLength(1));
     expect(items.single.id, 'example-artist');
+    expect(items.single.filterId, '87');
     expect(items.single.title, 'Example Artist');
     expect(items.single.total, 42);
     expect(items.single.path, '/models/example-artist/');
@@ -146,6 +129,13 @@ void main() {
       <div class="action_rating">
         <div class="voters count">94% (1,234)</div>
       </div>
+      <div class="col">
+        <div class="label">Uploaded by</div>
+        <a href="/members/42/">
+          <img src="/uploader.jpg" alt="Example Uploader">
+          <span class="verified-status"></span>
+        </a>
+      </div>
       <a href="#tab_comments">Comments (2)</a>
       <span class="js-video-vote-chip"
             data-item-type="category"
@@ -158,7 +148,7 @@ void main() {
             data-item-type="model"
             data-item-id="639">
         <a href="/models/example-artist/">
-          <img alt="Example Artist">
+          <img src="/contents/models/639/artist.jpg" alt="Example Artist">
         </a>
       </span>
       <div id="video_comments_video_comments_items">
@@ -191,8 +181,23 @@ void main() {
     expect(details.metadataItems.first.upScore, 8);
     expect(details.categories, ['3D']);
     expect(details.models, ['Example Artist']);
+    expect(
+      details.metadataItems.last.thumbnailUrl,
+      'https://rule34video.com/contents/models/639/artist.jpg',
+    );
     expect(details.video.publishedLabel, '2026-07-24');
     expect(details.relatedVideos.single.id, '456');
+    expect(details.uploader?.id, '42');
+    expect(details.uploader?.name, 'Example Uploader');
+    expect(details.uploader?.avatarUrl, 'https://rule34video.com/uploader.jpg');
+    expect(details.uploader?.verified, isTrue);
+    expect(
+      SiteParser.isVideoDetailsPage(
+        '<link rel="canonical" href="/video/123/example/">',
+        '123',
+      ),
+      isTrue,
+    );
   });
 
   test('识别 HTTP 200 异步操作中的服务端错误', () {

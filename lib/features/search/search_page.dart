@@ -10,6 +10,7 @@ import '../../core/models/video_models.dart';
 import '../../shared/video_card.dart' show formatCount;
 import '../../shared/video_feed.dart';
 import 'data/search_history_repository.dart';
+import 'video_filter_sheet.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({
@@ -42,6 +43,7 @@ class _SearchPageState extends State<SearchPage> {
   var _showAutocomplete = false;
   var _searchRevision = 0;
   var _suggestionGeneration = 0;
+  var _showResults = false;
 
   @override
   void initState() {
@@ -147,7 +149,7 @@ class _SearchPageState extends State<SearchPage> {
 
   Future<void> _search([String? query]) async {
     final text = (query ?? _controller.text).trim();
-    if (text.isEmpty) {
+    if (text.isEmpty && _filters.isEmpty) {
       return;
     }
     _controller.value = TextEditingValue(
@@ -159,9 +161,12 @@ class _SearchPageState extends State<SearchPage> {
       _activeQuery = text;
       _scope = SearchResultScope.overview;
       _searchRevision += 1;
+      _showResults = true;
     });
-    unawaited(_recordHistory(text));
-    unawaited(_loadSuggestions(text));
+    if (text.isNotEmpty) {
+      unawaited(_recordHistory(text));
+      unawaited(_loadSuggestions(text));
+    }
   }
 
   Future<void> _recordHistory(String text) async {
@@ -179,32 +184,8 @@ class _SearchPageState extends State<SearchPage> {
   void _applyFilters(SearchFilters filters) {
     setState(() {
       _filters = filters;
-      if (_activeQuery.isNotEmpty) {
-        _searchRevision += 1;
-      }
-    });
-  }
-
-  void _addSuggestion(SearchSuggestion suggestion) {
-    final current = switch (suggestion.kind) {
-      SearchSuggestionKind.tag => _filters.tags,
-      SearchSuggestionKind.category => _filters.categories,
-      SearchSuggestionKind.model => _filters.models,
-    };
-    if (current.any((item) => item.id == suggestion.id)) {
-      return;
-    }
-    if (current.length >= 5) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('同类筛选最多选择 5 项。')));
-      return;
-    }
-    final updated = [...current, suggestion];
-    _applyFilters(switch (suggestion.kind) {
-      SearchSuggestionKind.tag => _filters.copyWith(tags: updated),
-      SearchSuggestionKind.category => _filters.copyWith(categories: updated),
-      SearchSuggestionKind.model => _filters.copyWith(models: updated),
+      _showResults = _activeQuery.isNotEmpty || !filters.isEmpty;
+      _searchRevision += 1;
     });
   }
 
@@ -214,18 +195,8 @@ class _SearchPageState extends State<SearchPage> {
       appBar: AppBar(
         title: const Text('搜索'),
         actions: [
-          PopupMenuButton<VideoSort>(
-            tooltip: '排序',
-            initialValue: _filters.sort,
-            onSelected: (sort) => _applyFilters(_filters.copyWith(sort: sort)),
-            itemBuilder: (context) => VideoSort.values
-                .map(
-                  (sort) => PopupMenuItem(value: sort, child: Text(sort.label)),
-                )
-                .toList(growable: false),
-          ),
           IconButton(
-            tooltip: '筛选',
+            tooltip: '筛选与排序',
             onPressed: _openFilterSheet,
             icon: Badge(
               isLabelVisible: !_filters.isEmpty,
@@ -239,13 +210,8 @@ class _SearchPageState extends State<SearchPage> {
           _buildSearchField(),
           if (_showAutocomplete && _controller.text.trim().length >= 2)
             _buildAutocomplete(),
-          if (_activeQuery.isNotEmpty) ...[
-            _buildFilterChips(),
-            _buildScopeSelector(),
-          ],
-          Expanded(
-            child: _activeQuery.isEmpty ? _buildLanding() : _buildResults(),
-          ),
+          if (_showResults) ...[_buildFilterChips(), _buildScopeSelector()],
+          Expanded(child: _showResults ? _buildResults() : _buildLanding()),
         ],
       ),
     );
@@ -320,7 +286,7 @@ class _SearchPageState extends State<SearchPage> {
                 _SuggestionRow(
                   kind: kind,
                   suggestions: _suggestions[kind]!.take(6).toList(),
-                  onSelected: _addSuggestion,
+                  onSelected: _openSuggestionCollection,
                 ),
           ],
         ),
@@ -388,6 +354,36 @@ class _SearchPageState extends State<SearchPage> {
           avatar: Icon(_suggestionIcon(suggestion.kind), size: 18),
           label: Text(suggestion.title),
           onDeleted: () => _removeSuggestion(suggestion),
+        ),
+      );
+    }
+    for (final suggestion in [
+      ..._filters.excludedTags,
+      ..._filters.excludedCategories,
+      ..._filters.excludedModels,
+    ]) {
+      chips.add(
+        InputChip(
+          avatar: Icon(_suggestionIcon(suggestion.kind), size: 18),
+          label: Text('排除：${suggestion.title}'),
+          onDeleted: () => _removeSuggestion(suggestion, excluded: true),
+        ),
+      );
+    }
+    if (_filters.minRating != null) {
+      chips.add(
+        InputChip(
+          label: Text('点赞率 ≥ ${_filters.minRating}%'),
+          onDeleted: () => _applyFilters(_filters.copyWith(minRating: null)),
+        ),
+      );
+    }
+    if (_filters.minRatingVotes != null) {
+      chips.add(
+        InputChip(
+          label: Text('投票数 ≥ ${_filters.minRatingVotes}'),
+          onDeleted: () =>
+              _applyFilters(_filters.copyWith(minRatingVotes: null)),
         ),
       );
     }
@@ -469,7 +465,7 @@ class _SearchPageState extends State<SearchPage> {
                   .map(
                     (item) => ActionChip(
                       label: Text(item.title),
-                      onPressed: () => _search(item.title),
+                      onPressed: () => _openCollectionItem(item),
                     ),
                   )
                   .toList(growable: false),
@@ -571,6 +567,7 @@ class _SearchPageState extends State<SearchPage> {
       key: ValueKey('$_searchRevision:$_activeQuery'),
       loadPage: (page) =>
           widget.api.searchVideos(_activeQuery, page, filters: _filters),
+      itemFilter: _filters.hasQualityFilters ? _filters.matchesQuality : null,
       emptyMessage: '没有找到符合条件的视频。',
     );
   }
@@ -607,117 +604,10 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _openFilterSheet() async {
-    var draft = _filters;
-    final selected = await showModalBottomSheet<SearchFilters>(
+    final selected = await showVideoFilterSheet(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
-      ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                0,
-                20,
-                20 + MediaQuery.viewInsetsOf(context).bottom,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('筛选', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 20),
-                  const Text('内容取向'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: ContentOrientation.values
-                        .map(
-                          (value) => ChoiceChip(
-                            label: Text(value.label),
-                            selected: draft.orientation == value,
-                            onSelected: (_) => setSheetState(
-                              () => draft = draft.copyWith(orientation: value),
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text('上传时间'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: UploadPeriod.values
-                        .map(
-                          (value) => ChoiceChip(
-                            label: Text(value.label),
-                            selected: draft.uploadPeriod == value,
-                            onSelected: (_) => setSheetState(
-                              () => draft = draft.copyWith(uploadPeriod: value),
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text('视频时长'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: VideoDurationPreset.values
-                        .map(
-                          (value) => ChoiceChip(
-                            label: Text(value.label),
-                            selected: draft.duration == value,
-                            onSelected: (_) => setSheetState(
-                              () => draft = draft.copyWith(duration: value),
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('仅显示已验证上传者'),
-                    value: draft.verifiedOnly,
-                    onChanged: (value) => setSheetState(
-                      () => draft = draft.copyWith(verifiedOnly: value),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => setSheetState(
-                            () => draft = const SearchFilters(),
-                          ),
-                          child: const Text('重置全部'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () => Navigator.pop(context, draft),
-                          child: const Text('应用'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+      api: widget.api,
+      initialFilters: _filters,
     );
     if (selected != null) {
       _applyFilters(selected);
@@ -767,20 +657,35 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  void _removeSuggestion(SearchSuggestion suggestion) {
-    _applyFilters(switch (suggestion.kind) {
-      SearchSuggestionKind.tag => _filters.copyWith(
+  void _removeSuggestion(SearchSuggestion suggestion, {bool excluded = false}) {
+    _applyFilters(switch ((suggestion.kind, excluded)) {
+      (SearchSuggestionKind.tag, false) => _filters.copyWith(
         tags: _filters.tags
             .where((item) => item.id != suggestion.id)
             .toList(growable: false),
       ),
-      SearchSuggestionKind.category => _filters.copyWith(
+      (SearchSuggestionKind.category, false) => _filters.copyWith(
         categories: _filters.categories
             .where((item) => item.id != suggestion.id)
             .toList(growable: false),
       ),
-      SearchSuggestionKind.model => _filters.copyWith(
+      (SearchSuggestionKind.model, false) => _filters.copyWith(
         models: _filters.models
+            .where((item) => item.id != suggestion.id)
+            .toList(growable: false),
+      ),
+      (SearchSuggestionKind.tag, true) => _filters.copyWith(
+        excludedTags: _filters.excludedTags
+            .where((item) => item.id != suggestion.id)
+            .toList(growable: false),
+      ),
+      (SearchSuggestionKind.category, true) => _filters.copyWith(
+        excludedCategories: _filters.excludedCategories
+            .where((item) => item.id != suggestion.id)
+            .toList(growable: false),
+      ),
+      (SearchSuggestionKind.model, true) => _filters.copyWith(
+        excludedModels: _filters.excludedModels
             .where((item) => item.id != suggestion.id)
             .toList(growable: false),
       ),
@@ -788,7 +693,10 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _openSuggestionCollection(SearchSuggestion suggestion) {
-    final collection = suggestion.collection;
+    _openCollectionItem(suggestion.collection);
+  }
+
+  void _openCollectionItem(ContentCollectionItem collection) {
     context.pushNamed(
       AppRouteNames.collection,
       pathParameters: {'kind': collection.kind.name, 'id': collection.id},

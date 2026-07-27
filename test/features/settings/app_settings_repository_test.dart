@@ -24,13 +24,14 @@ void main() {
     );
     await repository.setDefaultOrientation(ContentOrientation.futa);
     await repository.setHiddenKeywords('foo, bar');
-    await repository.setVideoPreviewPolicy(VideoPreviewPolicy.wifiOnly);
     await repository.setDownloadConcurrentTasks(3);
     await repository.setSaveSearchHistory(false);
     await repository.setAutoplay(true);
     await repository.setRememberPlaybackProgress(false);
     await repository.setWifiOnlyDownloads(true);
     await repository.setUpdateChannel(UpdateChannel.prerelease);
+    await repository.setDebugLoggingEnabled(true);
+    await repository.setDebugLogRetentionDays(7);
 
     final restored = AppSettingsRepository(store);
     addTearDown(restored.dispose);
@@ -47,13 +48,14 @@ void main() {
     );
     expect(restored.settings.defaultOrientation, ContentOrientation.futa);
     expect(restored.settings.hiddenKeywords, 'foo, bar');
-    expect(restored.settings.videoPreviewPolicy, VideoPreviewPolicy.wifiOnly);
     expect(restored.settings.downloadConcurrentTasks, 3);
     expect(restored.settings.saveSearchHistory, isFalse);
     expect(restored.settings.autoplay, isTrue);
     expect(restored.settings.rememberPlaybackProgress, isFalse);
     expect(restored.settings.wifiOnlyDownloads, isTrue);
     expect(restored.settings.updateChannel, UpdateChannel.prerelease);
+    expect(restored.settings.debugLoggingEnabled, isTrue);
+    expect(restored.settings.debugLogRetentionDays, 7);
   });
 
   test('旧纯黑主题迁移为中性深色主题', () async {

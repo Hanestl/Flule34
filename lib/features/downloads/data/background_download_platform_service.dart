@@ -1,22 +1,40 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
+import 'package:flutter/services.dart';
 
+import '../../../core/logging/app_log_service.dart';
 import '../../../core/security/error_redaction.dart';
 import '../domain/download_models.dart';
 
 final class BackgroundDownloadPlatformService
     implements DownloadPlatformService {
-  BackgroundDownloadPlatformService({int maxConcurrent = 2})
-    : this._(maxConcurrent);
+  BackgroundDownloadPlatformService({
+    int maxConcurrent = 2,
+    AppLogService? logService,
+  }) : this._(maxConcurrent, logService);
 
-  BackgroundDownloadPlatformService._(this._maxConcurrent);
+  BackgroundDownloadPlatformService._(this._maxConcurrent, this._logs);
 
   static const _group = 'flule34-downloads';
+  static const _privateDirectory = 'downloads';
+  static const _publicDirectory = 'Flule34';
+  static const _mediaStoreInspectionDelays = <Duration>[
+    Duration.zero,
+    Duration(milliseconds: 120),
+    Duration(milliseconds: 350),
+    Duration(milliseconds: 800),
+  ];
+  static const _storageChannel = MethodChannel(
+    'com.hanestl.flule34/storage_access',
+  );
 
   final FileDownloader _downloader = FileDownloader();
   final StreamController<DownloadPlatformEvent> _events =
       StreamController<DownloadPlatformEvent>.broadcast();
+  final Set<String> _finalizing = {};
+  final AppLogService? _logs;
   int _maxConcurrent;
   bool _initialized = false;
 
@@ -46,7 +64,7 @@ final class BackgroundDownloadPlatformService
           paused: const TaskNotification('下载已暂停', '{displayName}'),
           canceled: const TaskNotification('下载已取消', '{displayName}'),
           progressBar: true,
-          tapOpensFile: true,
+          tapOpensFile: false,
         );
     await _downloader.start(autoCleanDatabase: false);
     await _downloader.trackTasksInGroup(_group);
@@ -77,54 +95,28 @@ final class BackgroundDownloadPlatformService
   }
 
   @override
-  Future<DownloadDirectorySelection?> pickDefaultDirectory() async {
-    final parent = await _downloader.uri.pickDirectory(
-      startLocation: SharedStorage.downloads,
-      persistedUriPermission: true,
+  Future<bool> ensureSharedStoragePermission() async {
+    final permissions = _downloader.permissions;
+    final current = await permissions.status(
+      PermissionType.androidSharedStorage,
     );
-    if (parent == null) {
-      return null;
+    if (current == PermissionStatus.granted) {
+      return true;
     }
-    final directory = await _downloader.uri.createDirectory(
-      parent,
-      'Flule34',
-      persistedUriPermission: true,
-    );
-    return DownloadDirectorySelection(
-      uri: directory,
-      label: 'Downloads/Flule34',
-    );
+    return await permissions.request(PermissionType.androidSharedStorage) ==
+        PermissionStatus.granted;
   }
 
   @override
-  Future<DownloadDirectorySelection?> pickCustomDirectory() async {
-    final directory = await _downloader.uri.pickDirectory(
-      startLocation: SharedStorage.downloads,
-      persistedUriPermission: true,
-    );
-    if (directory == null) {
-      return null;
-    }
-    return DownloadDirectorySelection(
-      uri: directory,
-      label: _directoryLabel(directory),
-    );
-  }
-
-  @override
-  Future<Uri?> activateDirectory(Uri uri) {
-    return _downloader.uri.activate(uri);
-  }
-
-  @override
-  Future<bool> enqueue(DownloadRequest request) {
-    return _downloader.enqueue(
-      UriDownloadTask(
+  Future<bool> enqueue(DownloadRequest request) async {
+    final accepted = await _downloader.enqueue(
+      DownloadTask(
         taskId: request.id,
         url: request.url,
         filename: request.filename,
         headers: request.headers,
-        directoryUri: request.directoryUri,
+        baseDirectory: BaseDirectory.applicationSupport,
+        directory: _privateDirectory,
         group: _group,
         updates: Updates.statusAndProgress,
         requiresWiFi: request.requiresWiFi,
@@ -135,20 +127,13 @@ final class BackgroundDownloadPlatformService
         displayName: request.displayName,
       ),
     );
-  }
-
-  @override
-  Future<bool> pause(String taskId) async {
-    final record = await _downloader.database.recordForId(taskId);
-    final task = record?.task;
-    return task is DownloadTask && await _downloader.pause(task);
-  }
-
-  @override
-  Future<bool> resume(String taskId) async {
-    final record = await _downloader.database.recordForId(taskId);
-    final task = record?.task;
-    return task is DownloadTask && await _downloader.resume(task);
+    unawaited(
+      _logs?.info(
+        'downloads',
+        '后台任务 ${request.id} ${accepted ? '已加入队列' : '被系统拒绝'}。',
+      ),
+    );
+    return accepted;
   }
 
   @override
@@ -162,18 +147,63 @@ final class BackgroundDownloadPlatformService
   }
 
   @override
-  Future<bool> delete({required String taskId, String? fileUri}) async {
+  Future<DownloadFileInspection> inspectFile(String fileUri) async {
+    try {
+      final result = await _storageChannel.invokeMapMethod<String, Object?>(
+        'inspectFile',
+        {'uri': fileUri},
+      );
+      return DownloadFileInspection(
+        exists: result?['exists'] == true,
+        readable: result?['readable'] == true,
+        name: result?['name'] as String?,
+        size: switch (result?['size']) {
+          final int value => value,
+          final num value => value.toInt(),
+          _ => null,
+        },
+      );
+    } on PlatformException catch (error, stackTrace) {
+      unawaited(
+        _logs?.warning(
+          'downloads',
+          '无法读取下载文件元数据。',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      return const DownloadFileInspection(exists: false, readable: false);
+    }
+  }
+
+  @override
+  Future<bool> delete({
+    required String taskId,
+    String? fileUri,
+    bool deleteExternalFile = true,
+  }) async {
     final record = await _downloader.database.recordForId(taskId);
     final task = record?.task;
     await _downloader.cancelTaskWithId(taskId);
-    final resolvedUri =
-        fileUri ?? (task is UriDownloadTask ? task.fileUri?.toString() : null);
-    if (resolvedUri != null) {
-      try {
-        if (!await _downloader.uri.deleteFile(Uri.parse(resolvedUri))) {
+    if (deleteExternalFile && fileUri != null) {
+      final inspection = await inspectFile(fileUri);
+      if (inspection.exists) {
+        try {
+          if (!await _downloader.uri.deleteFile(Uri.parse(fileUri))) {
+            return false;
+          }
+        } on Exception {
           return false;
         }
-      } on Exception {
+      }
+    }
+    if (task is DownloadTask) {
+      try {
+        final file = File(await task.filePath());
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } on FileSystemException {
         return false;
       }
     }
@@ -186,21 +216,114 @@ final class BackgroundDownloadPlatformService
   }
 
   Future<void> _emitStatus(TaskStatusUpdate update) async {
+    final taskId = update.task.taskId;
     final state = _mapStatus(update.status);
-    final fileUri =
-        state == DownloadTaskState.complete && update.task is UriDownloadTask
-        ? (update.task as UriDownloadTask).fileUri?.toString()
-        : null;
+    if (state == DownloadTaskState.complete) {
+      if (!_finalizing.add(taskId)) {
+        return;
+      }
+      try {
+        await _finalizeCompletedTask(update.task);
+      } finally {
+        _finalizing.remove(taskId);
+      }
+      return;
+    }
     _events.add(
       DownloadStatusEvent(
-        taskId: update.task.taskId,
+        taskId: taskId,
         state: state,
-        filePath: fileUri,
         errorMessage: update.exception == null
             ? null
             : redactSensitiveText(update.exception),
       ),
     );
+    unawaited(
+      _logs?.info(
+        'downloads',
+        '任务 $taskId 状态变为 ${state.storageValue}'
+            '${update.exception == null ? '' : '，发生异常'}。',
+      ),
+    );
+  }
+
+  Future<void> _finalizeCompletedTask(Task task) async {
+    final taskId = task.taskId;
+    try {
+      final Uri? finalUri;
+      int? sourceBytes;
+      if (task is UriDownloadTask) {
+        finalUri = task.fileUri;
+      } else if (task is DownloadTask) {
+        if (!await ensureSharedStoragePermission()) {
+          throw StateError('系统未授予公共下载目录写入权限。');
+        }
+        final sourceFile = File(await task.filePath());
+        if (await sourceFile.exists()) {
+          sourceBytes = await sourceFile.length();
+        }
+        finalUri = await _downloader.uri.moveToSharedStorage(
+          task,
+          SharedStorage.downloads,
+          directory: _publicDirectory,
+          mimeType: 'video/mp4',
+        );
+      } else {
+        finalUri = null;
+      }
+      if (finalUri == null) {
+        throw StateError('无法将视频保存到 Download/Flule34。');
+      }
+      final inspection = await _inspectFinalizedFile(finalUri);
+      if (!inspection.exists || !inspection.readable) {
+        unawaited(
+          _logs?.warning('downloads', '任务 $taskId 已写入公共目录，但系统暂未返回可读的文件元数据。'),
+        );
+      }
+      await _downloader.database.deleteRecordWithId(taskId);
+      _events.add(
+        DownloadStatusEvent(
+          taskId: taskId,
+          state: DownloadTaskState.complete,
+          filePath: finalUri.toString(),
+          actualBytes: inspection.size ?? sourceBytes,
+        ),
+      );
+      unawaited(_logs?.info('downloads', '任务 $taskId 已保存到 Download/Flule34。'));
+    } catch (error, stackTrace) {
+      _events.add(
+        DownloadStatusEvent(
+          taskId: taskId,
+          state: DownloadTaskState.failed,
+          errorMessage: redactSensitiveText(error),
+        ),
+      );
+      unawaited(
+        _logs?.error(
+          'downloads',
+          '任务 $taskId 完成后的公共目录保存失败。',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+    }
+  }
+
+  Future<DownloadFileInspection> _inspectFinalizedFile(Uri uri) async {
+    var inspection = const DownloadFileInspection(
+      exists: false,
+      readable: false,
+    );
+    for (final delay in _mediaStoreInspectionDelays) {
+      if (delay > Duration.zero) {
+        await Future<void>.delayed(delay);
+      }
+      inspection = await inspectFile(uri.toString());
+      if (inspection.exists && inspection.readable) {
+        return inspection;
+      }
+    }
+    return inspection;
   }
 
   void _onProgress(TaskProgressUpdate update) {
@@ -227,16 +350,6 @@ final class BackgroundDownloadPlatformService
     TaskStatus.waitingToRetry => DownloadTaskState.waitingToRetry,
     TaskStatus.paused => DownloadTaskState.paused,
   };
-
-  String _directoryLabel(Uri uri) {
-    if (uri.pathSegments.isEmpty) {
-      return '自定义目录';
-    }
-    final decoded = Uri.decodeComponent(uri.pathSegments.last);
-    final name = decoded.contains(':') ? decoded.split(':').last : decoded;
-    final normalized = name.replaceAll('/', ' / ').trim();
-    return normalized.isEmpty ? '自定义目录' : normalized;
-  }
 
   @override
   void dispose() {

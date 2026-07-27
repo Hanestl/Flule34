@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../shared/site_avatar.dart';
 
 class DiscoveryDirectoryPage extends StatefulWidget {
   const DiscoveryDirectoryPage({
@@ -304,11 +304,10 @@ class _DirectoryItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundImage: item.thumbnailUrl == null
-              ? null
-              : CachedNetworkImageProvider(item.thumbnailUrl!),
-          child: item.thumbnailUrl == null ? Icon(_kindIcon(item.kind)) : null,
+        leading: SiteAvatar(
+          imageUrl: item.thumbnailUrl,
+          radius: 20,
+          fallbackIcon: _kindIcon(item.kind),
         ),
         title: Text(item.title),
         subtitle: item.total == null

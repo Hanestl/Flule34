@@ -37,6 +37,25 @@ class _LoginSheetState extends State<_LoginSheet> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final credentials = await widget.api.sessionStore.loadCredentials();
+    if (!mounted || credentials == null) {
+      return;
+    }
+    if (_emailController.text.isEmpty) {
+      _emailController.text = credentials.email;
+    }
+    if (_passwordController.text.isEmpty) {
+      _passwordController.text = credentials.password;
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _submitting) {
       return;
@@ -153,11 +172,6 @@ class _LoginSheetState extends State<_LoginSheet> {
                     child: const Text('忘记密码'),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '密码不会由应用保存；仅保存网站返回的加密会话信息。',
-                textAlign: TextAlign.center,
               ),
             ],
           ),

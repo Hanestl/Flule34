@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../shared/site_avatar.dart';
 
 class SubscriptionsList extends StatefulWidget {
   const SubscriptionsList({super.key, required this.api});
@@ -26,7 +26,7 @@ class _SubscriptionsListState extends State<SubscriptionsList>
   }
 
   Future<void> _reload() async {
-    final future = widget.api.loadSubscriptions();
+    final future = widget.api.loadSubscriptions(force: true);
     setState(() => _future = future);
     await future;
   }
@@ -67,26 +67,33 @@ class _SubscriptionsListState extends State<SubscriptionsList>
             itemCount: subscriptions.length,
             itemBuilder: (context, index) {
               final item = subscriptions[index];
-              return Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: item.thumbnailUrl == null
-                        ? null
-                        : CachedNetworkImageProvider(item.thumbnailUrl!),
-                    child: item.thumbnailUrl == null
-                        ? Icon(_kindIcon(item.kind))
-                        : null,
-                  ),
-                  title: Text(item.title),
-                  subtitle: Text(item.kind.label),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.pushNamed(
-                    AppRouteNames.subscription,
-                    pathParameters: {'kind': item.kind.name},
-                    queryParameters: {'path': item.path, 'title': item.title},
-                    extra: item,
-                  ),
-                ),
+              return FutureBuilder<SubscriptionItem>(
+                future: widget.api.resolveSubscription(item),
+                initialData: item,
+                builder: (context, resolvedSnapshot) {
+                  final resolved = resolvedSnapshot.data ?? item;
+                  return Card(
+                    child: ListTile(
+                      leading: SiteAvatar(
+                        imageUrl: resolved.thumbnailUrl,
+                        radius: 20,
+                        fallbackIcon: _kindIcon(resolved.kind),
+                      ),
+                      title: Text(resolved.title),
+                      subtitle: Text(resolved.kind.label),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.pushNamed(
+                        AppRouteNames.subscription,
+                        pathParameters: {'kind': resolved.kind.name},
+                        queryParameters: {
+                          'path': resolved.path,
+                          'title': resolved.title,
+                        },
+                        extra: resolved,
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),

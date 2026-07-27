@@ -51,16 +51,6 @@ enum FullscreenOrientationPreference {
   final String label;
 }
 
-enum VideoPreviewPolicy {
-  disabled('关闭'),
-  wifiOnly('仅 Wi-Fi'),
-  allNetworks('所有网络');
-
-  const VideoPreviewPolicy(this.label);
-
-  final String label;
-}
-
 enum UpdateChannel {
   stable('稳定版'),
   prerelease('预发布版');
@@ -83,7 +73,6 @@ final class AppSettings {
     required this.fullscreenOrientation,
     required this.defaultOrientation,
     required this.hiddenKeywords,
-    required this.videoPreviewPolicy,
     required this.blurThumbnails,
     required this.askDownloadQuality,
     required this.downloadQuality,
@@ -91,8 +80,8 @@ final class AppSettings {
     required this.downloadConcurrentTasks,
     required this.saveSearchHistory,
     required this.updateChannel,
-    required this.downloadDirectoryUri,
-    required this.downloadDirectoryLabel,
+    required this.debugLoggingEnabled,
+    required this.debugLogRetentionDays,
   });
 
   static const defaults = AppSettings(
@@ -107,7 +96,6 @@ final class AppSettings {
     fullscreenOrientation: FullscreenOrientationPreference.landscape,
     defaultOrientation: ContentOrientation.all,
     hiddenKeywords: '',
-    videoPreviewPolicy: VideoPreviewPolicy.disabled,
     blurThumbnails: false,
     askDownloadQuality: true,
     downloadQuality: VideoQualityPreference.highest,
@@ -115,8 +103,8 @@ final class AppSettings {
     downloadConcurrentTasks: 2,
     saveSearchHistory: true,
     updateChannel: UpdateChannel.stable,
-    downloadDirectoryUri: '',
-    downloadDirectoryLabel: 'Downloads/Flule34',
+    debugLoggingEnabled: false,
+    debugLogRetentionDays: 3,
   );
 
   final AppThemePreference theme;
@@ -130,7 +118,6 @@ final class AppSettings {
   final FullscreenOrientationPreference fullscreenOrientation;
   final ContentOrientation defaultOrientation;
   final String hiddenKeywords;
-  final VideoPreviewPolicy videoPreviewPolicy;
   final bool blurThumbnails;
   final bool askDownloadQuality;
   final VideoQualityPreference downloadQuality;
@@ -138,8 +125,8 @@ final class AppSettings {
   final int downloadConcurrentTasks;
   final bool saveSearchHistory;
   final UpdateChannel updateChannel;
-  final String downloadDirectoryUri;
-  final String downloadDirectoryLabel;
+  final bool debugLoggingEnabled;
+  final int debugLogRetentionDays;
 
   AppSettings copyWith({
     AppThemePreference? theme,
@@ -153,7 +140,6 @@ final class AppSettings {
     FullscreenOrientationPreference? fullscreenOrientation,
     ContentOrientation? defaultOrientation,
     String? hiddenKeywords,
-    VideoPreviewPolicy? videoPreviewPolicy,
     bool? blurThumbnails,
     bool? askDownloadQuality,
     VideoQualityPreference? downloadQuality,
@@ -161,8 +147,8 @@ final class AppSettings {
     int? downloadConcurrentTasks,
     bool? saveSearchHistory,
     UpdateChannel? updateChannel,
-    String? downloadDirectoryUri,
-    String? downloadDirectoryLabel,
+    bool? debugLoggingEnabled,
+    int? debugLogRetentionDays,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
@@ -179,7 +165,6 @@ final class AppSettings {
           fullscreenOrientation ?? this.fullscreenOrientation,
       defaultOrientation: defaultOrientation ?? this.defaultOrientation,
       hiddenKeywords: hiddenKeywords ?? this.hiddenKeywords,
-      videoPreviewPolicy: videoPreviewPolicy ?? this.videoPreviewPolicy,
       blurThumbnails: blurThumbnails ?? this.blurThumbnails,
       askDownloadQuality: askDownloadQuality ?? this.askDownloadQuality,
       downloadQuality: downloadQuality ?? this.downloadQuality,
@@ -188,9 +173,9 @@ final class AppSettings {
           downloadConcurrentTasks ?? this.downloadConcurrentTasks,
       saveSearchHistory: saveSearchHistory ?? this.saveSearchHistory,
       updateChannel: updateChannel ?? this.updateChannel,
-      downloadDirectoryUri: downloadDirectoryUri ?? this.downloadDirectoryUri,
-      downloadDirectoryLabel:
-          downloadDirectoryLabel ?? this.downloadDirectoryLabel,
+      debugLoggingEnabled: debugLoggingEnabled ?? this.debugLoggingEnabled,
+      debugLogRetentionDays:
+          debugLogRetentionDays ?? this.debugLogRetentionDays,
     );
   }
 }

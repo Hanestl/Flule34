@@ -4,15 +4,12 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:video_player/video_player.dart';
 
 import '../app/providers.dart';
 import '../core/api/rule34video_api.dart';
 import '../core/models/video_models.dart';
-import '../core/security/error_redaction.dart';
-import '../core/services/network_status_service.dart';
 import '../features/auth/login_sheet.dart';
-import '../features/settings/domain/app_settings.dart';
+import '../features/library/local_library_picker.dart';
 import '../features/settings/domain/quality_selection.dart';
 
 class VideoCard extends ConsumerWidget {
@@ -27,58 +24,22 @@ class VideoCard extends ConsumerWidget {
   final VoidCallback onTap;
   final double? progress;
 
-  Future<void> _showPreview(BuildContext context, WidgetRef ref) async {
-    final settings = ref.read(appSettingsRepositoryProvider).settings;
-    if (settings.videoPreviewPolicy == VideoPreviewPolicy.disabled) {
-      _message(context, '视频预览已关闭，可在“我的 → 内容设置”中开启。');
-      return;
-    }
-    final previewUrl = video.previewUrl;
-    if (previewUrl == null) {
-      _message(context, '这个视频没有提供短预览。');
-      return;
-    }
-    if (settings.videoPreviewPolicy == VideoPreviewPolicy.wifiOnly) {
+  Future<void> _showActions(BuildContext context, WidgetRef ref) async {
+    final api = ref.read(rule34VideoApiProvider);
+    var isFavorite = video.isFavorite == true;
+    if (api.sessionStore.isLoggedIn && video.isFavorite == null) {
       try {
-        final network = await ref.read(networkStatusServiceProvider).current();
-        if (network != NetworkClass.wifi) {
-          if (context.mounted) {
-            _message(context, '当前不是 Wi-Fi，已按设置阻止视频预览。');
-          }
-          return;
-        }
-      } catch (_) {
+        isFavorite = await api.favoriteStatus(video);
+      } catch (error) {
         if (context.mounted) {
-          _message(context, '无法确认网络类型，未启动仅 Wi-Fi 预览。');
+          _message(context, error.toString());
         }
         return;
       }
     }
-    final api = ref.read(rule34VideoApiProvider);
-    final headers = <String, String>{
-      'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/0.1',
-    };
-    final cookie = await api.sessionCookieHeader();
-    if (cookie != null) {
-      headers['Cookie'] = cookie;
-    }
     if (!context.mounted) {
       return;
     }
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      backgroundColor: Colors.black,
-      builder: (_) => _VideoPreviewSheet(
-        title: video.title,
-        url: previewUrl,
-        headers: headers,
-      ),
-    );
-  }
-
-  Future<void> _showActions(BuildContext context, WidgetRef ref) async {
     final action = await showModalBottomSheet<_VideoCardAction>(
       context: context,
       showDragHandle: true,
@@ -86,25 +47,22 @@ class VideoCard extends ConsumerWidget {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.favorite_border),
-              title: const Text('收藏'),
+              leading: Icon(
+                isFavorite ? Icons.favorite : Icons.favorite_border,
+              ),
+              title: Text(isFavorite ? '取消收藏' : '收藏'),
               onTap: () => Navigator.pop(context, _VideoCardAction.favorite),
-            ),
-            const ListTile(
-              enabled: false,
-              leading: Icon(Icons.watch_later_outlined),
-              title: Text('稍后观看'),
-              subtitle: Text('网站写入参数尚未验证，暂不冒险修改账号数据'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add),
-              title: const Text('加入播放列表'),
-              onTap: () => Navigator.pop(context, _VideoCardAction.playlist),
             ),
             ListTile(
               leading: const Icon(Icons.download_outlined),
               title: const Text('下载'),
               onTap: () => Navigator.pop(context, _VideoCardAction.download),
+            ),
+            ListTile(
+              leading: const Icon(Icons.library_add_outlined),
+              title: const Text('入库'),
+              onTap: () =>
+                  Navigator.pop(context, _VideoCardAction.localLibrary),
             ),
             ListTile(
               leading: const Icon(Icons.share_outlined),
@@ -118,7 +76,6 @@ class VideoCard extends ConsumerWidget {
     if (action == null || !context.mounted) {
       return;
     }
-    final api = ref.read(rule34VideoApiProvider);
     try {
       switch (action) {
         case _VideoCardAction.share:
@@ -127,50 +84,11 @@ class VideoCard extends ConsumerWidget {
           if (!await _ensureLogin(context, api) || !context.mounted) {
             return;
           }
-          await api.toggleFavorite(video: video, add: true);
+          await api.toggleFavorite(video: video, add: !isFavorite);
           if (context.mounted) {
-            _message(context, '已加入收藏。');
-          }
-        case _VideoCardAction.playlist:
-          if (!await _ensureLogin(context, api) || !context.mounted) {
-            return;
-          }
-          final playlists = await api.loadMyPlaylists();
-          if (!context.mounted) {
-            return;
-          }
-          if (playlists.isEmpty) {
-            _message(context, '账号中还没有播放列表。');
-            return;
-          }
-          final playlist = await showModalBottomSheet<PlaylistItem>(
-            context: context,
-            showDragHandle: true,
-            builder: (context) => SafeArea(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final item in playlists)
-                    ListTile(
-                      leading: const Icon(Icons.playlist_play),
-                      title: Text(item.title),
-                      onTap: () => Navigator.pop(context, item),
-                    ),
-                ],
-              ),
-            ),
-          );
-          if (playlist == null) {
-            return;
-          }
-          await api.addVideoToPlaylist(video: video, playlistId: playlist.id);
-          if (context.mounted) {
-            _message(context, '已加入“${playlist.title}”。');
+            _message(context, isFavorite ? '已取消收藏。' : '已加入收藏。');
           }
         case _VideoCardAction.download:
-          if (!await _ensureLogin(context, api) || !context.mounted) {
-            return;
-          }
           final details = await api.loadVideoDetails(video);
           if (!context.mounted) {
             return;
@@ -191,6 +109,15 @@ class VideoCard extends ConsumerWidget {
               .enqueueVideo(details: details, source: source);
           if (context.mounted) {
             _message(context, '${source.label} 已加入下载队列。');
+          }
+        case _VideoCardAction.localLibrary:
+          final name = await addVideoToLocalLibrary(
+            context: context,
+            repository: ref.read(localLibraryRepositoryProvider),
+            video: video,
+          );
+          if (name != null && context.mounted) {
+            _message(context, '已加入“$name”。');
           }
       }
     } catch (error) {
@@ -244,7 +171,6 @@ class VideoCard extends ConsumerWidget {
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: InkWell(
             onTap: onTap,
-            onLongPress: () => unawaited(_showPreview(context, ref)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -260,9 +186,15 @@ class VideoCard extends ConsumerWidget {
                                   sigmaX: 18,
                                   sigmaY: 18,
                                 ),
-                                child: _Thumbnail(url: video.thumbnailUrl!),
+                                child: _Thumbnail(
+                                  url: video.highResolutionThumbnailUrl!,
+                                  fallbackUrl: video.thumbnailUrl,
+                                ),
                               )
-                            : _Thumbnail(url: video.thumbnailUrl!)
+                            : _Thumbnail(
+                                url: video.highResolutionThumbnailUrl!,
+                                fallbackUrl: video.thumbnailUrl,
+                              )
                       else
                         const ColoredBox(
                           color: Color(0xff25252d),
@@ -384,107 +316,13 @@ class VideoCard extends ConsumerWidget {
   }
 }
 
-enum _VideoCardAction { favorite, playlist, download, share }
-
-class _VideoPreviewSheet extends StatefulWidget {
-  const _VideoPreviewSheet({
-    required this.title,
-    required this.url,
-    required this.headers,
-  });
-
-  final String title;
-  final String url;
-  final Map<String, String> headers;
-
-  @override
-  State<_VideoPreviewSheet> createState() => _VideoPreviewSheetState();
-}
-
-class _VideoPreviewSheetState extends State<_VideoPreviewSheet> {
-  late final VideoPlayerController _controller;
-  late final Future<void> _initialization;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.url),
-      httpHeaders: widget.headers,
-    );
-    _initialization = _initialize();
-  }
-
-  Future<void> _initialize() async {
-    await _controller.initialize();
-    await _controller.setVolume(0);
-    await _controller.setLooping(true);
-    await _controller.play();
-  }
-
-  @override
-  void dispose() {
-    unawaited(_controller.dispose());
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<void>(
-      future: _initialization,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  '无法播放预览：${redactSensitiveText(snapshot.error)}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            ),
-          );
-        }
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        return Stack(
-          children: [
-            AspectRatio(
-              aspectRatio: _controller.value.aspectRatio,
-              child: VideoPlayer(_controller),
-            ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: Text(
-                widget.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  shadows: [Shadow(blurRadius: 8, color: Colors.black)],
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
+enum _VideoCardAction { favorite, download, localLibrary, share }
 
 class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.url});
+  const _Thumbnail({required this.url, this.fallbackUrl});
 
   final String url;
+  final String? fallbackUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -495,10 +333,29 @@ class _Thumbnail extends StatelessWidget {
         color: Color(0xff25252d),
         child: Center(child: CircularProgressIndicator()),
       ),
-      errorWidget: (_, _, _) => const ColoredBox(
-        color: Color(0xff25252d),
-        child: Center(child: Icon(Icons.broken_image_outlined, size: 42)),
-      ),
+      errorWidget: (_, _, _) {
+        final fallback = fallbackUrl;
+        if (fallback != null && fallback != url) {
+          return CachedNetworkImage(
+            imageUrl: fallback,
+            fit: BoxFit.cover,
+            errorWidget: (_, _, _) => const _BrokenThumbnail(),
+          );
+        }
+        return const _BrokenThumbnail();
+      },
+    );
+  }
+}
+
+class _BrokenThumbnail extends StatelessWidget {
+  const _BrokenThumbnail();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xff25252d),
+      child: Center(child: Icon(Icons.broken_image_outlined, size: 42)),
     );
   }
 }

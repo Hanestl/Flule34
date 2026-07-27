@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/settings/presentation/startup_update_gate.dart';
 import '../features/settings/domain/app_settings.dart';
 import 'providers.dart';
 import 'router/app_router.dart';
@@ -30,9 +29,6 @@ class Flule34App extends ConsumerWidget {
             AppThemePreference.dark => ThemeMode.dark,
           },
           routerConfig: router,
-          builder: (context, child) {
-            return StartupUpdateGate(child: child ?? const SizedBox.shrink());
-          },
         );
       },
     );

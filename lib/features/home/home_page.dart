@@ -58,21 +58,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       builder: (context, _) => Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Flule34',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ),
-                const Icon(Icons.verified_user_outlined, size: 20),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: SearchBar(
               readOnly: true,
               leading: const Icon(Icons.search),

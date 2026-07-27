@@ -9,6 +9,8 @@ import 'generated/schema.dart';
 import 'generated/schema_v1.dart' as v1;
 import 'generated/schema_v2.dart' as v2;
 import 'generated/schema_v3.dart' as v3;
+import 'generated/schema_v5.dart' as v5;
+import 'generated/schema_v6.dart' as v6;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -219,6 +221,61 @@ void main() {
         ], await newDb.select(newDb.playbackPositions).get());
         expect([newDownload], await newDb.select(newDb.downloadRecords).get());
         expect(await newDb.select(newDb.searchHistories).get(), isEmpty);
+      },
+    );
+  });
+
+  test('migration from v5 to v6 preserves local libraries', () async {
+    const timestamp = 1700000000;
+    const oldLibrary = v5.LocalLibrariesData(
+      id: 1,
+      name: '自建库',
+      normalizedName: '自建库',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    const newLibrary = v6.LocalLibrariesData(
+      id: 1,
+      name: '自建库',
+      normalizedName: '自建库',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    const oldVideo = v5.LocalLibraryVideosData(
+      libraryId: 1,
+      videoId: '4505897',
+      title: '测试视频',
+      slug: 'test-video',
+      durationLabel: '1:00',
+      rating: 98,
+      ratingVotes: 321,
+      addedAt: timestamp,
+    );
+    const newVideo = v6.LocalLibraryVideosData(
+      libraryId: 1,
+      videoId: '4505897',
+      title: '测试视频',
+      slug: 'test-video',
+      durationLabel: '1:00',
+      rating: 98,
+      ratingVotes: 321,
+      addedAt: timestamp,
+    );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 5,
+      newVersion: 6,
+      createOld: v5.DatabaseAtV5.new,
+      createNew: v6.DatabaseAtV6.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insert(oldDb.localLibraries, oldLibrary);
+        batch.insert(oldDb.localLibraryVideos, oldVideo);
+      },
+      validateItems: (newDb) async {
+        expect([newLibrary], await newDb.select(newDb.localLibraries).get());
+        expect([newVideo], await newDb.select(newDb.localLibraryVideos).get());
+        expect(await newDb.select(newDb.curatedLibrarySeeds).get(), isEmpty);
       },
     );
   });

@@ -109,17 +109,26 @@ class HelpFeedbackPage extends StatelessWidget {
           const _InfoCard(
             icon: Icons.account_circle_outlined,
             title: '账号与媒体库',
-            text: '收藏、稍后观看、历史和播放列表以登录账号为边界。切换账号后不会混用本地数据。',
+            text: '网站收藏、历史和订阅以登录账号为边界；本地分类库保存在设备上，与账号无关。',
           ),
           const _InfoCard(
             icon: Icons.download_outlined,
             title: '下载文件',
-            text: '视频直接写入所选公共目录；默认目录为 Downloads/Flule34，可在下载设置中改为其他目录。',
+            text: '视频直接写入所选公共目录；默认目录为 Downloads/Flule34，可从“我的 → 下载”右上角进入设置。',
           ),
           const _InfoCard(
             icon: Icons.play_circle_outline,
             title: '播放问题',
             text: '播放源失效时 App 会重新请求视频详情。仍无法播放时，请复制诊断信息并在反馈中说明视频链接和清晰度。',
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.article_outlined),
+              title: const Text('调试日志'),
+              subtitle: const Text('按需记录最近 1～7 天异常并生成脱敏日志文件'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.pushNamed(AppRouteNames.debugLogs),
+            ),
           ),
           Card(
             child: ListTile(
@@ -352,11 +361,6 @@ class _AppUpdatePageState extends ConsumerState<AppUpdatePage> {
                 icon: const Icon(Icons.refresh),
                 label: const Text('重新检查'),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Flule34 不会静默下载或安装 APK。请只从配置的官方发布页获取更新，并在安装前核对签名和 SHA256。',
-                textAlign: TextAlign.center,
-              ),
             ],
           );
         },
@@ -422,11 +426,6 @@ class _AboutPageState extends State<AboutPage> {
               const SizedBox(height: 4),
               Text(version, textAlign: TextAlign.center),
               const SizedBox(height: 24),
-              const _InfoCard(
-                icon: Icons.code,
-                title: '官方 Flutter 客户端',
-                text: 'Flule34 是 Rule34Video 的 Android 客户端，面向侧载和可审计的开源发布流程。',
-              ),
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.system_update_outlined),

@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:better_player_plus/better_player_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
+import '../../core/logging/app_log_service.dart';
 import '../../core/models/video_models.dart';
 import '../../core/security/error_redaction.dart';
 import '../../core/services/network_status_service.dart';
@@ -14,6 +16,29 @@ import '../../core/services/screen_wake_lock_service.dart';
 import '../playback/data/playback_repository.dart';
 import '../settings/domain/app_settings.dart';
 import '../settings/domain/quality_selection.dart';
+
+class VideoPlayerHandle {
+  bool get isFullScreen => _isFullScreen?.call() ?? false;
+
+  Future<void> pause() async {
+    await _pause?.call();
+  }
+
+  Future<void> Function()? _pause;
+  bool Function()? _isFullScreen;
+
+  void _attach(Future<void> Function() pause, bool Function() isFullScreen) {
+    _pause = pause;
+    _isFullScreen = isFullScreen;
+  }
+
+  void _detach(Future<void> Function() pause) {
+    if (_pause == pause) {
+      _pause = null;
+      _isFullScreen = null;
+    }
+  }
+}
 
 class VideoPlayerPage extends ConsumerStatefulWidget {
   const VideoPlayerPage({
@@ -23,6 +48,7 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
     required this.sources,
     this.embedded = false,
     this.autoplay,
+    this.handle,
   });
 
   final Rule34VideoApi api;
@@ -30,6 +56,7 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   final List<VideoSource> sources;
   final bool embedded;
   final bool? autoplay;
+  final VideoPlayerHandle? handle;
 
   @override
   ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
@@ -37,11 +64,17 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
 
 class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
+  static const _mediaHeaders = <String, String>{
+    'Referer': 'https://rule34video.com/',
+    'User-Agent': 'Flule34 Android/1.1',
+  };
+
   BetterPlayerController? _controller;
   ValueNotifier<VideoPlayerValue>? _videoController;
   late final PlaybackRepository _playback;
   late final String? _playbackUserId;
   late final ScreenWakeLockService _wakeLock;
+  late final AppLogService _logs;
   late List<VideoSource> _sources;
   late VideoSource _selectedSource;
   final Set<String> _failedUrls = {};
@@ -53,6 +86,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _wakeLockEnabled = false;
   var _resumeMessageShown = false;
   var _playbackSpeed = 1.0;
+  var _hasPreparedSource = false;
+  var _startupLogged = false;
+  var _playbackStarted = false;
+  var _bufferingCount = 0;
+  var _bufferingTotal = Duration.zero;
+  DateTime? _bufferingStartedAt;
+  late final Stopwatch _startupStopwatch;
   String? _error;
 
   @override
@@ -62,19 +102,38 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _playback = ref.read(playbackRepositoryProvider);
     _playbackUserId = widget.api.sessionStore.currentUserId;
     _wakeLock = ref.read(screenWakeLockServiceProvider);
+    _logs = ref.read(appLogServiceProvider);
+    _startupStopwatch = Stopwatch()..start();
     _sources = List.of(widget.sources);
     final settings = ref.read(appSettingsRepositoryProvider).settings;
     _selectedSource = selectVideoSource(_sources, settings.playbackQuality);
+    widget.handle?._attach(
+      _pauseForNavigation,
+      () => _controller?.isFullScreen ?? false,
+    );
     unawaited(_start());
+  }
+
+  @override
+  void didUpdateWidget(covariant VideoPlayerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.handle != widget.handle) {
+      oldWidget.handle?._detach(_pauseForNavigation);
+      widget.handle?._attach(
+        _pauseForNavigation,
+        () => _controller?.isFullScreen ?? false,
+      );
+    }
   }
 
   Future<void> _start() async {
     final settings = ref.read(appSettingsRepositoryProvider).settings;
-    NetworkClass network;
-    try {
-      network = await ref.read(networkStatusServiceProvider).current();
-    } catch (_) {
-      network = NetworkClass.other;
+    final networkFuture = _currentNetworkClass();
+    final resumeFuture = _resumePosition();
+    final network = await networkFuture;
+    final resumePosition = await resumeFuture;
+    if (!mounted) {
+      return;
     }
     final quality = switch (settings.networkPlaybackPolicy) {
       NetworkPlaybackPolicy.automatic
@@ -87,13 +146,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       _ => settings.playbackQuality,
     };
     _selectedSource = selectVideoSource(_sources, quality);
-    final resumePosition = await _playback.loadPositionForAccount(
-      videoId: widget.video.id,
-      userId: _playbackUserId,
+    unawaited(
+      _logs.info(
+        'playback',
+        '播放器开始准备：video=${widget.video.id}，网络=${network.name}，'
+            '清晰度=${_selectedSource.label}，恢复位置=${resumePosition.inSeconds}s。',
+      ),
     );
-    if (!mounted) {
-      return;
-    }
     await _setSource(
       _selectedSource,
       resumeAt: resumePosition,
@@ -101,8 +160,45 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     );
   }
 
+  Future<NetworkClass> _currentNetworkClass() async {
+    try {
+      return await ref.read(networkStatusServiceProvider).current();
+    } catch (error, stackTrace) {
+      unawaited(
+        _logs.warning(
+          'playback',
+          '读取当前网络类型失败，按其他网络处理。',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      return NetworkClass.other;
+    }
+  }
+
+  Future<Duration> _resumePosition() async {
+    try {
+      return await _playback.loadPositionForAccount(
+            videoId: widget.video.id,
+            userId: _playbackUserId,
+          ) ??
+          Duration.zero;
+    } catch (error, stackTrace) {
+      unawaited(
+        _logs.warning(
+          'playback',
+          '读取历史播放位置失败，从头播放：video=${widget.video.id}。',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      return Duration.zero;
+    }
+  }
+
   @override
   void dispose() {
+    widget.handle?._detach(_pauseForNavigation);
     WidgetsBinding.instance.removeObserver(this);
     _operation += 1;
     final value = _videoController?.value;
@@ -110,9 +206,37 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (value != null) {
       unawaited(_persist(value));
     }
+    final activeBuffering = _bufferingStartedAt;
+    if (activeBuffering != null) {
+      _bufferingTotal += DateTime.now().difference(activeBuffering);
+    }
+    _startupStopwatch.stop();
+    unawaited(
+      _logs.info(
+        'playback',
+        '播放器结束：video=${widget.video.id}，缓冲次数=$_bufferingCount，'
+            '缓冲总时长=${_bufferingTotal.inMilliseconds}ms。',
+      ),
+    );
     _controller?.dispose(forceDispose: true);
     unawaited(_updateWakeLock(false));
     super.dispose();
+  }
+
+  Future<void> _pauseForNavigation() async {
+    final controller = _controller;
+    final value = _videoController?.value;
+    if (controller == null) {
+      return;
+    }
+    try {
+      await controller.pause();
+    } on Object {
+      // 路由切换不能因为播放器尚在初始化而被阻断。
+    }
+    if (value?.initialized == true) {
+      await _persist(value!);
+    }
   }
 
   @override
@@ -167,6 +291,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           customControlsBuilder: (controller, onVisibilityChanged, _) {
             return _FluleVideoControls(
               controller: controller,
+              title: widget.video.title,
               sources: _sources,
               selectedSource: _selectedSource,
               onSourceChanged: _changeSource,
@@ -202,10 +327,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       });
     }
 
-    final headers = <String, String>{
-      'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/1.1',
-    };
+    final headers = <String, String>{..._mediaHeaders};
     final cookie = await widget.api.sessionCookieHeader();
     if (cookie != null) {
       headers['Cookie'] = cookie;
@@ -219,7 +341,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         useCache: true,
         maxCacheSize: 1024 * 1024 * 1024,
         maxCacheFileSize: 512 * 1024 * 1024,
-        preCacheSize: 32 * 1024 * 1024,
         key: _cacheKey(source),
       ),
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
@@ -243,6 +364,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         return false;
       }
       _bindVideoController();
+      _hasPreparedSource = true;
       final video = _videoController;
       final duration = video?.value.duration;
       if (video == null || duration == null) {
@@ -327,9 +449,36 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       return;
     }
     switch (event.betterPlayerEventType) {
-      case BetterPlayerEventType.initialized:
       case BetterPlayerEventType.setupDataSource:
         _bindVideoController();
+      case BetterPlayerEventType.initialized:
+        _bindVideoController();
+        if (!_startupLogged) {
+          _startupLogged = true;
+          _startupStopwatch.stop();
+          unawaited(
+            _logs.info(
+              'playback',
+              '播放器准备完成：video=${widget.video.id}，清晰度=${_selectedSource.label}，'
+                  '耗时=${_startupStopwatch.elapsedMilliseconds}ms。',
+            ),
+          );
+        }
+      case BetterPlayerEventType.play:
+        if (!_playbackStarted) {
+          _playbackStarted = true;
+          unawaited(
+            _logs.info(
+              'playback',
+              '播放器进入播放状态：video=${widget.video.id}，'
+                  '位置=${_videoController?.value.position.inSeconds ?? 0}s。',
+            ),
+          );
+        }
+      case BetterPlayerEventType.bufferingStart:
+        _onBufferingStart();
+      case BetterPlayerEventType.bufferingEnd:
+        _onBufferingEnd();
       case BetterPlayerEventType.exception:
         final value = _videoController?.value;
         if (!_refreshingSource && value != null) {
@@ -344,6 +493,39 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       default:
         break;
     }
+  }
+
+  void _onBufferingStart() {
+    if (_bufferingStartedAt != null) {
+      return;
+    }
+    _bufferingStartedAt = DateTime.now();
+    _bufferingCount += 1;
+    final position = _videoController?.value.position ?? Duration.zero;
+    unawaited(
+      _logs.debug(
+        'playback',
+        '${_playbackStarted ? '播放中' : '首播'}开始缓冲：video=${widget.video.id}，'
+            '位置=${position.inSeconds}s，次数=$_bufferingCount。',
+      ),
+    );
+  }
+
+  void _onBufferingEnd() {
+    final startedAt = _bufferingStartedAt;
+    if (startedAt == null) {
+      return;
+    }
+    _bufferingStartedAt = null;
+    final elapsed = DateTime.now().difference(startedAt);
+    _bufferingTotal += elapsed;
+    unawaited(
+      _logs.info(
+        'playback',
+        '${_playbackStarted ? '播放中' : '首播'}缓冲结束：video=${widget.video.id}，'
+            '本次=${elapsed.inMilliseconds}ms，累计=${_bufferingTotal.inMilliseconds}ms。',
+      ),
+    );
   }
 
   void _onVideoValueChanged() {
@@ -398,7 +580,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       });
     }
     try {
-      final details = await widget.api.loadVideoDetails(widget.video);
+      final details = await widget.api.refreshVideoDetails(widget.video);
       if (!mounted) {
         return false;
       }
@@ -500,6 +682,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
               BetterPlayer(controller: _controller!)
             else
               const SizedBox.shrink(),
+            if (!_hasPreparedSource && widget.video.thumbnailUrl != null)
+              CachedNetworkImage(
+                imageUrl: widget.video.thumbnailUrl!,
+                httpHeaders: _mediaHeaders,
+                fit: BoxFit.cover,
+                errorWidget: (context, _, _) => const SizedBox.shrink(),
+              ),
             if (_initializing)
               ColoredBox(
                 color: Colors.black54,
@@ -531,6 +720,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 class _FluleVideoControls extends StatefulWidget {
   const _FluleVideoControls({
     required this.controller,
+    required this.title,
     required this.sources,
     required this.selectedSource,
     required this.onSourceChanged,
@@ -538,6 +728,7 @@ class _FluleVideoControls extends StatefulWidget {
   });
 
   final BetterPlayerController controller;
+  final String title;
   final List<VideoSource> sources;
   final VideoSource selectedSource;
   final ValueChanged<VideoSource> onSourceChanged;
@@ -553,6 +744,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   Timer? _hideTimer;
   var _visible = true;
   Duration? _dragPosition;
+  List<({Duration start, Duration end})> _stableBuffered = const [];
 
   @override
   void initState() {
@@ -568,7 +760,10 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeEventsListener(_onPlayerEvent);
       widget.controller.addEventsListener(_onPlayerEvent);
+      _stableBuffered = const [];
       _bindVideoController();
+    } else if (oldWidget.selectedSource.url != widget.selectedSource.url) {
+      _stableBuffered = const [];
     }
   }
 
@@ -586,10 +781,13 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     }
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
-      case BetterPlayerEventType.setupDataSource:
       case BetterPlayerEventType.changedResolution:
       case BetterPlayerEventType.openFullscreen:
       case BetterPlayerEventType.hideFullscreen:
+        _bindVideoController();
+        setState(() {});
+      case BetterPlayerEventType.setupDataSource:
+        _stableBuffered = const [];
         _bindVideoController();
         setState(() {});
       default:
@@ -610,6 +808,15 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   void _onValueChanged() {
     if (!mounted) {
       return;
+    }
+    final buffered = _videoController?.value.buffered ?? const [];
+    if (buffered.isNotEmpty) {
+      _stableBuffered = mergeBufferedRanges(
+        _stableBuffered,
+        buffered
+            .map((range) => (start: range.start, end: range.end))
+            .toList(growable: false),
+      );
     }
     setState(() {});
     if (_videoController?.value.isPlaying == true && _visible) {
@@ -700,15 +907,61 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
           child: AnimatedOpacity(
             opacity: _visible ? 1 : 0,
             duration: const Duration(milliseconds: 160),
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: value == null || !value.initialized
-                  ? const SizedBox.shrink()
-                  : _buildControlRow(context, value),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (widget.controller.isFullScreen)
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: _buildTopRow(context),
+                  ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: value == null || !value.initialized
+                      ? const SizedBox.shrink()
+                      : _buildControlRow(context, value),
+                ),
+              ],
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTopRow(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      minimum: const EdgeInsets.symmetric(horizontal: 8),
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: '退出全屏',
+              onPressed: widget.controller.exitFullScreen,
+              icon: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                shadows: [Shadow(color: Colors.black, blurRadius: 6)],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
+      ),
     );
   }
 
@@ -722,8 +975,10 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
       height: 1,
       shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
     );
+    final isFullScreen = widget.controller.isFullScreen;
     return SafeArea(
       top: false,
+      bottom: isFullScreen,
       minimum: const EdgeInsets.fromLTRB(6, 0, 6, 3),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -756,6 +1011,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
                   child: _VideoProgressBar(
                     value: value,
                     dragPosition: _dragPosition,
+                    buffered: _stableBuffered,
                     onDragStart: (position) {
                       _hideTimer?.cancel();
                       setState(() => _dragPosition = position);
@@ -797,6 +1053,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
                       ? Icons.fullscreen_exit
                       : Icons.fullscreen,
                 ),
+                if (isFullScreen) const SizedBox(width: 20),
               ],
             ),
           ),
@@ -908,6 +1165,7 @@ class _VideoProgressBar extends StatelessWidget {
   const _VideoProgressBar({
     required this.value,
     required this.dragPosition,
+    required this.buffered,
     required this.onDragStart,
     required this.onDragUpdate,
     required this.onDragEnd,
@@ -915,6 +1173,7 @@ class _VideoProgressBar extends StatelessWidget {
 
   final VideoPlayerValue value;
   final Duration? dragPosition;
+  final List<({Duration start, Duration end})> buffered;
   final ValueChanged<Duration> onDragStart;
   final ValueChanged<Duration> onDragUpdate;
   final ValueChanged<Duration> onDragEnd;
@@ -949,9 +1208,7 @@ class _VideoProgressBar extends StatelessWidget {
           painter: _ProgressPainter(
             duration: value.duration ?? Duration.zero,
             position: dragPosition ?? value.position,
-            buffered: value.buffered
-                .map((range) => (start: range.start, end: range.end))
-                .toList(growable: false),
+            buffered: buffered,
             playedColor: Theme.of(context).colorScheme.primary,
           ),
           child: const SizedBox(height: 28),
@@ -959,6 +1216,31 @@ class _VideoProgressBar extends StatelessWidget {
       ),
     );
   }
+}
+
+List<({Duration start, Duration end})> mergeBufferedRanges(
+  List<({Duration start, Duration end})> previous,
+  List<({Duration start, Duration end})> current,
+) {
+  final ranges = [...previous, ...current]
+    ..removeWhere((range) => range.end <= range.start)
+    ..sort((left, right) => left.start.compareTo(right.start));
+  if (ranges.isEmpty) {
+    return const [];
+  }
+  final merged = <({Duration start, Duration end})>[];
+  for (final range in ranges) {
+    if (merged.isEmpty || range.start > merged.last.end) {
+      merged.add(range);
+      continue;
+    }
+    final last = merged.removeLast();
+    merged.add((
+      start: last.start,
+      end: range.end > last.end ? range.end : last.end,
+    ));
+  }
+  return List.unmodifiable(merged);
 }
 
 class _ProgressPainter extends CustomPainter {

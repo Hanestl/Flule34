@@ -5,6 +5,7 @@ abstract final class AppRouteNames {
   static const collection = 'collection';
   static const rankings = 'rankings';
   static const library = 'library';
+  static const localLibrary = 'local-library';
   static const profile = 'profile';
   static const account = 'account';
   static const appearanceSettings = 'appearance-settings';
@@ -16,10 +17,11 @@ abstract final class AppRouteNames {
   static const appSettings = 'app-settings';
   static const helpFeedback = 'help-feedback';
   static const diagnostics = 'diagnostics';
+  static const debugLogs = 'debug-logs';
   static const update = 'update';
   static const about = 'about';
   static const search = 'search';
   static const video = 'video';
-  static const playlist = 'playlist';
   static const subscription = 'subscription';
+  static const uploader = 'uploader';
 }

@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/api/rule34video_api.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/logging/app_log_service.dart';
 import '../../../core/models/video_models.dart';
 import '../../../core/security/error_redaction.dart';
 import '../../settings/data/app_settings_repository.dart';
@@ -24,8 +25,9 @@ final class DownloadRepository {
     this._database,
     this._api,
     this._platformService,
-    this._settingsRepository,
-  );
+    this._settingsRepository, {
+    AppLogService? logService,
+  }) : _logs = logService;
 
   static const _deviceOwnerId = '__flule34_device__';
 
@@ -33,6 +35,7 @@ final class DownloadRepository {
   final Rule34VideoApi _api;
   final DownloadPlatformService _platformService;
   final AppSettingsRepository _settingsRepository;
+  final AppLogService? _logs;
 
   StreamSubscription<DownloadPlatformEvent>? _eventSubscription;
   final Set<String> _automaticRefreshAttempts = {};
@@ -59,22 +62,6 @@ final class DownloadRepository {
     return _database.watchDownloads(_deviceOwnerId);
   }
 
-  Future<DownloadDirectorySelection?> chooseDownloadDirectory({
-    bool useDefault = false,
-  }) async {
-    final selection = useDefault
-        ? await _platformService.pickDefaultDirectory()
-        : await _platformService.pickCustomDirectory();
-    if (selection == null) {
-      return null;
-    }
-    await _settingsRepository.setDownloadDirectory(
-      uri: selection.uri.toString(),
-      label: selection.label,
-    );
-    return selection;
-  }
-
   Future<String> enqueueVideo({
     required VideoDetails details,
     required VideoSource source,
@@ -89,7 +76,13 @@ final class DownloadRepository {
         existing.state != DownloadTaskState.canceled.storageValue) {
       throw DownloadException('$quality 已在下载管理中。');
     }
-    final refreshedDetails = await _api.loadVideoDetails(details.video);
+    if (!await _platformService.ensureNotificationPermission()) {
+      throw const DownloadException('需要通知权限才能可靠显示后台下载进度。');
+    }
+    if (!await _platformService.ensureSharedStoragePermission()) {
+      throw const DownloadException('系统未授予公共下载目录写入权限。');
+    }
+    final refreshedDetails = await _api.refreshVideoDetails(details.video);
     final refreshedSource = refreshedDetails.sources
         .cast<VideoSource?>()
         .firstWhere(
@@ -99,11 +92,8 @@ final class DownloadRepository {
     if (refreshedSource == null) {
       throw DownloadException('刷新后已找不到 $quality 下载源，请重新选择清晰度。');
     }
-    if (!await _platformService.ensureNotificationPermission()) {
-      throw const DownloadException('需要通知权限才能可靠显示后台下载进度。');
-    }
-    final directory = await _downloadDirectory();
     final id = _taskId(details.video.id, quality);
+    final filename = _filename(details.video, quality);
     final headers = await _headers();
     final now = DateTime.now().toUtc();
     await _database.saveDownloadRecord(
@@ -113,28 +103,50 @@ final class DownloadRepository {
         videoId: Value(details.video.id),
         title: Value(details.video.title),
         quality: Value(quality),
+        thumbnailUrl: Value(
+          details.video.highResolutionThumbnailUrl ??
+              details.video.thumbnailUrl,
+        ),
+        fileName: Value(filename),
         state: Value(DownloadTaskState.queued.storageValue),
         taskId: Value(id),
         createdAt: Value(now),
         updatedAt: Value(now),
       ),
     );
-    final enqueued = await _platformService.enqueue(
-      DownloadRequest(
+    final bool enqueued;
+    try {
+      enqueued = await _platformService.enqueue(
+        DownloadRequest(
+          id: id,
+          url: refreshedSource.url,
+          filename: filename,
+          displayName: details.video.title,
+          metadata: jsonEncode({
+            'recordId': id,
+            'videoId': details.video.id,
+            'quality': quality,
+          }),
+          headers: headers,
+          requiresWiFi: _settingsRepository.settings.wifiOnlyDownloads,
+        ),
+      );
+    } catch (error, stackTrace) {
+      await _database.updateDownloadStatus(
         id: id,
-        url: refreshedSource.url,
-        filename: _filename(details.video, quality),
-        directoryUri: directory,
-        displayName: details.video.title,
-        metadata: jsonEncode({
-          'recordId': id,
-          'videoId': details.video.id,
-          'quality': quality,
-        }),
-        headers: headers,
-        requiresWiFi: _settingsRepository.settings.wifiOnlyDownloads,
-      ),
-    );
+        state: DownloadTaskState.failed.storageValue,
+        errorMessage: redactSensitiveText(error),
+      );
+      unawaited(
+        _logs?.error(
+          'downloads',
+          '提交后台下载任务失败。',
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+      throw DownloadException('提交后台下载任务失败：${redactSensitiveText(error)}');
+    }
     if (!enqueued) {
       await _database.updateDownloadStatus(
         id: id,
@@ -146,10 +158,6 @@ final class DownloadRepository {
     return id;
   }
 
-  Future<bool> pause(String id) => _knownAction(id, _platformService.pause);
-
-  Future<bool> resume(String id) => _knownAction(id, _platformService.resume);
-
   Future<bool> retry(DownloadRecord record) async {
     final taskId = record.taskId ?? record.id;
     final video = VideoItem(
@@ -158,7 +166,7 @@ final class DownloadRepository {
       slug: 'video',
     );
     try {
-      final details = await _api.loadVideoDetails(video);
+      final details = await _api.refreshVideoDetails(video);
       final source = details.sources.cast<VideoSource?>().firstWhere(
         (candidate) => candidate?.label.trim() == record.quality.trim(),
         orElse: () => null,
@@ -167,7 +175,10 @@ final class DownloadRepository {
         throw DownloadException('刷新后已找不到 ${record.quality} 下载源。');
       }
       await _platformService.delete(taskId: taskId, fileUri: record.filePath);
-      final directory = await _downloadDirectory();
+      if (!await _platformService.ensureSharedStoragePermission()) {
+        throw const DownloadException('系统未授予公共下载目录写入权限。');
+      }
+      final filename = _filename(details.video, record.quality);
       final now = DateTime.now().toUtc();
       await _database.saveDownloadRecord(
         DownloadRecordsCompanion(
@@ -176,6 +187,11 @@ final class DownloadRepository {
           videoId: Value(record.videoId),
           title: Value(details.video.title),
           quality: Value(record.quality),
+          thumbnailUrl: Value(
+            details.video.highResolutionThumbnailUrl ??
+                details.video.thumbnailUrl,
+          ),
+          fileName: Value(filename),
           state: Value(DownloadTaskState.queued.storageValue),
           bytesDownloaded: const Value(0),
           totalBytes: const Value(null),
@@ -191,8 +207,7 @@ final class DownloadRepository {
         DownloadRequest(
           id: taskId,
           url: source.url,
-          filename: _filename(details.video, record.quality),
-          directoryUri: directory,
+          filename: filename,
           displayName: details.video.title,
           metadata: jsonEncode({
             'recordId': record.id,
@@ -228,15 +243,93 @@ final class DownloadRepository {
     return success;
   }
 
-  Future<bool> open(DownloadRecord record) {
+  Future<bool> open(DownloadRecord record) async {
+    final validation = await validateFile(record);
+    if (!validation.valid) {
+      return false;
+    }
     final uri = record.filePath;
-    return uri == null ? Future.value(false) : _platformService.openFile(uri);
+    return uri == null ? false : _platformService.openFile(uri);
   }
 
-  Future<bool> delete(DownloadRecord record) async {
+  Future<DownloadFileValidation> validateFile(DownloadRecord record) async {
+    if (record.state != DownloadTaskState.complete.storageValue) {
+      return const DownloadFileValidation.notApplicable();
+    }
+    final uri = record.filePath;
+    if (uri == null || uri.trim().isEmpty) {
+      return const DownloadFileValidation(
+        valid: false,
+        exists: false,
+        readable: false,
+        reason: '没有保存完成文件的位置。',
+      );
+    }
+    final inspection = await _platformService.inspectFile(uri);
+    if (!inspection.exists) {
+      return DownloadFileValidation(
+        valid: false,
+        exists: false,
+        readable: false,
+        actualName: inspection.name,
+        actualBytes: inspection.size,
+        reason: '外部文件已不存在。',
+      );
+    }
+    if (!inspection.readable) {
+      return DownloadFileValidation(
+        valid: false,
+        exists: true,
+        readable: false,
+        actualName: inspection.name,
+        actualBytes: inspection.size,
+        reason: '外部文件当前无法读取。',
+      );
+    }
+    final expectedName = record.fileName?.trim();
+    if (expectedName != null &&
+        expectedName.isNotEmpty &&
+        inspection.name != expectedName) {
+      return DownloadFileValidation(
+        valid: false,
+        exists: true,
+        readable: true,
+        actualName: inspection.name,
+        actualBytes: inspection.size,
+        reason: '外部文件已被改名。',
+      );
+    }
+    final expectedBytes = record.totalBytes;
+    if (expectedBytes != null &&
+        expectedBytes > 0 &&
+        inspection.size != expectedBytes) {
+      return DownloadFileValidation(
+        valid: false,
+        exists: true,
+        readable: true,
+        actualName: inspection.name,
+        actualBytes: inspection.size,
+        reason: '外部文件大小已发生变化。',
+      );
+    }
+    return DownloadFileValidation(
+      valid: true,
+      exists: true,
+      readable: true,
+      actualName: inspection.name,
+      actualBytes: inspection.size,
+    );
+  }
+
+  Future<bool> delete(DownloadRecord record, {bool? deleteExternalFile}) async {
+    final shouldDeleteExternal =
+        deleteExternalFile ??
+        (record.state != DownloadTaskState.complete.storageValue ||
+            (await validateFile(record)).valid);
     final deleted = await _platformService.delete(
       taskId: record.taskId ?? record.id,
       fileUri: record.filePath,
+      deleteExternalFile: shouldDeleteExternal,
     );
     if (!deleted) {
       return false;
@@ -253,26 +346,6 @@ final class DownloadRepository {
       return false;
     }
     return action(id);
-  }
-
-  Future<Uri> _downloadDirectory() async {
-    final saved = _settingsRepository.settings.downloadDirectoryUri.trim();
-    if (saved.isEmpty) {
-      final selected = await chooseDownloadDirectory(useDefault: true);
-      if (selected == null) {
-        throw const DownloadException(
-          '首次下载需要授权 Downloads 目录；请选择 Downloads，App 会创建 Flule34 文件夹。',
-        );
-      }
-      return selected.uri;
-    }
-    final activated = await _platformService.activateDirectory(
-      Uri.parse(saved),
-    );
-    if (activated == null) {
-      throw const DownloadException('下载目录授权已失效，请在下载设置中重新选择。');
-    }
-    return activated;
   }
 
   Future<Map<String, String>> _headers() async {
@@ -294,6 +367,14 @@ final class DownloadRepository {
   Future<void> _persistEvent(DownloadPlatformEvent event) async {
     switch (event) {
       case DownloadStatusEvent():
+        if (event.state == DownloadTaskState.complete &&
+            event.actualBytes != null) {
+          await _database.updateDownloadProgress(
+            id: event.taskId,
+            bytesDownloaded: event.actualBytes!,
+            totalBytes: event.actualBytes,
+          );
+        }
         await _database.updateDownloadStatus(
           id: event.taskId,
           state: event.state.storageValue,

@@ -76,12 +76,12 @@ jobs:
         working-directory: android
         run: ./gradlew :app:lintDebug --no-daemon
 
-      - name: 构建分 ABI Release APK
+      - name: 构建 arm64 Release APK
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          flutter build apk --release --split-per-abi --obfuscate \
+          flutter build apk --release --split-per-abi --target-platform android-arm64 --obfuscate \
             --split-debug-info=build/symbols \
             --build-name="$VERSION" \
             --build-number="$GITHUB_RUN_NUMBER" \
@@ -104,9 +104,7 @@ jobs:
           done
 
           mkdir -p release
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "release/Flule34-$VERSION-armeabi-v7a.apk"
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "release/Flule34-$VERSION-arm64-v8a.apk"
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk "release/Flule34-$VERSION-x86_64.apk"
           (cd release && sha256sum ./*.apk > SHA256SUMS.txt)
 
       - name: 上传 Release 与符号文件

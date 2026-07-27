@@ -45,6 +45,8 @@ void main() {
     expect(find.text('内容取向'), findsOneWidget);
     expect(find.text('时长'), findsOneWidget);
     expect(find.text('发布时间'), findsOneWidget);
+    expect(find.text('Flule34'), findsNothing);
+    expect(find.byIcon(Icons.verified_user_outlined), findsNothing);
 
     await tester.tap(find.text('发现'));
     await tester.pumpAndSettle();

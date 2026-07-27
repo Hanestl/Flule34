@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/logging/app_log_service.dart';
 import '../../../core/models/video_models.dart';
 import '../domain/app_settings.dart';
 import 'app_settings_store.dart';
@@ -22,7 +23,6 @@ final class AppSettingsRepository extends ChangeNotifier {
   static const _defaultOrientationKey =
       'flule34.settings.default_content_orientation';
   static const _hiddenKeywordsKey = 'flule34.settings.hidden_keywords';
-  static const _videoPreviewPolicyKey = 'flule34.settings.video_preview_policy';
   static const _blurThumbnailsKey = 'flule34.settings.blur_thumbnails';
   static const _askDownloadQualityKey = 'flule34.settings.ask_download_quality';
   static const _downloadQualityKey = 'flule34.settings.download_quality';
@@ -31,10 +31,9 @@ final class AppSettingsRepository extends ChangeNotifier {
       'flule34.settings.download_concurrent_tasks';
   static const _saveSearchHistoryKey = 'flule34.settings.save_search_history';
   static const _updateChannelKey = 'flule34.settings.update_channel';
-  static const _downloadDirectoryUriKey =
-      'flule34.settings.download_directory_uri';
-  static const _downloadDirectoryLabelKey =
-      'flule34.settings.download_directory_label';
+  static const _debugLoggingEnabledKey = AppLogService.enabledPreferenceKey;
+  static const _debugLogRetentionDaysKey =
+      AppLogService.retentionDaysPreferenceKey;
 
   final AppSettingsStore _store;
   AppSettings _settings = AppSettings.defaults;
@@ -59,7 +58,6 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_fullscreenOrientationKey),
       _readString(_defaultOrientationKey),
       _readString(_hiddenKeywordsKey),
-      _readString(_videoPreviewPolicyKey),
       _readBool(_blurThumbnailsKey),
       _readBool(_askDownloadQualityKey),
       _readString(_downloadQualityKey),
@@ -67,8 +65,8 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_downloadConcurrentTasksKey),
       _readBool(_saveSearchHistoryKey),
       _readString(_updateChannelKey),
-      _readString(_downloadDirectoryUriKey),
-      _readString(_downloadDirectoryLabelKey),
+      _readBool(_debugLoggingEnabledKey),
+      _readString(_debugLogRetentionDaysKey),
     ]);
     _settings = AppSettings(
       theme: _themeValue(values[0] as String?),
@@ -102,37 +100,34 @@ final class AppSettingsRepository extends ChangeNotifier {
       ),
       hiddenKeywords:
           values[10] as String? ?? AppSettings.defaults.hiddenKeywords,
-      videoPreviewPolicy: _enumValue(
-        VideoPreviewPolicy.values,
-        values[11] as String?,
-        AppSettings.defaults.videoPreviewPolicy,
-      ),
       blurThumbnails:
-          values[12] as bool? ?? AppSettings.defaults.blurThumbnails,
+          values[11] as bool? ?? AppSettings.defaults.blurThumbnails,
       askDownloadQuality:
-          values[13] as bool? ?? AppSettings.defaults.askDownloadQuality,
+          values[12] as bool? ?? AppSettings.defaults.askDownloadQuality,
       downloadQuality: _enumValue(
         VideoQualityPreference.values,
-        values[14] as String?,
+        values[13] as String?,
         AppSettings.defaults.downloadQuality,
       ),
       wifiOnlyDownloads:
-          values[15] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
+          values[14] as bool? ?? AppSettings.defaults.wifiOnlyDownloads,
       downloadConcurrentTasks:
-          (int.tryParse(values[16] as String? ?? '') ??
+          (int.tryParse(values[15] as String? ?? '') ??
                   AppSettings.defaults.downloadConcurrentTasks)
               .clamp(1, 4),
       saveSearchHistory:
-          values[17] as bool? ?? AppSettings.defaults.saveSearchHistory,
+          values[16] as bool? ?? AppSettings.defaults.saveSearchHistory,
       updateChannel: _enumValue(
         UpdateChannel.values,
-        values[18] as String?,
+        values[17] as String?,
         AppSettings.defaults.updateChannel,
       ),
-      downloadDirectoryUri:
-          values[19] as String? ?? AppSettings.defaults.downloadDirectoryUri,
-      downloadDirectoryLabel:
-          values[20] as String? ?? AppSettings.defaults.downloadDirectoryLabel,
+      debugLoggingEnabled:
+          values[18] as bool? ?? AppSettings.defaults.debugLoggingEnabled,
+      debugLogRetentionDays:
+          (int.tryParse(values[19] as String? ?? '') ??
+                  AppSettings.defaults.debugLogRetentionDays)
+              .clamp(1, AppLogService.maxRetentionDays),
     );
     _loaded = true;
     notifyListeners();
@@ -201,11 +196,6 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(hiddenKeywords: normalized));
   }
 
-  Future<void> setVideoPreviewPolicy(VideoPreviewPolicy value) async {
-    await _store.writeString(_videoPreviewPolicyKey, value.name);
-    _update(_settings.copyWith(videoPreviewPolicy: value));
-  }
-
   Future<void> setBlurThumbnails(bool value) async {
     await _store.writeBool(_blurThumbnailsKey, value);
     _update(_settings.copyWith(blurThumbnails: value));
@@ -245,20 +235,15 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(updateChannel: value));
   }
 
-  Future<void> setDownloadDirectory({
-    required String uri,
-    required String label,
-  }) async {
-    await Future.wait([
-      _store.writeString(_downloadDirectoryUriKey, uri),
-      _store.writeString(_downloadDirectoryLabelKey, label),
-    ]);
-    _update(
-      _settings.copyWith(
-        downloadDirectoryUri: uri,
-        downloadDirectoryLabel: label,
-      ),
-    );
+  Future<void> setDebugLoggingEnabled(bool value) async {
+    await _store.writeBool(_debugLoggingEnabledKey, value);
+    _update(_settings.copyWith(debugLoggingEnabled: value));
+  }
+
+  Future<void> setDebugLogRetentionDays(int value) async {
+    final normalized = value.clamp(1, AppLogService.maxRetentionDays);
+    await _store.writeString(_debugLogRetentionDaysKey, normalized.toString());
+    _update(_settings.copyWith(debugLogRetentionDays: normalized));
   }
 
   void _update(AppSettings value) {

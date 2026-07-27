@@ -4,15 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
+import 'package:flule34/core/database/app_database.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/features/library/library_page.dart';
+import 'package:flule34/features/library/data/local_library_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
 
 import '../../helpers/test_session_harness.dart';
 
 void main() {
-  testWidgets('媒体库只保留收藏、历史和订阅三个页签', (tester) async {
+  testWidgets('媒体库保留网站数据并新增本地分类库', (tester) async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
@@ -24,18 +26,60 @@ void main() {
         overrides: [
           appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
         ],
-        child: MaterialApp(home: LibraryPage(api: api)),
+        child: MaterialApp(
+          home: LibraryPage(
+            api: api,
+            localLibraryRepository: _FakeLocalLibraryRepository(),
+          ),
+        ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
+    expect(find.text('本地分类库'), findsOneWidget);
     expect(find.text('收藏'), findsOneWidget);
     expect(find.text('历史'), findsOneWidget);
     expect(find.text('订阅'), findsOneWidget);
     expect(find.text('继续观看'), findsNothing);
     expect(find.text('稍后观看'), findsNothing);
     expect(find.text('播放列表'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
+}
+
+final class _FakeLocalLibraryRepository implements LocalLibraryRepository {
+  @override
+  Stream<List<LocalLibrary>> watchLibraries() => Stream.value(const []);
+
+  @override
+  Stream<List<LocalLibrarySummary>> watchLibrarySummaries() =>
+      Stream.value(const []);
+
+  @override
+  Stream<List<VideoItem>> watchVideos(int libraryId) => Stream.value(const []);
+
+  @override
+  Future<Set<int>> libraryIdsForVideo(String videoId) async => const {};
+
+  @override
+  Future<int> createLibrary(String name) => throw UnimplementedError();
+
+  @override
+  Future<void> renameLibrary(int id, String name) => throw UnimplementedError();
+
+  @override
+  Future<void> deleteLibrary(int id) => throw UnimplementedError();
+
+  @override
+  Future<void> addVideo({required int libraryId, required VideoItem video}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> removeVideo({required int libraryId, required String videoId}) =>
+      throw UnimplementedError();
 }
 
 final class _MemorySettingsStore implements AppSettingsStore {

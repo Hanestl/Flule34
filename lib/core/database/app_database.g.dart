@@ -1023,6 +1023,28 @@ class $DownloadRecordsTable extends DownloadRecords
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _thumbnailUrlMeta = const VerificationMeta(
+    'thumbnailUrl',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailUrl = GeneratedColumn<String>(
+    'thumbnail_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fileNameMeta = const VerificationMeta(
+    'fileName',
+  );
+  @override
+  late final GeneratedColumn<String> fileName = GeneratedColumn<String>(
+    'file_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _stateMeta = const VerificationMeta('state');
   @override
   late final GeneratedColumn<String> state = GeneratedColumn<String>(
@@ -1128,6 +1150,8 @@ class $DownloadRecordsTable extends DownloadRecords
     videoId,
     title,
     quality,
+    thumbnailUrl,
+    fileName,
     state,
     taskId,
     filePath,
@@ -1186,6 +1210,21 @@ class $DownloadRecordsTable extends DownloadRecords
       );
     } else if (isInserting) {
       context.missing(_qualityMeta);
+    }
+    if (data.containsKey('thumbnail_url')) {
+      context.handle(
+        _thumbnailUrlMeta,
+        thumbnailUrl.isAcceptableOrUnknown(
+          data['thumbnail_url']!,
+          _thumbnailUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('file_name')) {
+      context.handle(
+        _fileNameMeta,
+        fileName.isAcceptableOrUnknown(data['file_name']!, _fileNameMeta),
+      );
     }
     if (data.containsKey('state')) {
       context.handle(
@@ -1285,6 +1324,14 @@ class $DownloadRecordsTable extends DownloadRecords
         DriftSqlType.string,
         data['${effectivePrefix}quality'],
       )!,
+      thumbnailUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_url'],
+      ),
+      fileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_name'],
+      ),
       state: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}state'],
@@ -1336,6 +1383,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
   final String videoId;
   final String title;
   final String quality;
+  final String? thumbnailUrl;
+  final String? fileName;
   final String state;
   final String? taskId;
   final String? filePath;
@@ -1351,6 +1400,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
     required this.videoId,
     required this.title,
     required this.quality,
+    this.thumbnailUrl,
+    this.fileName,
     required this.state,
     this.taskId,
     this.filePath,
@@ -1369,6 +1420,12 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
     map['video_id'] = Variable<String>(videoId);
     map['title'] = Variable<String>(title);
     map['quality'] = Variable<String>(quality);
+    if (!nullToAbsent || thumbnailUrl != null) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl);
+    }
+    if (!nullToAbsent || fileName != null) {
+      map['file_name'] = Variable<String>(fileName);
+    }
     map['state'] = Variable<String>(state);
     if (!nullToAbsent || taskId != null) {
       map['task_id'] = Variable<String>(taskId);
@@ -1398,6 +1455,12 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
       videoId: Value(videoId),
       title: Value(title),
       quality: Value(quality),
+      thumbnailUrl: thumbnailUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbnailUrl),
+      fileName: fileName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fileName),
       state: Value(state),
       taskId: taskId == null && nullToAbsent
           ? const Value.absent()
@@ -1431,6 +1494,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
       videoId: serializer.fromJson<String>(json['videoId']),
       title: serializer.fromJson<String>(json['title']),
       quality: serializer.fromJson<String>(json['quality']),
+      thumbnailUrl: serializer.fromJson<String?>(json['thumbnailUrl']),
+      fileName: serializer.fromJson<String?>(json['fileName']),
       state: serializer.fromJson<String>(json['state']),
       taskId: serializer.fromJson<String?>(json['taskId']),
       filePath: serializer.fromJson<String?>(json['filePath']),
@@ -1451,6 +1516,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
       'videoId': serializer.toJson<String>(videoId),
       'title': serializer.toJson<String>(title),
       'quality': serializer.toJson<String>(quality),
+      'thumbnailUrl': serializer.toJson<String?>(thumbnailUrl),
+      'fileName': serializer.toJson<String?>(fileName),
       'state': serializer.toJson<String>(state),
       'taskId': serializer.toJson<String?>(taskId),
       'filePath': serializer.toJson<String?>(filePath),
@@ -1469,6 +1536,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
     String? videoId,
     String? title,
     String? quality,
+    Value<String?> thumbnailUrl = const Value.absent(),
+    Value<String?> fileName = const Value.absent(),
     String? state,
     Value<String?> taskId = const Value.absent(),
     Value<String?> filePath = const Value.absent(),
@@ -1484,6 +1553,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
     videoId: videoId ?? this.videoId,
     title: title ?? this.title,
     quality: quality ?? this.quality,
+    thumbnailUrl: thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
+    fileName: fileName.present ? fileName.value : this.fileName,
     state: state ?? this.state,
     taskId: taskId.present ? taskId.value : this.taskId,
     filePath: filePath.present ? filePath.value : this.filePath,
@@ -1501,6 +1572,10 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
       videoId: data.videoId.present ? data.videoId.value : this.videoId,
       title: data.title.present ? data.title.value : this.title,
       quality: data.quality.present ? data.quality.value : this.quality,
+      thumbnailUrl: data.thumbnailUrl.present
+          ? data.thumbnailUrl.value
+          : this.thumbnailUrl,
+      fileName: data.fileName.present ? data.fileName.value : this.fileName,
       state: data.state.present ? data.state.value : this.state,
       taskId: data.taskId.present ? data.taskId.value : this.taskId,
       filePath: data.filePath.present ? data.filePath.value : this.filePath,
@@ -1529,6 +1604,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
           ..write('videoId: $videoId, ')
           ..write('title: $title, ')
           ..write('quality: $quality, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('fileName: $fileName, ')
           ..write('state: $state, ')
           ..write('taskId: $taskId, ')
           ..write('filePath: $filePath, ')
@@ -1549,6 +1626,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
     videoId,
     title,
     quality,
+    thumbnailUrl,
+    fileName,
     state,
     taskId,
     filePath,
@@ -1568,6 +1647,8 @@ class DownloadRecord extends DataClass implements Insertable<DownloadRecord> {
           other.videoId == this.videoId &&
           other.title == this.title &&
           other.quality == this.quality &&
+          other.thumbnailUrl == this.thumbnailUrl &&
+          other.fileName == this.fileName &&
           other.state == this.state &&
           other.taskId == this.taskId &&
           other.filePath == this.filePath &&
@@ -1585,6 +1666,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
   final Value<String> videoId;
   final Value<String> title;
   final Value<String> quality;
+  final Value<String?> thumbnailUrl;
+  final Value<String?> fileName;
   final Value<String> state;
   final Value<String?> taskId;
   final Value<String?> filePath;
@@ -1601,6 +1684,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
     this.videoId = const Value.absent(),
     this.title = const Value.absent(),
     this.quality = const Value.absent(),
+    this.thumbnailUrl = const Value.absent(),
+    this.fileName = const Value.absent(),
     this.state = const Value.absent(),
     this.taskId = const Value.absent(),
     this.filePath = const Value.absent(),
@@ -1618,6 +1703,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
     required String videoId,
     required String title,
     required String quality,
+    this.thumbnailUrl = const Value.absent(),
+    this.fileName = const Value.absent(),
     required String state,
     this.taskId = const Value.absent(),
     this.filePath = const Value.absent(),
@@ -1640,6 +1727,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
     Expression<String>? videoId,
     Expression<String>? title,
     Expression<String>? quality,
+    Expression<String>? thumbnailUrl,
+    Expression<String>? fileName,
     Expression<String>? state,
     Expression<String>? taskId,
     Expression<String>? filePath,
@@ -1657,6 +1746,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
       if (videoId != null) 'video_id': videoId,
       if (title != null) 'title': title,
       if (quality != null) 'quality': quality,
+      if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (fileName != null) 'file_name': fileName,
       if (state != null) 'state': state,
       if (taskId != null) 'task_id': taskId,
       if (filePath != null) 'file_path': filePath,
@@ -1676,6 +1767,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
     Value<String>? videoId,
     Value<String>? title,
     Value<String>? quality,
+    Value<String?>? thumbnailUrl,
+    Value<String?>? fileName,
     Value<String>? state,
     Value<String?>? taskId,
     Value<String?>? filePath,
@@ -1693,6 +1786,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
       videoId: videoId ?? this.videoId,
       title: title ?? this.title,
       quality: quality ?? this.quality,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      fileName: fileName ?? this.fileName,
       state: state ?? this.state,
       taskId: taskId ?? this.taskId,
       filePath: filePath ?? this.filePath,
@@ -1723,6 +1818,12 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
     }
     if (quality.present) {
       map['quality'] = Variable<String>(quality.value);
+    }
+    if (thumbnailUrl.present) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
+    }
+    if (fileName.present) {
+      map['file_name'] = Variable<String>(fileName.value);
     }
     if (state.present) {
       map['state'] = Variable<String>(state.value);
@@ -1765,6 +1866,8 @@ class DownloadRecordsCompanion extends UpdateCompanion<DownloadRecord> {
           ..write('videoId: $videoId, ')
           ..write('title: $title, ')
           ..write('quality: $quality, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('fileName: $fileName, ')
           ..write('state: $state, ')
           ..write('taskId: $taskId, ')
           ..write('filePath: $filePath, ')
@@ -2116,6 +2219,1420 @@ class SearchHistoriesCompanion extends UpdateCompanion<SearchHistory> {
   }
 }
 
+class $LocalLibrariesTable extends LocalLibraries
+    with TableInfo<$LocalLibrariesTable, LocalLibrary> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalLibrariesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _normalizedNameMeta = const VerificationMeta(
+    'normalizedName',
+  );
+  @override
+  late final GeneratedColumn<String> normalizedName = GeneratedColumn<String>(
+    'normalized_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _seedKeyMeta = const VerificationMeta(
+    'seedKey',
+  );
+  @override
+  late final GeneratedColumn<String> seedKey = GeneratedColumn<String>(
+    'seed_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    normalizedName,
+    seedKey,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_libraries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalLibrary> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('normalized_name')) {
+      context.handle(
+        _normalizedNameMeta,
+        normalizedName.isAcceptableOrUnknown(
+          data['normalized_name']!,
+          _normalizedNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_normalizedNameMeta);
+    }
+    if (data.containsKey('seed_key')) {
+      context.handle(
+        _seedKeyMeta,
+        seedKey.isAcceptableOrUnknown(data['seed_key']!, _seedKeyMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {normalizedName},
+  ];
+  @override
+  LocalLibrary map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalLibrary(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      normalizedName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}normalized_name'],
+      )!,
+      seedKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}seed_key'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalLibrariesTable createAlias(String alias) {
+    return $LocalLibrariesTable(attachedDatabase, alias);
+  }
+}
+
+class LocalLibrary extends DataClass implements Insertable<LocalLibrary> {
+  final int id;
+  final String name;
+  final String normalizedName;
+  final String? seedKey;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const LocalLibrary({
+    required this.id,
+    required this.name,
+    required this.normalizedName,
+    this.seedKey,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['normalized_name'] = Variable<String>(normalizedName);
+    if (!nullToAbsent || seedKey != null) {
+      map['seed_key'] = Variable<String>(seedKey);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LocalLibrariesCompanion toCompanion(bool nullToAbsent) {
+    return LocalLibrariesCompanion(
+      id: Value(id),
+      name: Value(name),
+      normalizedName: Value(normalizedName),
+      seedKey: seedKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seedKey),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LocalLibrary.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalLibrary(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      normalizedName: serializer.fromJson<String>(json['normalizedName']),
+      seedKey: serializer.fromJson<String?>(json['seedKey']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'normalizedName': serializer.toJson<String>(normalizedName),
+      'seedKey': serializer.toJson<String?>(seedKey),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LocalLibrary copyWith({
+    int? id,
+    String? name,
+    String? normalizedName,
+    Value<String?> seedKey = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => LocalLibrary(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    normalizedName: normalizedName ?? this.normalizedName,
+    seedKey: seedKey.present ? seedKey.value : this.seedKey,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LocalLibrary copyWithCompanion(LocalLibrariesCompanion data) {
+    return LocalLibrary(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      normalizedName: data.normalizedName.present
+          ? data.normalizedName.value
+          : this.normalizedName,
+      seedKey: data.seedKey.present ? data.seedKey.value : this.seedKey,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalLibrary(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('normalizedName: $normalizedName, ')
+          ..write('seedKey: $seedKey, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, normalizedName, seedKey, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalLibrary &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.normalizedName == this.normalizedName &&
+          other.seedKey == this.seedKey &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LocalLibrariesCompanion extends UpdateCompanion<LocalLibrary> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> normalizedName;
+  final Value<String?> seedKey;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const LocalLibrariesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.normalizedName = const Value.absent(),
+    this.seedKey = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LocalLibrariesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    required String normalizedName,
+    this.seedKey = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : name = Value(name),
+       normalizedName = Value(normalizedName);
+  static Insertable<LocalLibrary> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? normalizedName,
+    Expression<String>? seedKey,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (normalizedName != null) 'normalized_name': normalizedName,
+      if (seedKey != null) 'seed_key': seedKey,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LocalLibrariesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? normalizedName,
+    Value<String?>? seedKey,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LocalLibrariesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      normalizedName: normalizedName ?? this.normalizedName,
+      seedKey: seedKey ?? this.seedKey,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (normalizedName.present) {
+      map['normalized_name'] = Variable<String>(normalizedName.value);
+    }
+    if (seedKey.present) {
+      map['seed_key'] = Variable<String>(seedKey.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalLibrariesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('normalizedName: $normalizedName, ')
+          ..write('seedKey: $seedKey, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CuratedLibrarySeedsTable extends CuratedLibrarySeeds
+    with TableInfo<$CuratedLibrarySeedsTable, CuratedLibrarySeed> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CuratedLibrarySeedsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _seedKeyMeta = const VerificationMeta(
+    'seedKey',
+  );
+  @override
+  late final GeneratedColumn<String> seedKey = GeneratedColumn<String>(
+    'seed_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _packVersionMeta = const VerificationMeta(
+    'packVersion',
+  );
+  @override
+  late final GeneratedColumn<int> packVersion = GeneratedColumn<int>(
+    'pack_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dismissedMeta = const VerificationMeta(
+    'dismissed',
+  );
+  @override
+  late final GeneratedColumn<bool> dismissed = GeneratedColumn<bool>(
+    'dismissed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("dismissed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _appliedAtMeta = const VerificationMeta(
+    'appliedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> appliedAt = GeneratedColumn<DateTime>(
+    'applied_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    seedKey,
+    packVersion,
+    dismissed,
+    appliedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'curated_library_seeds';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CuratedLibrarySeed> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('seed_key')) {
+      context.handle(
+        _seedKeyMeta,
+        seedKey.isAcceptableOrUnknown(data['seed_key']!, _seedKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seedKeyMeta);
+    }
+    if (data.containsKey('pack_version')) {
+      context.handle(
+        _packVersionMeta,
+        packVersion.isAcceptableOrUnknown(
+          data['pack_version']!,
+          _packVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_packVersionMeta);
+    }
+    if (data.containsKey('dismissed')) {
+      context.handle(
+        _dismissedMeta,
+        dismissed.isAcceptableOrUnknown(data['dismissed']!, _dismissedMeta),
+      );
+    }
+    if (data.containsKey('applied_at')) {
+      context.handle(
+        _appliedAtMeta,
+        appliedAt.isAcceptableOrUnknown(data['applied_at']!, _appliedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {seedKey};
+  @override
+  CuratedLibrarySeed map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CuratedLibrarySeed(
+      seedKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}seed_key'],
+      )!,
+      packVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pack_version'],
+      )!,
+      dismissed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}dismissed'],
+      )!,
+      appliedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}applied_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CuratedLibrarySeedsTable createAlias(String alias) {
+    return $CuratedLibrarySeedsTable(attachedDatabase, alias);
+  }
+}
+
+class CuratedLibrarySeed extends DataClass
+    implements Insertable<CuratedLibrarySeed> {
+  final String seedKey;
+  final int packVersion;
+  final bool dismissed;
+  final DateTime appliedAt;
+  const CuratedLibrarySeed({
+    required this.seedKey,
+    required this.packVersion,
+    required this.dismissed,
+    required this.appliedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['seed_key'] = Variable<String>(seedKey);
+    map['pack_version'] = Variable<int>(packVersion);
+    map['dismissed'] = Variable<bool>(dismissed);
+    map['applied_at'] = Variable<DateTime>(appliedAt);
+    return map;
+  }
+
+  CuratedLibrarySeedsCompanion toCompanion(bool nullToAbsent) {
+    return CuratedLibrarySeedsCompanion(
+      seedKey: Value(seedKey),
+      packVersion: Value(packVersion),
+      dismissed: Value(dismissed),
+      appliedAt: Value(appliedAt),
+    );
+  }
+
+  factory CuratedLibrarySeed.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CuratedLibrarySeed(
+      seedKey: serializer.fromJson<String>(json['seedKey']),
+      packVersion: serializer.fromJson<int>(json['packVersion']),
+      dismissed: serializer.fromJson<bool>(json['dismissed']),
+      appliedAt: serializer.fromJson<DateTime>(json['appliedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'seedKey': serializer.toJson<String>(seedKey),
+      'packVersion': serializer.toJson<int>(packVersion),
+      'dismissed': serializer.toJson<bool>(dismissed),
+      'appliedAt': serializer.toJson<DateTime>(appliedAt),
+    };
+  }
+
+  CuratedLibrarySeed copyWith({
+    String? seedKey,
+    int? packVersion,
+    bool? dismissed,
+    DateTime? appliedAt,
+  }) => CuratedLibrarySeed(
+    seedKey: seedKey ?? this.seedKey,
+    packVersion: packVersion ?? this.packVersion,
+    dismissed: dismissed ?? this.dismissed,
+    appliedAt: appliedAt ?? this.appliedAt,
+  );
+  CuratedLibrarySeed copyWithCompanion(CuratedLibrarySeedsCompanion data) {
+    return CuratedLibrarySeed(
+      seedKey: data.seedKey.present ? data.seedKey.value : this.seedKey,
+      packVersion: data.packVersion.present
+          ? data.packVersion.value
+          : this.packVersion,
+      dismissed: data.dismissed.present ? data.dismissed.value : this.dismissed,
+      appliedAt: data.appliedAt.present ? data.appliedAt.value : this.appliedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CuratedLibrarySeed(')
+          ..write('seedKey: $seedKey, ')
+          ..write('packVersion: $packVersion, ')
+          ..write('dismissed: $dismissed, ')
+          ..write('appliedAt: $appliedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(seedKey, packVersion, dismissed, appliedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CuratedLibrarySeed &&
+          other.seedKey == this.seedKey &&
+          other.packVersion == this.packVersion &&
+          other.dismissed == this.dismissed &&
+          other.appliedAt == this.appliedAt);
+}
+
+class CuratedLibrarySeedsCompanion extends UpdateCompanion<CuratedLibrarySeed> {
+  final Value<String> seedKey;
+  final Value<int> packVersion;
+  final Value<bool> dismissed;
+  final Value<DateTime> appliedAt;
+  final Value<int> rowid;
+  const CuratedLibrarySeedsCompanion({
+    this.seedKey = const Value.absent(),
+    this.packVersion = const Value.absent(),
+    this.dismissed = const Value.absent(),
+    this.appliedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CuratedLibrarySeedsCompanion.insert({
+    required String seedKey,
+    required int packVersion,
+    this.dismissed = const Value.absent(),
+    this.appliedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : seedKey = Value(seedKey),
+       packVersion = Value(packVersion);
+  static Insertable<CuratedLibrarySeed> custom({
+    Expression<String>? seedKey,
+    Expression<int>? packVersion,
+    Expression<bool>? dismissed,
+    Expression<DateTime>? appliedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (seedKey != null) 'seed_key': seedKey,
+      if (packVersion != null) 'pack_version': packVersion,
+      if (dismissed != null) 'dismissed': dismissed,
+      if (appliedAt != null) 'applied_at': appliedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CuratedLibrarySeedsCompanion copyWith({
+    Value<String>? seedKey,
+    Value<int>? packVersion,
+    Value<bool>? dismissed,
+    Value<DateTime>? appliedAt,
+    Value<int>? rowid,
+  }) {
+    return CuratedLibrarySeedsCompanion(
+      seedKey: seedKey ?? this.seedKey,
+      packVersion: packVersion ?? this.packVersion,
+      dismissed: dismissed ?? this.dismissed,
+      appliedAt: appliedAt ?? this.appliedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (seedKey.present) {
+      map['seed_key'] = Variable<String>(seedKey.value);
+    }
+    if (packVersion.present) {
+      map['pack_version'] = Variable<int>(packVersion.value);
+    }
+    if (dismissed.present) {
+      map['dismissed'] = Variable<bool>(dismissed.value);
+    }
+    if (appliedAt.present) {
+      map['applied_at'] = Variable<DateTime>(appliedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CuratedLibrarySeedsCompanion(')
+          ..write('seedKey: $seedKey, ')
+          ..write('packVersion: $packVersion, ')
+          ..write('dismissed: $dismissed, ')
+          ..write('appliedAt: $appliedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LocalLibraryVideosTable extends LocalLibraryVideos
+    with TableInfo<$LocalLibraryVideosTable, LocalLibraryVideo> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalLibraryVideosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _libraryIdMeta = const VerificationMeta(
+    'libraryId',
+  );
+  @override
+  late final GeneratedColumn<int> libraryId = GeneratedColumn<int>(
+    'library_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES local_libraries (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _videoIdMeta = const VerificationMeta(
+    'videoId',
+  );
+  @override
+  late final GeneratedColumn<String> videoId = GeneratedColumn<String>(
+    'video_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _slugMeta = const VerificationMeta('slug');
+  @override
+  late final GeneratedColumn<String> slug = GeneratedColumn<String>(
+    'slug',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _thumbnailUrlMeta = const VerificationMeta(
+    'thumbnailUrl',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailUrl = GeneratedColumn<String>(
+    'thumbnail_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationLabelMeta = const VerificationMeta(
+    'durationLabel',
+  );
+  @override
+  late final GeneratedColumn<String> durationLabel = GeneratedColumn<String>(
+    'duration_label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _publishedLabelMeta = const VerificationMeta(
+    'publishedLabel',
+  );
+  @override
+  late final GeneratedColumn<String> publishedLabel = GeneratedColumn<String>(
+    'published_label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _viewsMeta = const VerificationMeta('views');
+  @override
+  late final GeneratedColumn<int> views = GeneratedColumn<int>(
+    'views',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ratingMeta = const VerificationMeta('rating');
+  @override
+  late final GeneratedColumn<int> rating = GeneratedColumn<int>(
+    'rating',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ratingVotesMeta = const VerificationMeta(
+    'ratingVotes',
+  );
+  @override
+  late final GeneratedColumn<int> ratingVotes = GeneratedColumn<int>(
+    'rating_votes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _addedAtMeta = const VerificationMeta(
+    'addedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> addedAt = GeneratedColumn<DateTime>(
+    'added_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    libraryId,
+    videoId,
+    title,
+    slug,
+    thumbnailUrl,
+    durationLabel,
+    publishedLabel,
+    views,
+    rating,
+    ratingVotes,
+    addedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_library_videos';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalLibraryVideo> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('library_id')) {
+      context.handle(
+        _libraryIdMeta,
+        libraryId.isAcceptableOrUnknown(data['library_id']!, _libraryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_libraryIdMeta);
+    }
+    if (data.containsKey('video_id')) {
+      context.handle(
+        _videoIdMeta,
+        videoId.isAcceptableOrUnknown(data['video_id']!, _videoIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_videoIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('slug')) {
+      context.handle(
+        _slugMeta,
+        slug.isAcceptableOrUnknown(data['slug']!, _slugMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_slugMeta);
+    }
+    if (data.containsKey('thumbnail_url')) {
+      context.handle(
+        _thumbnailUrlMeta,
+        thumbnailUrl.isAcceptableOrUnknown(
+          data['thumbnail_url']!,
+          _thumbnailUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('duration_label')) {
+      context.handle(
+        _durationLabelMeta,
+        durationLabel.isAcceptableOrUnknown(
+          data['duration_label']!,
+          _durationLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('published_label')) {
+      context.handle(
+        _publishedLabelMeta,
+        publishedLabel.isAcceptableOrUnknown(
+          data['published_label']!,
+          _publishedLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('views')) {
+      context.handle(
+        _viewsMeta,
+        views.isAcceptableOrUnknown(data['views']!, _viewsMeta),
+      );
+    }
+    if (data.containsKey('rating')) {
+      context.handle(
+        _ratingMeta,
+        rating.isAcceptableOrUnknown(data['rating']!, _ratingMeta),
+      );
+    }
+    if (data.containsKey('rating_votes')) {
+      context.handle(
+        _ratingVotesMeta,
+        ratingVotes.isAcceptableOrUnknown(
+          data['rating_votes']!,
+          _ratingVotesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('added_at')) {
+      context.handle(
+        _addedAtMeta,
+        addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {libraryId, videoId};
+  @override
+  LocalLibraryVideo map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalLibraryVideo(
+      libraryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}library_id'],
+      )!,
+      videoId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}video_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      slug: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}slug'],
+      )!,
+      thumbnailUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_url'],
+      ),
+      durationLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}duration_label'],
+      ),
+      publishedLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}published_label'],
+      ),
+      views: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}views'],
+      ),
+      rating: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rating'],
+      ),
+      ratingVotes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rating_votes'],
+      ),
+      addedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}added_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalLibraryVideosTable createAlias(String alias) {
+    return $LocalLibraryVideosTable(attachedDatabase, alias);
+  }
+}
+
+class LocalLibraryVideo extends DataClass
+    implements Insertable<LocalLibraryVideo> {
+  final int libraryId;
+  final String videoId;
+  final String title;
+  final String slug;
+  final String? thumbnailUrl;
+  final String? durationLabel;
+  final String? publishedLabel;
+  final int? views;
+  final int? rating;
+  final int? ratingVotes;
+  final DateTime addedAt;
+  const LocalLibraryVideo({
+    required this.libraryId,
+    required this.videoId,
+    required this.title,
+    required this.slug,
+    this.thumbnailUrl,
+    this.durationLabel,
+    this.publishedLabel,
+    this.views,
+    this.rating,
+    this.ratingVotes,
+    required this.addedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['library_id'] = Variable<int>(libraryId);
+    map['video_id'] = Variable<String>(videoId);
+    map['title'] = Variable<String>(title);
+    map['slug'] = Variable<String>(slug);
+    if (!nullToAbsent || thumbnailUrl != null) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl);
+    }
+    if (!nullToAbsent || durationLabel != null) {
+      map['duration_label'] = Variable<String>(durationLabel);
+    }
+    if (!nullToAbsent || publishedLabel != null) {
+      map['published_label'] = Variable<String>(publishedLabel);
+    }
+    if (!nullToAbsent || views != null) {
+      map['views'] = Variable<int>(views);
+    }
+    if (!nullToAbsent || rating != null) {
+      map['rating'] = Variable<int>(rating);
+    }
+    if (!nullToAbsent || ratingVotes != null) {
+      map['rating_votes'] = Variable<int>(ratingVotes);
+    }
+    map['added_at'] = Variable<DateTime>(addedAt);
+    return map;
+  }
+
+  LocalLibraryVideosCompanion toCompanion(bool nullToAbsent) {
+    return LocalLibraryVideosCompanion(
+      libraryId: Value(libraryId),
+      videoId: Value(videoId),
+      title: Value(title),
+      slug: Value(slug),
+      thumbnailUrl: thumbnailUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbnailUrl),
+      durationLabel: durationLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationLabel),
+      publishedLabel: publishedLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(publishedLabel),
+      views: views == null && nullToAbsent
+          ? const Value.absent()
+          : Value(views),
+      rating: rating == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rating),
+      ratingVotes: ratingVotes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ratingVotes),
+      addedAt: Value(addedAt),
+    );
+  }
+
+  factory LocalLibraryVideo.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalLibraryVideo(
+      libraryId: serializer.fromJson<int>(json['libraryId']),
+      videoId: serializer.fromJson<String>(json['videoId']),
+      title: serializer.fromJson<String>(json['title']),
+      slug: serializer.fromJson<String>(json['slug']),
+      thumbnailUrl: serializer.fromJson<String?>(json['thumbnailUrl']),
+      durationLabel: serializer.fromJson<String?>(json['durationLabel']),
+      publishedLabel: serializer.fromJson<String?>(json['publishedLabel']),
+      views: serializer.fromJson<int?>(json['views']),
+      rating: serializer.fromJson<int?>(json['rating']),
+      ratingVotes: serializer.fromJson<int?>(json['ratingVotes']),
+      addedAt: serializer.fromJson<DateTime>(json['addedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'libraryId': serializer.toJson<int>(libraryId),
+      'videoId': serializer.toJson<String>(videoId),
+      'title': serializer.toJson<String>(title),
+      'slug': serializer.toJson<String>(slug),
+      'thumbnailUrl': serializer.toJson<String?>(thumbnailUrl),
+      'durationLabel': serializer.toJson<String?>(durationLabel),
+      'publishedLabel': serializer.toJson<String?>(publishedLabel),
+      'views': serializer.toJson<int?>(views),
+      'rating': serializer.toJson<int?>(rating),
+      'ratingVotes': serializer.toJson<int?>(ratingVotes),
+      'addedAt': serializer.toJson<DateTime>(addedAt),
+    };
+  }
+
+  LocalLibraryVideo copyWith({
+    int? libraryId,
+    String? videoId,
+    String? title,
+    String? slug,
+    Value<String?> thumbnailUrl = const Value.absent(),
+    Value<String?> durationLabel = const Value.absent(),
+    Value<String?> publishedLabel = const Value.absent(),
+    Value<int?> views = const Value.absent(),
+    Value<int?> rating = const Value.absent(),
+    Value<int?> ratingVotes = const Value.absent(),
+    DateTime? addedAt,
+  }) => LocalLibraryVideo(
+    libraryId: libraryId ?? this.libraryId,
+    videoId: videoId ?? this.videoId,
+    title: title ?? this.title,
+    slug: slug ?? this.slug,
+    thumbnailUrl: thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
+    durationLabel: durationLabel.present
+        ? durationLabel.value
+        : this.durationLabel,
+    publishedLabel: publishedLabel.present
+        ? publishedLabel.value
+        : this.publishedLabel,
+    views: views.present ? views.value : this.views,
+    rating: rating.present ? rating.value : this.rating,
+    ratingVotes: ratingVotes.present ? ratingVotes.value : this.ratingVotes,
+    addedAt: addedAt ?? this.addedAt,
+  );
+  LocalLibraryVideo copyWithCompanion(LocalLibraryVideosCompanion data) {
+    return LocalLibraryVideo(
+      libraryId: data.libraryId.present ? data.libraryId.value : this.libraryId,
+      videoId: data.videoId.present ? data.videoId.value : this.videoId,
+      title: data.title.present ? data.title.value : this.title,
+      slug: data.slug.present ? data.slug.value : this.slug,
+      thumbnailUrl: data.thumbnailUrl.present
+          ? data.thumbnailUrl.value
+          : this.thumbnailUrl,
+      durationLabel: data.durationLabel.present
+          ? data.durationLabel.value
+          : this.durationLabel,
+      publishedLabel: data.publishedLabel.present
+          ? data.publishedLabel.value
+          : this.publishedLabel,
+      views: data.views.present ? data.views.value : this.views,
+      rating: data.rating.present ? data.rating.value : this.rating,
+      ratingVotes: data.ratingVotes.present
+          ? data.ratingVotes.value
+          : this.ratingVotes,
+      addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalLibraryVideo(')
+          ..write('libraryId: $libraryId, ')
+          ..write('videoId: $videoId, ')
+          ..write('title: $title, ')
+          ..write('slug: $slug, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('durationLabel: $durationLabel, ')
+          ..write('publishedLabel: $publishedLabel, ')
+          ..write('views: $views, ')
+          ..write('rating: $rating, ')
+          ..write('ratingVotes: $ratingVotes, ')
+          ..write('addedAt: $addedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    libraryId,
+    videoId,
+    title,
+    slug,
+    thumbnailUrl,
+    durationLabel,
+    publishedLabel,
+    views,
+    rating,
+    ratingVotes,
+    addedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalLibraryVideo &&
+          other.libraryId == this.libraryId &&
+          other.videoId == this.videoId &&
+          other.title == this.title &&
+          other.slug == this.slug &&
+          other.thumbnailUrl == this.thumbnailUrl &&
+          other.durationLabel == this.durationLabel &&
+          other.publishedLabel == this.publishedLabel &&
+          other.views == this.views &&
+          other.rating == this.rating &&
+          other.ratingVotes == this.ratingVotes &&
+          other.addedAt == this.addedAt);
+}
+
+class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
+  final Value<int> libraryId;
+  final Value<String> videoId;
+  final Value<String> title;
+  final Value<String> slug;
+  final Value<String?> thumbnailUrl;
+  final Value<String?> durationLabel;
+  final Value<String?> publishedLabel;
+  final Value<int?> views;
+  final Value<int?> rating;
+  final Value<int?> ratingVotes;
+  final Value<DateTime> addedAt;
+  final Value<int> rowid;
+  const LocalLibraryVideosCompanion({
+    this.libraryId = const Value.absent(),
+    this.videoId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.slug = const Value.absent(),
+    this.thumbnailUrl = const Value.absent(),
+    this.durationLabel = const Value.absent(),
+    this.publishedLabel = const Value.absent(),
+    this.views = const Value.absent(),
+    this.rating = const Value.absent(),
+    this.ratingVotes = const Value.absent(),
+    this.addedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocalLibraryVideosCompanion.insert({
+    required int libraryId,
+    required String videoId,
+    required String title,
+    required String slug,
+    this.thumbnailUrl = const Value.absent(),
+    this.durationLabel = const Value.absent(),
+    this.publishedLabel = const Value.absent(),
+    this.views = const Value.absent(),
+    this.rating = const Value.absent(),
+    this.ratingVotes = const Value.absent(),
+    this.addedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : libraryId = Value(libraryId),
+       videoId = Value(videoId),
+       title = Value(title),
+       slug = Value(slug);
+  static Insertable<LocalLibraryVideo> custom({
+    Expression<int>? libraryId,
+    Expression<String>? videoId,
+    Expression<String>? title,
+    Expression<String>? slug,
+    Expression<String>? thumbnailUrl,
+    Expression<String>? durationLabel,
+    Expression<String>? publishedLabel,
+    Expression<int>? views,
+    Expression<int>? rating,
+    Expression<int>? ratingVotes,
+    Expression<DateTime>? addedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (libraryId != null) 'library_id': libraryId,
+      if (videoId != null) 'video_id': videoId,
+      if (title != null) 'title': title,
+      if (slug != null) 'slug': slug,
+      if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (durationLabel != null) 'duration_label': durationLabel,
+      if (publishedLabel != null) 'published_label': publishedLabel,
+      if (views != null) 'views': views,
+      if (rating != null) 'rating': rating,
+      if (ratingVotes != null) 'rating_votes': ratingVotes,
+      if (addedAt != null) 'added_at': addedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocalLibraryVideosCompanion copyWith({
+    Value<int>? libraryId,
+    Value<String>? videoId,
+    Value<String>? title,
+    Value<String>? slug,
+    Value<String?>? thumbnailUrl,
+    Value<String?>? durationLabel,
+    Value<String?>? publishedLabel,
+    Value<int?>? views,
+    Value<int?>? rating,
+    Value<int?>? ratingVotes,
+    Value<DateTime>? addedAt,
+    Value<int>? rowid,
+  }) {
+    return LocalLibraryVideosCompanion(
+      libraryId: libraryId ?? this.libraryId,
+      videoId: videoId ?? this.videoId,
+      title: title ?? this.title,
+      slug: slug ?? this.slug,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      durationLabel: durationLabel ?? this.durationLabel,
+      publishedLabel: publishedLabel ?? this.publishedLabel,
+      views: views ?? this.views,
+      rating: rating ?? this.rating,
+      ratingVotes: ratingVotes ?? this.ratingVotes,
+      addedAt: addedAt ?? this.addedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (libraryId.present) {
+      map['library_id'] = Variable<int>(libraryId.value);
+    }
+    if (videoId.present) {
+      map['video_id'] = Variable<String>(videoId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (slug.present) {
+      map['slug'] = Variable<String>(slug.value);
+    }
+    if (thumbnailUrl.present) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
+    }
+    if (durationLabel.present) {
+      map['duration_label'] = Variable<String>(durationLabel.value);
+    }
+    if (publishedLabel.present) {
+      map['published_label'] = Variable<String>(publishedLabel.value);
+    }
+    if (views.present) {
+      map['views'] = Variable<int>(views.value);
+    }
+    if (rating.present) {
+      map['rating'] = Variable<int>(rating.value);
+    }
+    if (ratingVotes.present) {
+      map['rating_votes'] = Variable<int>(ratingVotes.value);
+    }
+    if (addedAt.present) {
+      map['added_at'] = Variable<DateTime>(addedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalLibraryVideosCompanion(')
+          ..write('libraryId: $libraryId, ')
+          ..write('videoId: $videoId, ')
+          ..write('title: $title, ')
+          ..write('slug: $slug, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('durationLabel: $durationLabel, ')
+          ..write('publishedLabel: $publishedLabel, ')
+          ..write('views: $views, ')
+          ..write('rating: $rating, ')
+          ..write('ratingVotes: $ratingVotes, ')
+          ..write('addedAt: $addedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2128,6 +3645,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SearchHistoriesTable searchHistories = $SearchHistoriesTable(
     this,
   );
+  late final $LocalLibrariesTable localLibraries = $LocalLibrariesTable(this);
+  late final $CuratedLibrarySeedsTable curatedLibrarySeeds =
+      $CuratedLibrarySeedsTable(this);
+  late final $LocalLibraryVideosTable localLibraryVideos =
+      $LocalLibraryVideosTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2137,6 +3659,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     playbackPositions,
     downloadRecords,
     searchHistories,
+    localLibraries,
+    curatedLibrarySeeds,
+    localLibraryVideos,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2160,6 +3685,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('search_histories', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'local_libraries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('local_library_videos', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -3101,6 +4633,8 @@ typedef $$DownloadRecordsTableCreateCompanionBuilder =
       required String videoId,
       required String title,
       required String quality,
+      Value<String?> thumbnailUrl,
+      Value<String?> fileName,
       required String state,
       Value<String?> taskId,
       Value<String?> filePath,
@@ -3119,6 +4653,8 @@ typedef $$DownloadRecordsTableUpdateCompanionBuilder =
       Value<String> videoId,
       Value<String> title,
       Value<String> quality,
+      Value<String?> thumbnailUrl,
+      Value<String?> fileName,
       Value<String> state,
       Value<String?> taskId,
       Value<String?> filePath,
@@ -3184,6 +4720,16 @@ class $$DownloadRecordsTableFilterComposer
 
   ColumnFilters<String> get quality => $composableBuilder(
     column: $table.quality,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fileName => $composableBuilder(
+    column: $table.fileName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3285,6 +4831,16 @@ class $$DownloadRecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get state => $composableBuilder(
     column: $table.state,
     builder: (column) => ColumnOrderings(column),
@@ -3374,6 +4930,14 @@ class $$DownloadRecordsTableAnnotationComposer
 
   GeneratedColumn<String> get quality =>
       $composableBuilder(column: $table.quality, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get fileName =>
+      $composableBuilder(column: $table.fileName, builder: (column) => column);
 
   GeneratedColumn<String> get state =>
       $composableBuilder(column: $table.state, builder: (column) => column);
@@ -3469,6 +5033,8 @@ class $$DownloadRecordsTableTableManager
                 Value<String> videoId = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String> quality = const Value.absent(),
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> fileName = const Value.absent(),
                 Value<String> state = const Value.absent(),
                 Value<String?> taskId = const Value.absent(),
                 Value<String?> filePath = const Value.absent(),
@@ -3485,6 +5051,8 @@ class $$DownloadRecordsTableTableManager
                 videoId: videoId,
                 title: title,
                 quality: quality,
+                thumbnailUrl: thumbnailUrl,
+                fileName: fileName,
                 state: state,
                 taskId: taskId,
                 filePath: filePath,
@@ -3503,6 +5071,8 @@ class $$DownloadRecordsTableTableManager
                 required String videoId,
                 required String title,
                 required String quality,
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> fileName = const Value.absent(),
                 required String state,
                 Value<String?> taskId = const Value.absent(),
                 Value<String?> filePath = const Value.absent(),
@@ -3519,6 +5089,8 @@ class $$DownloadRecordsTableTableManager
                 videoId: videoId,
                 title: title,
                 quality: quality,
+                thumbnailUrl: thumbnailUrl,
+                fileName: fileName,
                 state: state,
                 taskId: taskId,
                 filePath: filePath,
@@ -3912,6 +5484,989 @@ typedef $$SearchHistoriesTableProcessedTableManager =
       SearchHistory,
       PrefetchHooks Function({bool userId})
     >;
+typedef $$LocalLibrariesTableCreateCompanionBuilder =
+    LocalLibrariesCompanion Function({
+      Value<int> id,
+      required String name,
+      required String normalizedName,
+      Value<String?> seedKey,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+typedef $$LocalLibrariesTableUpdateCompanionBuilder =
+    LocalLibrariesCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String> normalizedName,
+      Value<String?> seedKey,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$LocalLibrariesTableReferences
+    extends BaseReferences<_$AppDatabase, $LocalLibrariesTable, LocalLibrary> {
+  $$LocalLibrariesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$LocalLibraryVideosTable, List<LocalLibraryVideo>>
+  _localLibraryVideosRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.localLibraryVideos,
+        aliasName: 'local_libraries__id__local_library_videos__library_id',
+      );
+
+  $$LocalLibraryVideosTableProcessedTableManager get localLibraryVideosRefs {
+    final manager = $$LocalLibraryVideosTableTableManager(
+      $_db,
+      $_db.localLibraryVideos,
+    ).filter((f) => f.libraryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _localLibraryVideosRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$LocalLibrariesTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalLibrariesTable> {
+  $$LocalLibrariesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get normalizedName => $composableBuilder(
+    column: $table.normalizedName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get seedKey => $composableBuilder(
+    column: $table.seedKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> localLibraryVideosRefs(
+    Expression<bool> Function($$LocalLibraryVideosTableFilterComposer f) f,
+  ) {
+    final $$LocalLibraryVideosTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.localLibraryVideos,
+      getReferencedColumn: (t) => t.libraryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LocalLibraryVideosTableFilterComposer(
+            $db: $db,
+            $table: $db.localLibraryVideos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$LocalLibrariesTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalLibrariesTable> {
+  $$LocalLibrariesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get normalizedName => $composableBuilder(
+    column: $table.normalizedName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get seedKey => $composableBuilder(
+    column: $table.seedKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalLibrariesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalLibrariesTable> {
+  $$LocalLibrariesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get normalizedName => $composableBuilder(
+    column: $table.normalizedName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get seedKey =>
+      $composableBuilder(column: $table.seedKey, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> localLibraryVideosRefs<T extends Object>(
+    Expression<T> Function($$LocalLibraryVideosTableAnnotationComposer a) f,
+  ) {
+    final $$LocalLibraryVideosTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.localLibraryVideos,
+          getReferencedColumn: (t) => t.libraryId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LocalLibraryVideosTableAnnotationComposer(
+                $db: $db,
+                $table: $db.localLibraryVideos,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$LocalLibrariesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalLibrariesTable,
+          LocalLibrary,
+          $$LocalLibrariesTableFilterComposer,
+          $$LocalLibrariesTableOrderingComposer,
+          $$LocalLibrariesTableAnnotationComposer,
+          $$LocalLibrariesTableCreateCompanionBuilder,
+          $$LocalLibrariesTableUpdateCompanionBuilder,
+          (LocalLibrary, $$LocalLibrariesTableReferences),
+          LocalLibrary,
+          PrefetchHooks Function({bool localLibraryVideosRefs})
+        > {
+  $$LocalLibrariesTableTableManager(
+    _$AppDatabase db,
+    $LocalLibrariesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalLibrariesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocalLibrariesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LocalLibrariesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> normalizedName = const Value.absent(),
+                Value<String?> seedKey = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LocalLibrariesCompanion(
+                id: id,
+                name: name,
+                normalizedName: normalizedName,
+                seedKey: seedKey,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                required String normalizedName,
+                Value<String?> seedKey = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LocalLibrariesCompanion.insert(
+                id: id,
+                name: name,
+                normalizedName: normalizedName,
+                seedKey: seedKey,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LocalLibrariesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({localLibraryVideosRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (localLibraryVideosRefs) db.localLibraryVideos,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (localLibraryVideosRefs)
+                    await $_getPrefetchedData<
+                      LocalLibrary,
+                      $LocalLibrariesTable,
+                      LocalLibraryVideo
+                    >(
+                      currentTable: table,
+                      referencedTable: $$LocalLibrariesTableReferences
+                          ._localLibraryVideosRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$LocalLibrariesTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).localLibraryVideosRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.libraryId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LocalLibrariesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalLibrariesTable,
+      LocalLibrary,
+      $$LocalLibrariesTableFilterComposer,
+      $$LocalLibrariesTableOrderingComposer,
+      $$LocalLibrariesTableAnnotationComposer,
+      $$LocalLibrariesTableCreateCompanionBuilder,
+      $$LocalLibrariesTableUpdateCompanionBuilder,
+      (LocalLibrary, $$LocalLibrariesTableReferences),
+      LocalLibrary,
+      PrefetchHooks Function({bool localLibraryVideosRefs})
+    >;
+typedef $$CuratedLibrarySeedsTableCreateCompanionBuilder =
+    CuratedLibrarySeedsCompanion Function({
+      required String seedKey,
+      required int packVersion,
+      Value<bool> dismissed,
+      Value<DateTime> appliedAt,
+      Value<int> rowid,
+    });
+typedef $$CuratedLibrarySeedsTableUpdateCompanionBuilder =
+    CuratedLibrarySeedsCompanion Function({
+      Value<String> seedKey,
+      Value<int> packVersion,
+      Value<bool> dismissed,
+      Value<DateTime> appliedAt,
+      Value<int> rowid,
+    });
+
+class $$CuratedLibrarySeedsTableFilterComposer
+    extends Composer<_$AppDatabase, $CuratedLibrarySeedsTable> {
+  $$CuratedLibrarySeedsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get seedKey => $composableBuilder(
+    column: $table.seedKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get packVersion => $composableBuilder(
+    column: $table.packVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dismissed => $composableBuilder(
+    column: $table.dismissed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get appliedAt => $composableBuilder(
+    column: $table.appliedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CuratedLibrarySeedsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CuratedLibrarySeedsTable> {
+  $$CuratedLibrarySeedsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get seedKey => $composableBuilder(
+    column: $table.seedKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get packVersion => $composableBuilder(
+    column: $table.packVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get dismissed => $composableBuilder(
+    column: $table.dismissed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get appliedAt => $composableBuilder(
+    column: $table.appliedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CuratedLibrarySeedsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CuratedLibrarySeedsTable> {
+  $$CuratedLibrarySeedsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get seedKey =>
+      $composableBuilder(column: $table.seedKey, builder: (column) => column);
+
+  GeneratedColumn<int> get packVersion => $composableBuilder(
+    column: $table.packVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get dismissed =>
+      $composableBuilder(column: $table.dismissed, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get appliedAt =>
+      $composableBuilder(column: $table.appliedAt, builder: (column) => column);
+}
+
+class $$CuratedLibrarySeedsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CuratedLibrarySeedsTable,
+          CuratedLibrarySeed,
+          $$CuratedLibrarySeedsTableFilterComposer,
+          $$CuratedLibrarySeedsTableOrderingComposer,
+          $$CuratedLibrarySeedsTableAnnotationComposer,
+          $$CuratedLibrarySeedsTableCreateCompanionBuilder,
+          $$CuratedLibrarySeedsTableUpdateCompanionBuilder,
+          (
+            CuratedLibrarySeed,
+            BaseReferences<
+              _$AppDatabase,
+              $CuratedLibrarySeedsTable,
+              CuratedLibrarySeed
+            >,
+          ),
+          CuratedLibrarySeed,
+          PrefetchHooks Function()
+        > {
+  $$CuratedLibrarySeedsTableTableManager(
+    _$AppDatabase db,
+    $CuratedLibrarySeedsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CuratedLibrarySeedsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CuratedLibrarySeedsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CuratedLibrarySeedsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> seedKey = const Value.absent(),
+                Value<int> packVersion = const Value.absent(),
+                Value<bool> dismissed = const Value.absent(),
+                Value<DateTime> appliedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CuratedLibrarySeedsCompanion(
+                seedKey: seedKey,
+                packVersion: packVersion,
+                dismissed: dismissed,
+                appliedAt: appliedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String seedKey,
+                required int packVersion,
+                Value<bool> dismissed = const Value.absent(),
+                Value<DateTime> appliedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CuratedLibrarySeedsCompanion.insert(
+                seedKey: seedKey,
+                packVersion: packVersion,
+                dismissed: dismissed,
+                appliedAt: appliedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CuratedLibrarySeedsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CuratedLibrarySeedsTable,
+      CuratedLibrarySeed,
+      $$CuratedLibrarySeedsTableFilterComposer,
+      $$CuratedLibrarySeedsTableOrderingComposer,
+      $$CuratedLibrarySeedsTableAnnotationComposer,
+      $$CuratedLibrarySeedsTableCreateCompanionBuilder,
+      $$CuratedLibrarySeedsTableUpdateCompanionBuilder,
+      (
+        CuratedLibrarySeed,
+        BaseReferences<
+          _$AppDatabase,
+          $CuratedLibrarySeedsTable,
+          CuratedLibrarySeed
+        >,
+      ),
+      CuratedLibrarySeed,
+      PrefetchHooks Function()
+    >;
+typedef $$LocalLibraryVideosTableCreateCompanionBuilder =
+    LocalLibraryVideosCompanion Function({
+      required int libraryId,
+      required String videoId,
+      required String title,
+      required String slug,
+      Value<String?> thumbnailUrl,
+      Value<String?> durationLabel,
+      Value<String?> publishedLabel,
+      Value<int?> views,
+      Value<int?> rating,
+      Value<int?> ratingVotes,
+      Value<DateTime> addedAt,
+      Value<int> rowid,
+    });
+typedef $$LocalLibraryVideosTableUpdateCompanionBuilder =
+    LocalLibraryVideosCompanion Function({
+      Value<int> libraryId,
+      Value<String> videoId,
+      Value<String> title,
+      Value<String> slug,
+      Value<String?> thumbnailUrl,
+      Value<String?> durationLabel,
+      Value<String?> publishedLabel,
+      Value<int?> views,
+      Value<int?> rating,
+      Value<int?> ratingVotes,
+      Value<DateTime> addedAt,
+      Value<int> rowid,
+    });
+
+final class $$LocalLibraryVideosTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $LocalLibraryVideosTable,
+          LocalLibraryVideo
+        > {
+  $$LocalLibraryVideosTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $LocalLibrariesTable _libraryIdTable(_$AppDatabase db) => db
+      .localLibraries
+      .createAlias('local_library_videos__library_id__local_libraries__id');
+
+  $$LocalLibrariesTableProcessedTableManager get libraryId {
+    final $_column = $_itemColumn<int>('library_id')!;
+
+    final manager = $$LocalLibrariesTableTableManager(
+      $_db,
+      $_db.localLibraries,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_libraryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LocalLibraryVideosTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalLibraryVideosTable> {
+  $$LocalLibraryVideosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get videoId => $composableBuilder(
+    column: $table.videoId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get publishedLabel => $composableBuilder(
+    column: $table.publishedLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get views => $composableBuilder(
+    column: $table.views,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rating => $composableBuilder(
+    column: $table.rating,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ratingVotes => $composableBuilder(
+    column: $table.ratingVotes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$LocalLibrariesTableFilterComposer get libraryId {
+    final $$LocalLibrariesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.libraryId,
+      referencedTable: $db.localLibraries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LocalLibrariesTableFilterComposer(
+            $db: $db,
+            $table: $db.localLibraries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LocalLibraryVideosTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalLibraryVideosTable> {
+  $$LocalLibraryVideosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get videoId => $composableBuilder(
+    column: $table.videoId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get publishedLabel => $composableBuilder(
+    column: $table.publishedLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get views => $composableBuilder(
+    column: $table.views,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get rating => $composableBuilder(
+    column: $table.rating,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ratingVotes => $composableBuilder(
+    column: $table.ratingVotes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$LocalLibrariesTableOrderingComposer get libraryId {
+    final $$LocalLibrariesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.libraryId,
+      referencedTable: $db.localLibraries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LocalLibrariesTableOrderingComposer(
+            $db: $db,
+            $table: $db.localLibraries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LocalLibraryVideosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalLibraryVideosTable> {
+  $$LocalLibraryVideosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get videoId =>
+      $composableBuilder(column: $table.videoId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get slug =>
+      $composableBuilder(column: $table.slug, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get publishedLabel => $composableBuilder(
+    column: $table.publishedLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get views =>
+      $composableBuilder(column: $table.views, builder: (column) => column);
+
+  GeneratedColumn<int> get rating =>
+      $composableBuilder(column: $table.rating, builder: (column) => column);
+
+  GeneratedColumn<int> get ratingVotes => $composableBuilder(
+    column: $table.ratingVotes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get addedAt =>
+      $composableBuilder(column: $table.addedAt, builder: (column) => column);
+
+  $$LocalLibrariesTableAnnotationComposer get libraryId {
+    final $$LocalLibrariesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.libraryId,
+      referencedTable: $db.localLibraries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LocalLibrariesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.localLibraries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LocalLibraryVideosTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalLibraryVideosTable,
+          LocalLibraryVideo,
+          $$LocalLibraryVideosTableFilterComposer,
+          $$LocalLibraryVideosTableOrderingComposer,
+          $$LocalLibraryVideosTableAnnotationComposer,
+          $$LocalLibraryVideosTableCreateCompanionBuilder,
+          $$LocalLibraryVideosTableUpdateCompanionBuilder,
+          (LocalLibraryVideo, $$LocalLibraryVideosTableReferences),
+          LocalLibraryVideo,
+          PrefetchHooks Function({bool libraryId})
+        > {
+  $$LocalLibraryVideosTableTableManager(
+    _$AppDatabase db,
+    $LocalLibraryVideosTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalLibraryVideosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocalLibraryVideosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LocalLibraryVideosTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> libraryId = const Value.absent(),
+                Value<String> videoId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> slug = const Value.absent(),
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> durationLabel = const Value.absent(),
+                Value<String?> publishedLabel = const Value.absent(),
+                Value<int?> views = const Value.absent(),
+                Value<int?> rating = const Value.absent(),
+                Value<int?> ratingVotes = const Value.absent(),
+                Value<DateTime> addedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalLibraryVideosCompanion(
+                libraryId: libraryId,
+                videoId: videoId,
+                title: title,
+                slug: slug,
+                thumbnailUrl: thumbnailUrl,
+                durationLabel: durationLabel,
+                publishedLabel: publishedLabel,
+                views: views,
+                rating: rating,
+                ratingVotes: ratingVotes,
+                addedAt: addedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int libraryId,
+                required String videoId,
+                required String title,
+                required String slug,
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> durationLabel = const Value.absent(),
+                Value<String?> publishedLabel = const Value.absent(),
+                Value<int?> views = const Value.absent(),
+                Value<int?> rating = const Value.absent(),
+                Value<int?> ratingVotes = const Value.absent(),
+                Value<DateTime> addedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalLibraryVideosCompanion.insert(
+                libraryId: libraryId,
+                videoId: videoId,
+                title: title,
+                slug: slug,
+                thumbnailUrl: thumbnailUrl,
+                durationLabel: durationLabel,
+                publishedLabel: publishedLabel,
+                views: views,
+                rating: rating,
+                ratingVotes: ratingVotes,
+                addedAt: addedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LocalLibraryVideosTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({libraryId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (libraryId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.libraryId,
+                                referencedTable:
+                                    $$LocalLibraryVideosTableReferences
+                                        ._libraryIdTable(db),
+                                referencedColumn:
+                                    $$LocalLibraryVideosTableReferences
+                                        ._libraryIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LocalLibraryVideosTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalLibraryVideosTable,
+      LocalLibraryVideo,
+      $$LocalLibraryVideosTableFilterComposer,
+      $$LocalLibraryVideosTableOrderingComposer,
+      $$LocalLibraryVideosTableAnnotationComposer,
+      $$LocalLibraryVideosTableCreateCompanionBuilder,
+      $$LocalLibraryVideosTableUpdateCompanionBuilder,
+      (LocalLibraryVideo, $$LocalLibraryVideosTableReferences),
+      LocalLibraryVideo,
+      PrefetchHooks Function({bool libraryId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3924,4 +6479,10 @@ class $AppDatabaseManager {
       $$DownloadRecordsTableTableManager(_db, _db.downloadRecords);
   $$SearchHistoriesTableTableManager get searchHistories =>
       $$SearchHistoriesTableTableManager(_db, _db.searchHistories);
+  $$LocalLibrariesTableTableManager get localLibraries =>
+      $$LocalLibrariesTableTableManager(_db, _db.localLibraries);
+  $$CuratedLibrarySeedsTableTableManager get curatedLibrarySeeds =>
+      $$CuratedLibrarySeedsTableTableManager(_db, _db.curatedLibrarySeeds);
+  $$LocalLibraryVideosTableTableManager get localLibraryVideos =>
+      $$LocalLibraryVideosTableTableManager(_db, _db.localLibraryVideos);
 }

@@ -18,6 +18,21 @@ import 'package:flule34/features/video/video_player_page.dart';
 import '../../helpers/test_session_harness.dart';
 
 void main() {
+  test('缓存区间会合并且不会被瞬时空快照清零', () {
+    final first = mergeBufferedRanges(const [], const [
+      (start: Duration.zero, end: Duration(seconds: 30)),
+    ]);
+    final afterEmpty = mergeBufferedRanges(first, const []);
+    final extended = mergeBufferedRanges(afterEmpty, const [
+      (start: Duration(seconds: 25), end: Duration(seconds: 45)),
+    ]);
+
+    expect(afterEmpty, first);
+    expect(extended, const [
+      (start: Duration.zero, end: Duration(seconds: 45)),
+    ]);
+  });
+
   testWidgets('播放器保持 16:9 且不再暴露冗余控制按钮', (tester) async {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -42,6 +57,7 @@ void main() {
     await harness.sessionStore.load();
     await harness.sessionStore.authenticate('1001');
     final api = _FakeRule34VideoApi(harness.sessionStore);
+    final handle = VideoPlayerHandle();
     final container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(harness.database),
@@ -62,7 +78,13 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
-          home: VideoPlayerPage(api: api, video: _video, sources: [_source]),
+          home: VideoPlayerPage(
+            api: api,
+            video: _video,
+            sources: [_source],
+            handle: handle,
+            autoplay: true,
+          ),
         ),
       ),
     );
@@ -76,6 +98,11 @@ void main() {
     expect(find.byTooltip('前进 10 秒'), findsNothing);
     expect(find.byTooltip('后退 10 秒'), findsNothing);
     expect(find.byTooltip('静音'), findsNothing);
+
+    for (var attempt = 0; attempt < 10 && platform.playCount == 0; attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await handle.pause();
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -116,6 +143,7 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   double volume = 1;
   double speed = 1;
   int playCount = 0;
+  int pauseCount = 0;
 
   @override
   Future<void> init() async {}
@@ -157,6 +185,7 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
 
   @override
   Future<void> pause(int playerId) async {
+    pauseCount += 1;
     _events.add(
       VideoEvent(
         eventType: VideoEventType.isPlayingStateUpdate,
