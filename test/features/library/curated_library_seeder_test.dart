@@ -13,31 +13,26 @@ void main() {
     addTearDown(harness.dispose);
     final seeder = CuratedLibrarySeeder(
       harness.database,
-      const _FileManifestLoader(
-        AssetCuratedLibraryManifestLoader.assetPath,
-      ),
+      const _FileManifestLoader(AssetCuratedLibraryManifestLoader.assetPath),
     );
 
     await seeder.seedIfNeeded();
 
-    final libraries = await harness.database.select(
-      harness.database.localLibraries,
-    ).get();
-    final videos = await harness.database.select(
-      harness.database.localLibraryVideos,
-    ).get();
+    final libraries = await harness.database
+        .select(harness.database.localLibraries)
+        .get();
+    final videos = await harness.database
+        .select(harness.database.localLibraryVideos)
+        .get();
     expect(libraries, hasLength(5));
     expect(videos, hasLength(289));
-    expect(
-      libraries.map((item) => item.name).toSet(),
-      {
-        '作者：hydrafxx',
-        '作者：nagoonimation',
-        '作者：bamhor',
-        '作者：JuicyNeko',
-        '作者：Drills3D',
-      },
-    );
+    expect(libraries.map((item) => item.name).toSet(), {
+      '作者：hydrafxx',
+      '作者：nagoonimation',
+      '作者：bamhor',
+      '作者：JuicyNeko',
+      '作者：Drills3D',
+    });
   });
 
   test('精选库只导入一次，同名用户库不会被覆盖', () async {
