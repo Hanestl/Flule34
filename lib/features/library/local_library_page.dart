@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
 import '../../app/router/route_names.dart';
 import '../../core/database/app_database.dart';
 import '../../core/models/video_models.dart';
 import '../../shared/video_card.dart';
+import '../../shared/video_collection_layout.dart';
 import '../../shared/video_list_filters.dart';
 import 'data/local_library_repository.dart';
 import 'local_library_name_dialog.dart';
@@ -250,7 +253,7 @@ class _LocalLibraryOverviewState extends State<LocalLibraryOverview> {
   }
 }
 
-class LocalLibraryPage extends StatefulWidget {
+class LocalLibraryPage extends ConsumerStatefulWidget {
   const LocalLibraryPage({
     super.key,
     required this.repository,
@@ -263,10 +266,10 @@ class LocalLibraryPage extends StatefulWidget {
   final String title;
 
   @override
-  State<LocalLibraryPage> createState() => _LocalLibraryPageState();
+  ConsumerState<LocalLibraryPage> createState() => _LocalLibraryPageState();
 }
 
-class _LocalLibraryPageState extends State<LocalLibraryPage> {
+class _LocalLibraryPageState extends ConsumerState<LocalLibraryPage> {
   final TextEditingController _searchController = TextEditingController();
   var _query = '';
   var _filters = const VideoListFilters();
@@ -334,22 +337,38 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
                 if (videos.isEmpty) {
                   return const Center(child: Text('没有符合搜索和筛选条件的视频。'));
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 28),
-                  itemCount: videos.length,
-                  itemBuilder: (context, index) {
-                    final video = videos[index];
-                    return VideoCard(
-                      video: video,
-                      contextActionLabel: '移出此库',
-                      onContextAction: () => _removeVideo(video),
-                      onTap: () => context.pushNamed(
-                        AppRouteNames.video,
-                        pathParameters: {'id': video.id, 'slug': video.slug},
-                        extra: video,
+                final settingsRepository = ref.watch(
+                  appSettingsRepositoryProvider,
+                );
+                return ListenableBuilder(
+                  listenable: settingsRepository,
+                  builder: (context, _) => CustomScrollView(
+                    slivers: [
+                      VideoCollectionSliver(
+                        layout: settingsRepository.settings.videoLayout,
+                        itemCount: videos.length,
+                        listPadding: const EdgeInsets.only(bottom: 28),
+                        itemBuilder: (context, index, compact) {
+                          final video = videos[index];
+                          return VideoCard(
+                            video: video,
+                            compact: compact,
+                            contextActionLabel: '移出此库',
+                            onContextAction: () => _removeVideo(video),
+                            onTap: () => context.pushNamed(
+                              AppRouteNames.video,
+                              pathParameters: {
+                                'id': video.id,
+                                'slug': video.slug,
+                              },
+                              extra: video,
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                      const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                    ],
+                  ),
                 );
               },
             ),

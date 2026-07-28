@@ -109,6 +109,11 @@ final class _PrefetchApi extends Rule34VideoApi {
   }
 
   @override
+  Future<void> prefetchFollowingFeed({required CancelToken cancelToken}) async {
+    calls.add('following');
+  }
+
+  @override
   Future<void> prefetchVideoDetails(
     VideoItem video, {
     required CancelToken cancelToken,

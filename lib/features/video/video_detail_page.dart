@@ -13,6 +13,7 @@ import '../../core/models/video_models.dart';
 import '../../core/services/share_service.dart';
 import '../../core/services/predictive_prefetch_service.dart';
 import '../../shared/video_card.dart';
+import '../../shared/video_collection_layout.dart';
 import '../../shared/site_avatar.dart';
 import '../auth/login_sheet.dart';
 import '../downloads/data/download_repository.dart';
@@ -161,7 +162,7 @@ class _DetailLoading extends StatelessWidget {
 
   static const _headers = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.3.1',
+    'User-Agent': 'Flule34 Android/1.4.0',
   };
 
   final VideoItem video;
@@ -724,24 +725,34 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
-                      for (final video in details.relatedVideos)
-                        VideoCard(
-                          video: video,
-                          onTap: () async {
-                            await widget.playerHandle.pause();
-                            if (!context.mounted) {
-                              return;
-                            }
-                            context.pushNamed(
-                              AppRouteNames.video,
-                              pathParameters: {
-                                'id': video.id,
-                                'slug': video.slug,
+                      ListenableBuilder(
+                        listenable: widget.settings,
+                        builder: (context, _) => VideoCollectionBox(
+                          layout: widget.settings.settings.videoLayout,
+                          itemCount: details.relatedVideos.length,
+                          itemBuilder: (context, index, compact) {
+                            final video = details.relatedVideos[index];
+                            return VideoCard(
+                              video: video,
+                              compact: compact,
+                              onTap: () async {
+                                await widget.playerHandle.pause();
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                context.pushNamed(
+                                  AppRouteNames.video,
+                                  pathParameters: {
+                                    'id': video.id,
+                                    'slug': video.slug,
+                                  },
+                                  extra: video,
+                                );
                               },
-                              extra: video,
                             );
                           },
                         ),
+                      ),
                     ],
                   ],
                 ),

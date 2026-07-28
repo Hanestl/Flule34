@@ -10,11 +10,11 @@ enum AppThemePreference {
   final String label;
 }
 
-enum HomeVideoLayout {
+enum ContentLayout {
   singleColumn('一列'),
   doubleColumn('两列');
 
-  const HomeVideoLayout(this.label);
+  const ContentLayout(this.label);
 
   final String label;
 }
@@ -89,7 +89,8 @@ final class AppSettings {
     required this.downloadConcurrentTasks,
     required this.saveSearchHistory,
     required this.updateChannel,
-    required this.homeVideoLayout,
+    required this.videoLayout,
+    required this.subscriptionLayout,
   });
 
   static const defaults = AppSettings(
@@ -110,7 +111,8 @@ final class AppSettings {
     downloadConcurrentTasks: 2,
     saveSearchHistory: true,
     updateChannel: UpdateChannel.stable,
-    homeVideoLayout: HomeVideoLayout.singleColumn,
+    videoLayout: ContentLayout.singleColumn,
+    subscriptionLayout: ContentLayout.doubleColumn,
   );
 
   final AppThemePreference theme;
@@ -130,7 +132,8 @@ final class AppSettings {
   final int downloadConcurrentTasks;
   final bool saveSearchHistory;
   final UpdateChannel updateChannel;
-  final HomeVideoLayout homeVideoLayout;
+  final ContentLayout videoLayout;
+  final ContentLayout subscriptionLayout;
 
   AppSettings copyWith({
     AppThemePreference? theme,
@@ -150,7 +153,8 @@ final class AppSettings {
     int? downloadConcurrentTasks,
     bool? saveSearchHistory,
     UpdateChannel? updateChannel,
-    HomeVideoLayout? homeVideoLayout,
+    ContentLayout? videoLayout,
+    ContentLayout? subscriptionLayout,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
@@ -174,7 +178,8 @@ final class AppSettings {
           downloadConcurrentTasks ?? this.downloadConcurrentTasks,
       saveSearchHistory: saveSearchHistory ?? this.saveSearchHistory,
       updateChannel: updateChannel ?? this.updateChannel,
-      homeVideoLayout: homeVideoLayout ?? this.homeVideoLayout,
+      videoLayout: videoLayout ?? this.videoLayout,
+      subscriptionLayout: subscriptionLayout ?? this.subscriptionLayout,
     );
   }
 }

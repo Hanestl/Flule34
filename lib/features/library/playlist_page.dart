@@ -1,26 +1,29 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../shared/video_card.dart';
+import '../../shared/video_collection_layout.dart';
 import '../../shared/video_list_filters.dart';
 import 'playlist_playback_page.dart';
 
-class PlaylistPage extends StatefulWidget {
+class PlaylistPage extends ConsumerStatefulWidget {
   const PlaylistPage({super.key, required this.api, required this.playlist});
 
   final Rule34VideoApi api;
   final PlaylistItem playlist;
 
   @override
-  State<PlaylistPage> createState() => _PlaylistPageState();
+  ConsumerState<PlaylistPage> createState() => _PlaylistPageState();
 }
 
-class _PlaylistPageState extends State<PlaylistPage> {
+class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final List<VideoItem> _videos = [];
@@ -217,46 +220,58 @@ class _PlaylistPageState extends State<PlaylistPage> {
         Expanded(
           child: videos.isEmpty && _hasActiveFiltering && !_loadingAllForFilter
               ? const Center(child: Text('没有符合搜索和筛选条件的视频。'))
-              : RefreshIndicator(
-                  onRefresh: () => _load(reset: true),
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 24),
-                    itemCount: videos.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == videos.length) {
-                        if (_loading) {
-                          return const Padding(
-                            padding: EdgeInsets.all(20),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.all(18),
-                          child: Center(
-                            child: Text(
-                              _loadingAllForFilter
-                                  ? '正在读取全部视频…'
-                                  : (_hasMore ? '继续向下滚动' : '已经到底了'),
-                            ),
-                          ),
-                        );
-                      }
-                      final video = videos[index];
-                      return VideoCard(
-                        video: video,
-                        contextActionLabel: '移出此播放列表',
-                        onContextAction: _removingIds.contains(video.id)
-                            ? null
-                            : () => _removeVideo(video),
-                        onTap: () => _playFrom(videos, index),
-                      );
-                    },
-                  ),
-                ),
+              : _playlistVideos(videos),
         ),
       ],
+    );
+  }
+
+  Widget _playlistVideos(List<VideoItem> videos) {
+    final settingsRepository = ref.watch(appSettingsRepositoryProvider);
+    return ListenableBuilder(
+      listenable: settingsRepository,
+      builder: (context, _) => RefreshIndicator(
+        onRefresh: () => _load(reset: true),
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            VideoCollectionSliver(
+              layout: settingsRepository.settings.videoLayout,
+              itemCount: videos.length,
+              itemBuilder: (context, index, compact) {
+                final video = videos[index];
+                return VideoCard(
+                  video: video,
+                  compact: compact,
+                  contextActionLabel: '移出此播放列表',
+                  onContextAction: _removingIds.contains(video.id)
+                      ? null
+                      : () => _removeVideo(video),
+                  onTap: () => _playFrom(videos, index),
+                );
+              },
+            ),
+            SliverToBoxAdapter(
+              child: _loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Center(
+                        child: Text(
+                          _loadingAllForFilter
+                              ? '正在读取全部视频…'
+                              : (_hasMore ? '继续向下滚动' : '已经到底了'),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

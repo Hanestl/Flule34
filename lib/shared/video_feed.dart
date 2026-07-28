@@ -8,7 +8,9 @@ import '../app/providers.dart';
 import '../app/router/route_names.dart';
 import '../core/models/video_models.dart';
 import '../core/services/predictive_prefetch_service.dart';
+import '../features/settings/domain/app_settings.dart';
 import 'video_card.dart';
+import 'video_collection_layout.dart';
 import 'video_list_filters.dart';
 
 class VideoFeed extends ConsumerStatefulWidget {
@@ -18,7 +20,7 @@ class VideoFeed extends ConsumerStatefulWidget {
     this.refreshPage,
     this.emptyMessage = '没有找到视频。',
     this.itemFilter,
-    this.columns = 1,
+    this.initialItems = const [],
     this.showSearchAndFilters = false,
     this.searchHint = '搜索已加载的视频',
     this.sortNewest = false,
@@ -31,7 +33,7 @@ class VideoFeed extends ConsumerStatefulWidget {
   final Future<List<VideoItem>> Function(int page)? refreshPage;
   final String emptyMessage;
   final bool Function(VideoItem video)? itemFilter;
-  final int columns;
+  final List<VideoItem> initialItems;
   final bool showSearchAndFilters;
   final String searchHint;
   final bool sortNewest;
@@ -58,6 +60,7 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
   @override
   void initState() {
     super.initState();
+    _videos.addAll(widget.initialItems);
     _scrollController.addListener(_onScroll);
     if (widget.active) {
       _load(reset: true);
@@ -148,7 +151,11 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       return const SizedBox.shrink();
     }
     final visibleVideos = _visibleVideos();
-    final body = _buildBody(context, visibleVideos);
+    final layout = ref
+        .watch(appSettingsRepositoryProvider)
+        .settings
+        .videoLayout;
+    final body = _buildBody(context, visibleVideos, layout);
     if (!widget.showSearchAndFilters) {
       return body;
     }
@@ -189,7 +196,11 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
     );
   }
 
-  Widget _buildBody(BuildContext context, List<VideoItem> visibleVideos) {
+  Widget _buildBody(
+    BuildContext context,
+    List<VideoItem> visibleVideos,
+    ContentLayout layout,
+  ) {
     if (_videos.isEmpty && _loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -222,29 +233,11 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverPadding(
-            padding: widget.columns > 1
-                ? const EdgeInsets.symmetric(horizontal: 7, vertical: 4)
-                : EdgeInsets.zero,
-            sliver: widget.columns > 1
-                ? SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.88,
-                        ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) =>
-                          _videoCard(visibleVideos[index], compact: true),
-                      childCount: visibleVideos.length,
-                    ),
-                  )
-                : SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _videoCard(visibleVideos[index]),
-                      childCount: visibleVideos.length,
-                    ),
-                  ),
+          VideoCollectionSliver(
+            layout: layout,
+            itemCount: visibleVideos.length,
+            itemBuilder: (context, index, compact) =>
+                _videoCard(visibleVideos[index], compact: compact),
           ),
           SliverToBoxAdapter(child: _footer(context)),
         ],

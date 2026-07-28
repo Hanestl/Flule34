@@ -39,28 +39,45 @@ class AppearanceSettingsPage extends ConsumerWidget {
           },
         ),
         const SizedBox(height: 16),
-        Text('首页视频布局', style: Theme.of(context).textTheme.titleMedium),
+        Text('视频布局', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
-        SegmentedButton<HomeVideoLayout>(
-          segments: HomeVideoLayout.values
+        SegmentedButton<ContentLayout>(
+          segments: ContentLayout.values
               .map(
-                (value) => ButtonSegment<HomeVideoLayout>(
+                (value) => ButtonSegment<ContentLayout>(
                   value: value,
                   label: Text(value.label),
                 ),
               )
               .toList(growable: false),
-          selected: {settings.homeVideoLayout},
+          selected: {settings.videoLayout},
           onSelectionChanged: (selection) {
             unawaited(
-              _save(context, repository.setHomeVideoLayout(selection.single)),
+              _save(context, repository.setVideoLayout(selection.single)),
             );
           },
         ),
         const SizedBox(height: 16),
-        const _InfoCard(
-          icon: Icons.contrast,
-          text: '浅色使用白色与浅灰背景；深色使用中性灰背景；跟随系统会随手机的夜间模式自动切换。',
+        Text('订阅页布局', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 12),
+        SegmentedButton<ContentLayout>(
+          segments: ContentLayout.values
+              .map(
+                (value) => ButtonSegment<ContentLayout>(
+                  value: value,
+                  label: Text(value.label),
+                ),
+              )
+              .toList(growable: false),
+          selected: {settings.subscriptionLayout},
+          onSelectionChanged: (selection) {
+            unawaited(
+              _save(
+                context,
+                repository.setSubscriptionLayout(selection.single),
+              ),
+            );
+          },
         ),
       ],
     );

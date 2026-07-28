@@ -9,6 +9,7 @@ import '../models/account_models.dart';
 import '../models/video_models.dart';
 import '../security/error_redaction.dart';
 import '../session/session_store.dart';
+import '../services/subscription_activity_index.dart';
 import 'site_parser.dart';
 
 class ApiException implements Exception {
@@ -42,6 +43,7 @@ class Rule34VideoApi {
   Rule34VideoApi({
     required this.sessionStore,
     HttpClientAdapter? httpClientAdapter,
+    SubscriptionActivityStore? subscriptionActivityStore,
   }) {
     _dio = Dio(_baseOptions());
     _publicDio = Dio(_baseOptions());
@@ -52,9 +54,17 @@ class Rule34VideoApi {
     _dio.interceptors.add(
       CookieManager(sessionStore.cookieJar, ignoreInvalidCookies: true),
     );
+    subscriptionActivity = SubscriptionActivityIndex(
+      sessionStore: sessionStore,
+      loadSubscriptions: _loadSubscriptions,
+      loadSubscriptionVideos: _loadSubscriptionVideosForActivity,
+      store: subscriptionActivityStore ?? MemorySubscriptionActivityStore(),
+    );
+    sessionStore.addListener(subscriptionActivity.onSessionChanged);
   }
 
   final SessionStore sessionStore;
+  late final SubscriptionActivityIndex subscriptionActivity;
   late final Dio _dio;
   late final Dio _publicDio;
   List<SubscriptionItem>? _subscriptionCache;
@@ -77,8 +87,11 @@ class Rule34VideoApi {
   bool _currentUserProfileRefreshed = false;
   Future<List<PlaylistItem>>? _playlistRequest;
   Future<List<SubscriptionItem>>? _subscriptionRequest;
+  var _subscriptionGeneration = 0;
 
   void close() {
+    sessionStore.removeListener(subscriptionActivity.onSessionChanged);
+    subscriptionActivity.dispose();
     _dio.close(force: true);
     _publicDio.close(force: true);
   }
@@ -117,39 +130,34 @@ class Rule34VideoApi {
     );
   }
 
-  Future<List<VideoItem>> loadFollowingFeed(int page) async {
+  Future<List<VideoItem>> loadFollowingFeed(
+    int page, {
+    bool force = false,
+    CancelToken? cancelToken,
+  }) {
     _requireLogin();
-    final subscriptions = await loadSubscriptions();
-    if (subscriptions.isEmpty) {
-      return const [];
-    }
-    const batchSize = 8;
-    final batchCount = (subscriptions.length + batchSize - 1) ~/ batchSize;
-    final batchIndex = (page - 1) % batchCount;
-    final subscriptionPage = ((page - 1) ~/ batchCount) + 1;
-    final batchStart = batchIndex * batchSize;
-    final batch = subscriptions
-        .skip(batchStart)
-        .take(batchSize)
-        .toList(growable: false);
-    final pages = await Future.wait(
-      batch.map((item) => loadSubscriptionVideos(item, subscriptionPage)),
+    return subscriptionActivity.loadFollowingPage(
+      page,
+      force: force,
+      cancelToken: cancelToken,
     );
-    final merged = <String, VideoItem>{};
-    final longest = pages.fold<int>(
-      0,
-      (length, items) => items.length > length ? items.length : length,
+  }
+
+  Future<void> prefetchFollowingFeed({required CancelToken cancelToken}) async {
+    await subscriptionActivity.refresh(cancelToken: cancelToken);
+  }
+
+  Future<Map<String, int?>> loadSubscriptionUpdatedAges({
+    bool force = false,
+    CancelToken? cancelToken,
+  }) async {
+    _requireLogin();
+    await subscriptionActivity.refresh(
+      force: force,
+      refreshSubscriptions: false,
+      cancelToken: cancelToken,
     );
-    for (var index = 0; index < longest; index += 1) {
-      for (final items in pages) {
-        if (index < items.length) {
-          merged[items[index].id] = items[index];
-        }
-      }
-    }
-    final sorted = merged.values.toList(growable: true)
-      ..sort(_comparePublishedNewest);
-    return sorted.take(30).toList(growable: false);
+    return subscriptionActivity.updatedAgeByPath;
   }
 
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
@@ -798,7 +806,11 @@ class Rule34VideoApi {
   }
 
   Future<List<SubscriptionItem>> loadSubscriptions({bool force = false}) async {
-    return _loadSubscriptions(force: force);
+    final subscriptions = await _loadSubscriptions(force: force);
+    if (force) {
+      subscriptionActivity.invalidate();
+    }
+    return subscriptions;
   }
 
   Future<void> prefetchSubscriptions({required CancelToken cancelToken}) async {
@@ -811,6 +823,9 @@ class Rule34VideoApi {
   }) async {
     _requireLogin();
     final userId = sessionStore.currentUserId!;
+    final previousHadItems =
+        _subscriptionCacheUserId == userId &&
+        _subscriptionCache?.isNotEmpty == true;
     if (!force &&
         _subscriptionCache != null &&
         _subscriptionCacheUserId == userId) {
@@ -818,29 +833,46 @@ class Rule34VideoApi {
     }
     if (force || _subscriptionCacheUserId != userId) {
       _resetSubscriptionCache();
+      _subscriptionCacheUserId = userId;
     }
     if (!force && _subscriptionRequest != null) {
       return _subscriptionRequest!;
     }
+    final generation = _subscriptionGeneration;
     late final Future<List<SubscriptionItem>> request;
     request =
         () async {
-          final result = <String, SubscriptionItem>{};
-          for (var page = 1; page <= 50; page += 1) {
-            _throwIfCancelled(cancelToken);
-            final items = await _loadSubscriptionsPage(
-              page,
-              cancelToken: cancelToken,
-            );
-            if (items.isEmpty) {
-              break;
+          Future<List<SubscriptionItem>> fetchAll() async {
+            final result = <String, SubscriptionItem>{};
+            for (var page = 1; page <= 50; page += 1) {
+              _throwIfCancelled(cancelToken);
+              final items = await _loadSubscriptionsPage(
+                page,
+                cancelToken: cancelToken,
+                generation: generation,
+              );
+              if (items.isEmpty) {
+                break;
+              }
+              for (final item in items) {
+                result[item.path] = item;
+              }
             }
-            for (final item in items) {
-              result[item.path] = item;
-            }
+            return result.values.toList(growable: false);
           }
-          final value = result.values.toList(growable: false);
+
+          var value = await fetchAll();
+          if (force &&
+              previousHadItems &&
+              value.isEmpty &&
+              generation == _subscriptionGeneration) {
+            // 网站偶尔会在异步区块刷新时返回一次空响应。已有订阅突然全部
+            // 消失时复核一次，避免瞬时空页覆盖可靠缓存。
+            _subscriptionPageCache.clear();
+            value = await fetchAll();
+          }
           if (sessionStore.currentUserId == userId &&
+              generation == _subscriptionGeneration &&
               identical(_subscriptionRequest, request)) {
             _subscriptionCache = value;
             _subscriptionCacheUserId = userId;
@@ -866,12 +898,17 @@ class Rule34VideoApi {
     int page, {
     bool force = false,
     CancelToken? cancelToken,
+    int? generation,
   }) async {
     _requireLogin();
     final userId = sessionStore.currentUserId!;
     if (_subscriptionCacheUserId != userId) {
       _resetSubscriptionCache();
       _subscriptionCacheUserId = userId;
+    }
+    final effectiveGeneration = generation ?? _subscriptionGeneration;
+    if (effectiveGeneration != _subscriptionGeneration) {
+      throw const RequestCancelledException();
     }
     if (force) {
       if (page == 1) {
@@ -902,11 +939,17 @@ class Rule34VideoApi {
       final result = SiteParser.subscriptions(
         await _get(path, query: query, cancelToken: cancelToken),
       );
-      _subscriptionPageCache[page] = result;
+      if (effectiveGeneration == _subscriptionGeneration &&
+          sessionStore.currentUserId == userId) {
+        _subscriptionPageCache[page] = result;
+      }
       return result;
     } on HttpStatusException catch (error) {
       if (page > 1 && error.statusCode == 404) {
-        _subscriptionPageCache[page] = const [];
+        if (effectiveGeneration == _subscriptionGeneration &&
+            sessionStore.currentUserId == userId) {
+          _subscriptionPageCache[page] = const [];
+        }
         return const [];
       }
       rethrow;
@@ -960,14 +1003,27 @@ class Rule34VideoApi {
 
   Future<List<VideoItem>> loadSubscriptionVideos(
     SubscriptionItem subscription,
-    int page,
-  ) async {
+    int page, {
+    CancelToken? cancelToken,
+  }) {
+    return _loadSubscriptionVideosForActivity(
+      subscription,
+      page,
+      cancelToken: cancelToken,
+    );
+  }
+
+  Future<List<VideoItem>> _loadSubscriptionVideosForActivity(
+    SubscriptionItem subscription,
+    int page, {
+    CancelToken? cancelToken,
+  }) async {
     _requireLogin();
     final basePath = subscription.kind == SubscriptionKind.member
         ? _memberVideosPath(subscription.path)
         : subscription.path;
     final path = page > 1 ? '$basePath$page/' : basePath;
-    return _paginatedVideoList(path, page: page);
+    return _paginatedVideoList(path, page: page, cancelToken: cancelToken);
   }
 
   Future<void> toggleFavorite({
@@ -1055,6 +1111,7 @@ class Rule34VideoApi {
       ajax: true,
     );
     _resetSubscriptionCache();
+    subscriptionActivity.invalidate();
   }
 
   Future<bool> isUploaderSubscribed(UploaderSummary uploader) async {
@@ -1090,6 +1147,7 @@ class Rule34VideoApi {
       ajax: true,
     );
     _resetSubscriptionCache();
+    subscriptionActivity.invalidate();
   }
 
   Future<List<VideoItem>> _videoList(
@@ -1468,6 +1526,7 @@ class Rule34VideoApi {
   }
 
   void _resetSubscriptionCache() {
+    _subscriptionGeneration += 1;
     _subscriptionCache = null;
     _subscriptionCacheUserId = null;
     _subscriptionPageCache.clear();
@@ -1508,61 +1567,12 @@ class Rule34VideoApi {
       responseType: ResponseType.plain,
       followRedirects: false,
       headers: const {
-        'User-Agent': 'Flule34 Android/1.3.1',
+        'User-Agent': 'Flule34 Android/1.4.0',
         'Accept':
             'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       },
       validateStatus: (status) => status != null && status < 500,
     );
-  }
-
-  static int _comparePublishedNewest(VideoItem left, VideoItem right) {
-    final leftAge = _publishedAgeSeconds(left.publishedLabel);
-    final rightAge = _publishedAgeSeconds(right.publishedLabel);
-    if (leftAge == null && rightAge == null) {
-      return 0;
-    }
-    if (leftAge == null) {
-      return 1;
-    }
-    if (rightAge == null) {
-      return -1;
-    }
-    return leftAge.compareTo(rightAge);
-  }
-
-  static int? _publishedAgeSeconds(String? label) {
-    if (label == null) {
-      return null;
-    }
-    final normalized = label.trim().toLowerCase();
-    if (normalized == 'just now' || normalized == 'today') {
-      return 0;
-    }
-    if (normalized == 'yesterday') {
-      return const Duration(days: 1).inSeconds;
-    }
-    final relative = RegExp(
-      r'(\d+)\s*(second|minute|hour|day|week|month|year)s?\s+ago',
-    ).firstMatch(normalized);
-    if (relative != null) {
-      final amount = int.parse(relative.group(1)!);
-      final unitSeconds = switch (relative.group(2)) {
-        'second' => 1,
-        'minute' => 60,
-        'hour' => 3600,
-        'day' => 86400,
-        'week' => 604800,
-        'month' => 2592000,
-        'year' => 31536000,
-        _ => 0,
-      };
-      return amount * unitSeconds;
-    }
-    final date = DateTime.tryParse(normalized);
-    return date == null
-        ? null
-        : DateTime.now().difference(date).inSeconds.clamp(0, 1 << 62);
   }
 }
 

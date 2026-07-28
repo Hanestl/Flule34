@@ -30,7 +30,8 @@ void main() {
     await repository.setRememberPlaybackProgress(false);
     await repository.setWifiOnlyDownloads(true);
     await repository.setUpdateChannel(UpdateChannel.prerelease);
-    await repository.setHomeVideoLayout(HomeVideoLayout.doubleColumn);
+    await repository.setVideoLayout(ContentLayout.doubleColumn);
+    await repository.setSubscriptionLayout(ContentLayout.singleColumn);
 
     final restored = AppSettingsRepository(store);
     addTearDown(restored.dispose);
@@ -52,7 +53,8 @@ void main() {
     expect(restored.settings.rememberPlaybackProgress, isFalse);
     expect(restored.settings.wifiOnlyDownloads, isTrue);
     expect(restored.settings.updateChannel, UpdateChannel.prerelease);
-    expect(restored.settings.homeVideoLayout, HomeVideoLayout.doubleColumn);
+    expect(restored.settings.videoLayout, ContentLayout.doubleColumn);
+    expect(restored.settings.subscriptionLayout, ContentLayout.singleColumn);
   });
 
   test('旧纯黑主题迁移为中性深色主题', () async {
@@ -75,6 +77,23 @@ void main() {
     await repository.load();
 
     expect(repository.settings.playbackQuality, VideoQualityPreference.p1080);
+  });
+
+  test('旧首页布局设置迁移为全局视频布局且订阅默认两列', () async {
+    final store = _MemorySettingsStore({
+      'flule34.settings.home_video_layout': 'doubleColumn',
+    });
+    final repository = AppSettingsRepository(store);
+    addTearDown(repository.dispose);
+
+    await repository.load();
+
+    expect(repository.settings.videoLayout, ContentLayout.doubleColumn);
+    expect(repository.settings.subscriptionLayout, ContentLayout.doubleColumn);
+    expect(
+      await store.readString('flule34.settings.video_layout'),
+      'doubleColumn',
+    );
   });
 
   test('损坏或过时的枚举值回退到默认设置', () async {

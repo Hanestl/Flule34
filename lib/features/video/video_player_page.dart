@@ -13,6 +13,7 @@ import '../../core/logging/app_log_service.dart';
 import '../../core/models/video_models.dart';
 import '../../core/security/error_redaction.dart';
 import '../../core/services/network_status_service.dart';
+import '../../shared/scroll_to_top_overlay.dart';
 import '../../core/services/media_volume_service.dart';
 import '../../core/services/screen_wake_lock_service.dart';
 import '../playback/data/playback_repository.dart';
@@ -208,7 +209,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
   static const _mediaHeaders = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.3.1',
+    'User-Agent': 'Flule34 Android/1.4.0',
   };
 
   BetterPlayerController? _controller;
@@ -217,6 +218,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   late final String? _playbackUserId;
   late final ScreenWakeLockService _wakeLock;
   late final AppLogService _logs;
+  late final ScrollToTopController _scrollToTopController;
   late List<VideoSource> _sources;
   late VideoSource _selectedSource;
   final Set<String> _failedUrls = {};
@@ -255,6 +257,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _playbackUserId = widget.api.sessionStore.currentUserId;
     _wakeLock = ref.read(screenWakeLockServiceProvider);
     _logs = ref.read(appLogServiceProvider);
+    _scrollToTopController = ref.read(scrollToTopControllerProvider);
     _startupStopwatch = Stopwatch()..start();
     _sources = List.of(widget.sources);
     final settings = ref.read(appSettingsRepositoryProvider).settings;
@@ -397,6 +400,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   @override
   void dispose() {
+    _scrollToTopController.setSuppressed(false);
     widget.handle?._detach(_pauseForNavigation);
     WidgetsBinding.instance.removeObserver(this);
     _operation += 1;
@@ -809,6 +813,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           _finishedNotified = true;
           widget.onFinished?.call();
         }
+      case BetterPlayerEventType.openFullscreen:
+        _scrollToTopController.setSuppressed(true);
+      case BetterPlayerEventType.hideFullscreen:
+        _scrollToTopController.setSuppressed(false);
       default:
         break;
     }

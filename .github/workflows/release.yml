@@ -80,11 +80,16 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          PUBSPEC_VERSION="$(awk '/^version:/ { print $2; exit }' pubspec.yaml)"
+          PUBSPEC_NAME="${PUBSPEC_VERSION%%+*}"
+          PUBSPEC_BUILD="${PUBSPEC_VERSION##*+}"
+          test "$PUBSPEC_NAME" = "$VERSION"
+          [[ "$PUBSPEC_BUILD" =~ ^[0-9]+$ ]]
           BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           flutter build apk --release --split-per-abi --target-platform android-arm64 --obfuscate \
             --split-debug-info=build/symbols \
             --build-name="$VERSION" \
-            --build-number="$GITHUB_RUN_NUMBER" \
+            --build-number="$PUBSPEC_BUILD" \
             --dart-define=FLULE34_UPDATE_API_URL="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases" \
             --dart-define=FLULE34_REPOSITORY_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             --dart-define=FLULE34_FLUTTER_VERSION="$FLUTTER_VERSION" \

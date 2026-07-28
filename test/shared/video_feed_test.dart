@@ -8,6 +8,7 @@ import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/features/settings/data/app_settings_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
+import 'package:flule34/features/settings/domain/app_settings.dart';
 import 'package:flule34/shared/video_feed.dart';
 
 void main() {
@@ -151,6 +152,40 @@ void main() {
 
     expect(find.text('旧内容'), findsNothing);
     expect(find.text('新内容'), findsOneWidget);
+  });
+
+  testWidgets('全局视频布局设置会让通用视频流切换为两列', (tester) async {
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
+    await settings.setVideoLayout(ContentLayout.doubleColumn);
+    final container = ProviderContainer(
+      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: VideoFeed(
+              loadPage: (page) async => page == 1
+                  ? const [
+                      VideoItem(id: '1', title: '第一条', slug: 'first'),
+                      VideoItem(id: '2', title: '第二条', slug: 'second'),
+                    ]
+                  : const [],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SliverGrid), findsOneWidget);
+    expect(find.text('第一条'), findsOneWidget);
+    expect(find.text('第二条'), findsOneWidget);
   });
 }
 

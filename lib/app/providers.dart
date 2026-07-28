@@ -14,6 +14,8 @@ import '../core/services/predictive_prefetch_service.dart';
 import '../core/services/media_volume_service.dart';
 import '../core/services/screen_wake_lock_service.dart';
 import '../core/services/share_service.dart';
+import '../core/services/subscription_activity_index.dart';
+import '../shared/scroll_to_top_overlay.dart';
 import '../features/downloads/data/background_download_platform_service.dart';
 import '../features/downloads/data/download_repository.dart';
 import '../features/downloads/domain/download_models.dart';
@@ -54,6 +56,12 @@ final shareServiceProvider = Provider<ShareService>((ref) {
   return PlatformShareService();
 });
 
+final scrollToTopControllerProvider = Provider<ScrollToTopController>((ref) {
+  final controller = ScrollToTopController();
+  ref.onDispose(controller.dispose);
+  return controller;
+});
+
 final secretStoreProvider = Provider<SecretStore>((ref) {
   return FlutterSecretStore();
 });
@@ -81,8 +89,19 @@ final sessionStoreProvider = Provider<SessionStore>((ref) {
   return store;
 });
 
+final subscriptionActivityStoreProvider = Provider<SubscriptionActivityStore>((
+  ref,
+) {
+  return _SettingsBackedSubscriptionActivityStore(
+    ref.watch(appSettingsStoreProvider),
+  );
+});
+
 final rule34VideoApiProvider = Provider<Rule34VideoApi>((ref) {
-  final api = Rule34VideoApi(sessionStore: ref.watch(sessionStoreProvider));
+  final api = Rule34VideoApi(
+    sessionStore: ref.watch(sessionStoreProvider),
+    subscriptionActivityStore: ref.watch(subscriptionActivityStoreProvider),
+  );
   ref.onDispose(api.close);
   return api;
 });
@@ -168,6 +187,7 @@ final appInitializationProvider = FutureProvider<void>((ref) async {
     final sessionStore = ref.read(sessionStoreProvider);
     await sessionStore.load();
     await ref.read(rule34VideoApiProvider).restoreSession();
+    await ref.read(rule34VideoApiProvider).subscriptionActivity.loadStored();
     ref.read(predictivePrefetchServiceProvider).scheduleStartup();
     await ref.read(downloadRepositoryProvider).initialize();
     unawaited(logs.info('bootstrap', 'App 初始化完成。'));
@@ -181,3 +201,27 @@ final appInitializationProvider = FutureProvider<void>((ref) async {
     rethrow;
   }
 });
+
+final class _SettingsBackedSubscriptionActivityStore
+    implements SubscriptionActivityStore {
+  const _SettingsBackedSubscriptionActivityStore(this._store);
+
+  static const _keyPrefix = 'flule34.subscription_activity.';
+
+  final AppSettingsStore _store;
+
+  @override
+  Future<String?> read(String userId) {
+    return _store.readString('$_keyPrefix$userId');
+  }
+
+  @override
+  Future<void> write(String userId, String value) {
+    return _store.writeString('$_keyPrefix$userId', value);
+  }
+
+  @override
+  Future<void> remove(String userId) {
+    return _store.writeString('$_keyPrefix$userId', '');
+  }
+}

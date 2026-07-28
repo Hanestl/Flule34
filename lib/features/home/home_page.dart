@@ -9,7 +9,6 @@ import '../../core/models/video_models.dart';
 import '../../core/services/predictive_prefetch_service.dart';
 import '../../shared/video_feed.dart';
 import '../auth/login_sheet.dart';
-import '../settings/domain/app_settings.dart';
 
 enum _HomeChannel {
   newest('最新', FeedKind.newest),
@@ -55,12 +54,8 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final settingsRepository = ref.watch(appSettingsRepositoryProvider);
     return AnimatedBuilder(
-      animation: Listenable.merge([
-        widget.api.sessionStore,
-        settingsRepository,
-      ]),
+      animation: widget.api.sessionStore,
       builder: (context, _) => Column(
         children: [
           Padding(
@@ -132,16 +127,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ],
               ),
             ),
-          Expanded(
-            child: _buildFeed(settingsRepository.settings.homeVideoLayout),
-          ),
+          Expanded(child: _buildFeed()),
         ],
       ),
     );
   }
 
-  Widget _buildFeed(HomeVideoLayout layout) {
-    final columns = layout == HomeVideoLayout.doubleColumn ? 2 : 1;
+  Widget _buildFeed() {
     final prefetch = ref.read(predictivePrefetchServiceProvider);
     if (_channel == _HomeChannel.following) {
       if (!widget.api.sessionStore.isLoggedIn) {
@@ -149,17 +141,43 @@ class _HomePageState extends ConsumerState<HomePage> {
           onLogin: () => showLoginSheet(context, widget.api),
         );
       }
-      return VideoFeed(
-        key: ValueKey('following:${widget.api.sessionStore.currentUserId}'),
-        loadPage: (page) => prefetch.runForeground(
-          PredictivePrefetchKey.feed('following', page),
-          () => widget.api.loadFollowingFeed(page),
+      final activity = widget.api.subscriptionActivity;
+      return ListenableBuilder(
+        listenable: activity,
+        builder: (context, _) => Stack(
+          children: [
+            VideoFeed(
+              key: ValueKey(
+                'following:${widget.api.sessionStore.currentUserId}',
+              ),
+              initialItems: activity.cachedVideos
+                  .take(30)
+                  .toList(growable: false),
+              loadPage: (page) => prefetch.runForeground(
+                PredictivePrefetchKey.following,
+                () => widget.api.loadFollowingFeed(page),
+              ),
+              refreshPage: (page) => prefetch.runForeground(
+                PredictivePrefetchKey.following,
+                () => widget.api.loadFollowingFeed(page, force: true),
+              ),
+              emptyMessage: '关注的分类、艺术家或用户暂时没有可展示的视频。',
+              sortNewest: true,
+              onItemsLoaded: prefetch.offerLikelyVideos,
+              prefetchService: prefetch,
+            ),
+            if (activity.isScanning && activity.totalSources > 0)
+              Positioned(
+                left: 16,
+                right: 16,
+                top: 8,
+                child: _FollowingProgress(
+                  scanned: activity.scannedSources,
+                  total: activity.totalSources,
+                ),
+              ),
+          ],
         ),
-        emptyMessage: '关注的分类、艺术家或用户暂时没有可展示的视频。',
-        columns: columns,
-        sortNewest: true,
-        onItemsLoaded: prefetch.offerLikelyVideos,
-        prefetchService: prefetch,
       );
     }
     final kind = _channel.feedKind!;
@@ -174,9 +192,39 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
         () => widget.api.loadFeed(kind, page, filters: _filters),
       ),
-      columns: columns,
       onItemsLoaded: prefetch.offerLikelyVideos,
       prefetchService: prefetch,
+    );
+  }
+}
+
+class _FollowingProgress extends StatelessWidget {
+  const _FollowingProgress({required this.scanned, required this.total});
+
+  final int scanned;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '正在整理关注内容 $scanned/$total',
+              style: theme.textTheme.labelMedium,
+            ),
+            const SizedBox(height: 6),
+            LinearProgressIndicator(value: total == 0 ? null : scanned / total),
+          ],
+        ),
+      ),
     );
   }
 }

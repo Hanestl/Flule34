@@ -23,6 +23,7 @@ import '../../features/settings/presentation/settings_pages.dart';
 import '../../features/settings/presentation/support_pages.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/video/video_detail_page.dart';
+import '../../shared/scroll_to_top_overlay.dart';
 import '../providers.dart';
 import 'route_names.dart';
 
@@ -36,6 +37,15 @@ final appRouteObserver = RouteObserver<PageRoute<dynamic>>();
 final appRouterProvider = Provider<GoRouter>((ref) {
   final api = ref.watch(rule34VideoApiProvider);
   final searchHistoryRepository = ref.watch(searchHistoryRepositoryProvider);
+  final scrollToTopController = ref.watch(scrollToTopControllerProvider);
+  Widget scrollablePage(GoRouterState state, Widget child) {
+    return ScrollToTopOverlay(
+      key: ValueKey(state.uri.toString()),
+      controller: scrollToTopController,
+      child: child,
+    );
+  }
+
   final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
@@ -43,7 +53,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-          return AppShell(navigationShell: navigationShell);
+          return AppShell(
+            navigationShell: navigationShell,
+            locationKey: state.uri.toString(),
+          );
         },
         branches: [
           StatefulShellBranch(
@@ -177,10 +190,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: '/search',
         name: AppRouteNames.search,
-        builder: (context, state) => SearchPage(
-          api: api,
-          historyRepository: searchHistoryRepository,
-          prefetchService: ref.read(predictivePrefetchServiceProvider),
+        builder: (context, state) => scrollablePage(
+          state,
+          SearchPage(
+            api: api,
+            historyRepository: searchHistoryRepository,
+            prefetchService: ref.read(predictivePrefetchServiceProvider),
+          ),
         ),
       ),
       GoRoute(
@@ -201,7 +217,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   path: '/${kind.pathSegment}/',
                   kind: kind,
                 );
-          return DiscoveryDirectoryPage(api: api, spec: spec);
+          return scrollablePage(
+            state,
+            DiscoveryDirectoryPage(api: api, spec: spec),
+          );
         },
       ),
       GoRoute(
@@ -231,10 +250,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             (value) => value.name == sortName,
             orElse: () => VideoSort.newest,
           );
-          return CollectionPage(
-            api: api,
-            collection: collection,
-            initialSort: sort,
+          return scrollablePage(
+            state,
+            CollectionPage(api: api, collection: collection, initialSort: sort),
           );
         },
       ),
@@ -242,7 +260,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: '/rankings',
         name: AppRouteNames.rankings,
-        builder: (context, state) => const RankingsPage(),
+        builder: (context, state) =>
+            scrollablePage(state, const RankingsPage()),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
@@ -257,7 +276,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   slug: state.pathParameters['slug']!,
                   title: '视频 ${state.pathParameters['id']!}',
                 );
-          return VideoDetailPage(api: api, video: video);
+          return scrollablePage(state, VideoDetailPage(api: api, video: video));
         },
       ),
       GoRoute(
@@ -274,7 +293,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   title: '播放列表 $id',
                   path: '/my/playlists/$id/',
                 );
-          return PlaylistPage(api: api, playlist: playlist);
+          return scrollablePage(
+            state,
+            PlaylistPage(api: api, playlist: playlist),
+          );
         },
       ),
       GoRoute(
@@ -284,9 +306,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final extra = state.extra;
           if (extra is! PlaylistPlaybackRequest) {
-            return const Scaffold(body: Center(child: Text('播放列表播放参数无效。')));
+            return scrollablePage(
+              state,
+              const Scaffold(body: Center(child: Text('播放列表播放参数无效。'))),
+            );
           }
-          return PlaylistPlaybackPage(api: api, request: extra);
+          return scrollablePage(
+            state,
+            PlaylistPlaybackPage(api: api, request: extra),
+          );
         },
       ),
       GoRoute(
@@ -307,7 +335,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   path: state.uri.queryParameters['path'] ?? '/',
                   kind: kind,
                 );
-          return SubscriptionPage(api: api, subscription: subscription);
+          return scrollablePage(
+            state,
+            SubscriptionPage(api: api, subscription: subscription),
+          );
         },
       ),
       GoRoute(
@@ -322,7 +353,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   id: state.pathParameters['id'] ?? '',
                   name: state.uri.queryParameters['name'] ?? '上传者',
                 );
-          return UploaderPage(api: api, uploader: uploader);
+          return scrollablePage(
+            state,
+            UploaderPage(api: api, uploader: uploader),
+          );
         },
       ),
     ],

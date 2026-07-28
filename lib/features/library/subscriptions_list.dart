@@ -1,13 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../shared/site_avatar.dart';
-import '../../shared/video_list_filters.dart';
+import '../settings/domain/app_settings.dart';
 
 enum SubscriptionSort {
   added('最新订阅'),
@@ -19,25 +21,23 @@ enum SubscriptionSort {
   final String label;
 }
 
-class SubscriptionsList extends StatefulWidget {
+class SubscriptionsList extends ConsumerStatefulWidget {
   const SubscriptionsList({super.key, required this.api, this.active = true});
 
   final Rule34VideoApi api;
   final bool active;
 
   @override
-  State<SubscriptionsList> createState() => _SubscriptionsListState();
+  ConsumerState<SubscriptionsList> createState() => _SubscriptionsListState();
 }
 
-class _SubscriptionsListState extends State<SubscriptionsList>
+class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   List<SubscriptionItem> _subscriptions = const [];
   final Map<String, int?> _updatedAgeByPath = {};
   var _loading = false;
   var _updatingSort = false;
-  var _updatedProgress = 0;
-  var _updatedOperation = 0;
   var _query = '';
   var _sort = SubscriptionSort.added;
   String? _error;
@@ -45,6 +45,7 @@ class _SubscriptionsListState extends State<SubscriptionsList>
   @override
   void initState() {
     super.initState();
+    widget.api.subscriptionActivity.addListener(_onActivityChanged);
     if (widget.active) {
       unawaited(_load(force: false));
     }
@@ -53,6 +54,10 @@ class _SubscriptionsListState extends State<SubscriptionsList>
   @override
   void didUpdateWidget(covariant SubscriptionsList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api) {
+      oldWidget.api.subscriptionActivity.removeListener(_onActivityChanged);
+      widget.api.subscriptionActivity.addListener(_onActivityChanged);
+    }
     if (!oldWidget.active && widget.active && _subscriptions.isEmpty) {
       unawaited(_load(force: false));
     }
@@ -60,8 +65,15 @@ class _SubscriptionsListState extends State<SubscriptionsList>
 
   @override
   void dispose() {
+    widget.api.subscriptionActivity.removeListener(_onActivityChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onActivityChanged() {
+    if (mounted && _sort == SubscriptionSort.updated) {
+      setState(() {});
+    }
   }
 
   Future<void> _load({required bool force}) async {
@@ -72,10 +84,8 @@ class _SubscriptionsListState extends State<SubscriptionsList>
       _loading = true;
       _error = null;
       if (force) {
-        _updatedOperation += 1;
         _updatingSort = false;
         _updatedAgeByPath.clear();
-        _updatedProgress = 0;
       }
     });
     try {
@@ -83,7 +93,7 @@ class _SubscriptionsListState extends State<SubscriptionsList>
       if (mounted) {
         setState(() => _subscriptions = subscriptions);
         if (_sort == SubscriptionSort.updated) {
-          await _loadUpdatedAges();
+          await _loadUpdatedAges(force: force);
         }
       }
     } catch (error) {
@@ -101,9 +111,6 @@ class _SubscriptionsListState extends State<SubscriptionsList>
     if (_sort == sort) {
       return;
     }
-    if (sort != SubscriptionSort.updated) {
-      _updatedOperation += 1;
-    }
     setState(() {
       _sort = sort;
       if (sort != SubscriptionSort.updated) {
@@ -115,57 +122,35 @@ class _SubscriptionsListState extends State<SubscriptionsList>
     }
   }
 
-  Future<void> _loadUpdatedAges() async {
+  Future<void> _loadUpdatedAges({bool force = false}) async {
     if (_updatingSort || _subscriptions.isEmpty) {
       return;
     }
-    final missing = _subscriptions
-        .where((item) => !_updatedAgeByPath.containsKey(item.path))
-        .toList(growable: false);
-    if (missing.isEmpty) {
-      return;
-    }
-    final operation = ++_updatedOperation;
     setState(() {
       _updatingSort = true;
-      _updatedProgress = 0;
     });
-    const concurrency = 4;
-    for (var offset = 0; offset < missing.length; offset += concurrency) {
-      final batch = missing
-          .skip(offset)
-          .take(concurrency)
-          .toList(growable: false);
-      final results = await Future.wait(
-        batch.map((item) async {
-          try {
-            final videos = await widget.api.loadSubscriptionVideos(item, 1);
-            final latest = videos
-                .map((video) => publishedAgeSeconds(video.publishedLabel))
-                .whereType<int>()
-                .fold<int?>(null, (current, age) {
-                  return current == null || age < current ? age : current;
-                });
-            return (path: item.path, age: latest);
-          } on Object {
-            return (path: item.path, age: null);
-          }
-        }),
-      );
-      if (!mounted ||
-          _sort != SubscriptionSort.updated ||
-          operation != _updatedOperation) {
+    try {
+      final ages = await widget.api.loadSubscriptionUpdatedAges(force: force);
+      if (!mounted || _sort != SubscriptionSort.updated) {
         return;
       }
       setState(() {
-        for (final result in results) {
-          _updatedAgeByPath[result.path] = result.age;
-        }
-        _updatedProgress += results.length;
+        _updatedAgeByPath
+          ..clear()
+          ..addAll(ages);
       });
-    }
-    if (mounted && operation == _updatedOperation) {
-      setState(() => _updatingSort = false);
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _updatedAgeByPath
+            ..clear()
+            ..addAll(widget.api.subscriptionActivity.updatedAgeByPath);
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingSort = false);
+      }
     }
   }
 
@@ -232,72 +217,181 @@ class _SubscriptionsListState extends State<SubscriptionsList>
       return const Center(child: CircularProgressIndicator());
     }
     if (_subscriptions.isEmpty && _error != null) {
-      return _StateMessage(message: _error!, onRetry: () => _load(force: true));
+      return _refreshableMessage(
+        message: _error!,
+        onRetry: () => _load(force: true),
+      );
     }
     if (_subscriptions.isEmpty) {
-      return const Center(child: Text('还没有订阅内容。'));
+      return _refreshableMessage(message: '还没有订阅内容。');
     }
     final subscriptions = _visibleSubscriptions;
+    final settingsRepository = ref.watch(appSettingsRepositoryProvider);
+    return ListenableBuilder(
+      listenable: settingsRepository,
+      builder: (context, _) => _subscriptionScrollView(
+        subscriptions,
+        settingsRepository.settings.subscriptionLayout,
+      ),
+    );
+  }
+
+  Widget _subscriptionScrollView(
+    List<SubscriptionItem> subscriptions,
+    ContentLayout layout,
+  ) {
+    final activity = widget.api.subscriptionActivity;
     return Material(
       type: MaterialType.transparency,
       child: RefreshIndicator(
         onRefresh: () => _load(force: true),
-        child: ListView.builder(
+        child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-          itemCount: subscriptions.length + 2,
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return _toolbar(context);
-            }
-            if (index == 1) {
-              if (_updatingSort) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              sliver: SliverToBoxAdapter(child: _toolbar(context)),
+            ),
+            if (_updatingSort)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+                sliver: SliverToBoxAdapter(
                   child: Text(
-                    '正在读取最近更新（$_updatedProgress/${_subscriptions.length}）',
+                    activity.totalSources > 0
+                        ? '正在读取最近更新（${activity.scannedSources}/${activity.totalSources}）'
+                        : '正在读取最近更新…',
                   ),
-                );
-              }
-              if (subscriptions.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.only(top: 44),
-                  child: Center(child: Text('没有符合条件的订阅。')),
-                );
-              }
-              return const SizedBox(height: 4);
-            }
-            final item = subscriptions[index - 2];
-            return FutureBuilder<SubscriptionItem>(
-              future: widget.api.resolveSubscription(item),
-              initialData: item,
-              builder: (context, resolvedSnapshot) {
-                final resolved = resolvedSnapshot.data ?? item;
-                return Card(
-                  child: ListTile(
-                    leading: SiteAvatar(
-                      imageUrl: resolved.thumbnailUrl,
-                      radius: 20,
-                      fallbackIcon: _kindIcon(resolved.kind),
-                    ),
-                    title: Text(resolved.title),
-                    subtitle: Text(resolved.kind.label),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.pushNamed(
-                      AppRouteNames.subscription,
-                      pathParameters: {'kind': resolved.kind.name},
-                      queryParameters: {
-                        'path': resolved.path,
-                        'title': resolved.title,
-                      },
-                      extra: resolved,
-                    ),
-                  ),
-                );
-              },
-            );
-          },
+                ),
+              ),
+            if (subscriptions.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text('没有符合条件的订阅。')),
+              )
+            else
+              SliverPadding(
+                padding: layout == ContentLayout.doubleColumn
+                    ? const EdgeInsets.fromLTRB(7, 2, 7, 24)
+                    : const EdgeInsets.fromLTRB(12, 2, 12, 24),
+                sliver: layout == ContentLayout.doubleColumn
+                    ? SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 2.05,
+                            ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _subscriptionItem(
+                            subscriptions[index],
+                            compact: true,
+                          ),
+                          childCount: subscriptions.length,
+                        ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) =>
+                              _subscriptionItem(subscriptions[index]),
+                          childCount: subscriptions.length,
+                        ),
+                      ),
+              ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _subscriptionItem(SubscriptionItem item, {bool compact = false}) {
+    return FutureBuilder<SubscriptionItem>(
+      future: widget.api.resolveSubscription(item),
+      initialData: item,
+      builder: (context, resolvedSnapshot) {
+        final resolved = resolvedSnapshot.data ?? item;
+        return Card(
+          margin: compact
+              ? const EdgeInsets.all(5)
+              : const EdgeInsets.only(bottom: 8),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _openSubscription(resolved),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 10 : 14,
+                vertical: compact ? 10 : 12,
+              ),
+              child: Row(
+                children: [
+                  SiteAvatar(
+                    imageUrl: resolved.thumbnailUrl,
+                    radius: compact ? 19 : 22,
+                    fallbackIcon: _kindIcon(resolved.kind),
+                  ),
+                  SizedBox(width: compact ? 9 : 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          resolved.title,
+                          maxLines: compact ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          resolved.kind.label,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openSubscription(SubscriptionItem subscription) {
+    context.pushNamed(
+      AppRouteNames.subscription,
+      pathParameters: {'kind': subscription.kind.name},
+      queryParameters: {'path': subscription.path, 'title': subscription.title},
+      extra: subscription,
+    );
+  }
+
+  Widget _refreshableMessage({required String message, VoidCallback? onRetry}) {
+    return RefreshIndicator(
+      onRefresh: () => _load(force: true),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 360,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(message, textAlign: TextAlign.center),
+                    if (onRetry != null) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: onRetry,
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -356,28 +450,4 @@ class _SubscriptionsListState extends State<SubscriptionsList>
 
   @override
   bool get wantKeepAlive => true;
-}
-
-class _StateMessage extends StatelessWidget {
-  const _StateMessage({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            OutlinedButton(onPressed: onRetry, child: const Text('重试')),
-          ],
-        ),
-      ),
-    );
-  }
 }

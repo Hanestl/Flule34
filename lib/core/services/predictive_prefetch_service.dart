@@ -18,6 +18,7 @@ abstract final class PredictivePrefetchKey {
 
   static const playlists = 'library:playlists';
   static const subscriptions = 'library:subscriptions';
+  static const following = 'home:following';
 }
 
 final class PredictivePrefetchService {
@@ -158,6 +159,12 @@ final class PredictivePrefetchService {
       _PrefetchJob(
         key: PredictivePrefetchKey.subscriptions,
         action: (token) => api.prefetchSubscriptions(cancelToken: token),
+      ),
+    );
+    _enqueue(
+      _PrefetchJob(
+        key: PredictivePrefetchKey.following,
+        action: (token) => api.prefetchFollowingFeed(cancelToken: token),
       ),
     );
   }

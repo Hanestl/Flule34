@@ -487,6 +487,38 @@ void main() {
     expect(subscriptions.map((item) => item.title), ['First', 'Third']);
   });
 
+  test('订阅强制刷新偶发空响应时会自动复核而不丢失列表', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    var firstPageRequests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        if (options.uri.path == '/my/subscriptions/' &&
+            !options.uri.queryParameters.containsKey('from_my_subscriptions')) {
+          firstPageRequests += 1;
+          if (firstPageRequests == 2) {
+            return _htmlResponse('<html></html>');
+          }
+          return _htmlResponse(
+            '<div class="item"><a href="/models/artist/">Artist</a></div>',
+          );
+        }
+        return _htmlResponse('<html></html>');
+      }),
+    );
+    addTearDown(api.close);
+
+    final initial = await api.loadSubscriptions();
+    final refreshed = await api.loadSubscriptions(force: true);
+
+    expect(initial.single.title, 'Artist');
+    expect(refreshed.single.title, 'Artist');
+    expect(firstPageRequests, 3);
+  });
+
   test('关注视频按发布时间从新到旧返回', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);

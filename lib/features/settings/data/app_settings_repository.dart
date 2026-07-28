@@ -29,7 +29,9 @@ final class AppSettingsRepository extends ChangeNotifier {
       'flule34.settings.download_concurrent_tasks';
   static const _saveSearchHistoryKey = 'flule34.settings.save_search_history';
   static const _updateChannelKey = 'flule34.settings.update_channel';
-  static const _homeVideoLayoutKey = 'flule34.settings.home_video_layout';
+  static const _videoLayoutKey = 'flule34.settings.video_layout';
+  static const _legacyHomeVideoLayoutKey = 'flule34.settings.home_video_layout';
+  static const _subscriptionLayoutKey = 'flule34.settings.subscription_layout';
 
   final AppSettingsStore _store;
   AppSettings _settings = AppSettings.defaults;
@@ -60,7 +62,9 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_downloadConcurrentTasksKey),
       _readBool(_saveSearchHistoryKey),
       _readString(_updateChannelKey),
-      _readString(_homeVideoLayoutKey),
+      _readString(_videoLayoutKey),
+      _readString(_legacyHomeVideoLayoutKey),
+      _readString(_subscriptionLayoutKey),
     ]);
     _settings = AppSettings(
       theme: _themeValue(values[0] as String?),
@@ -112,12 +116,21 @@ final class AppSettingsRepository extends ChangeNotifier {
         values[16] as String?,
         AppSettings.defaults.updateChannel,
       ),
-      homeVideoLayout: _enumValue(
-        HomeVideoLayout.values,
-        values[17] as String?,
-        AppSettings.defaults.homeVideoLayout,
+      videoLayout: _enumValue(
+        ContentLayout.values,
+        (values[17] ?? values[18]) as String?,
+        AppSettings.defaults.videoLayout,
+      ),
+      subscriptionLayout: _enumValue(
+        ContentLayout.values,
+        values[19] as String?,
+        AppSettings.defaults.subscriptionLayout,
       ),
     );
+    final legacyVideoLayout = values[18] as String?;
+    if (values[17] == null && legacyVideoLayout != null) {
+      await _store.writeString(_videoLayoutKey, legacyVideoLayout);
+    }
     _loaded = true;
     notifyListeners();
   }
@@ -213,9 +226,14 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(updateChannel: value));
   }
 
-  Future<void> setHomeVideoLayout(HomeVideoLayout value) async {
-    await _store.writeString(_homeVideoLayoutKey, value.name);
-    _update(_settings.copyWith(homeVideoLayout: value));
+  Future<void> setVideoLayout(ContentLayout value) async {
+    await _store.writeString(_videoLayoutKey, value.name);
+    _update(_settings.copyWith(videoLayout: value));
+  }
+
+  Future<void> setSubscriptionLayout(ContentLayout value) async {
+    await _store.writeString(_subscriptionLayoutKey, value.name);
+    _update(_settings.copyWith(subscriptionLayout: value));
   }
 
   void _update(AppSettings value) {

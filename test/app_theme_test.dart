@@ -11,4 +11,15 @@ void main() {
 
     expect(transition.fallbackColor, AppTheme.dark.scaffoldBackgroundColor);
   });
+
+  test('搜索框与卡片使用统一的无阴影柔和表面', () {
+    final theme = AppTheme.light;
+
+    expect(theme.cardTheme.elevation, 0);
+    expect(theme.searchBarTheme.elevation?.resolve(const {}), 0);
+    expect(
+      theme.searchBarTheme.backgroundColor?.resolve(const {}),
+      theme.colorScheme.surfaceContainerLow,
+    );
+  });
 }

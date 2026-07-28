@@ -21,6 +21,8 @@ class SubscriptionPage extends StatelessWidget {
       body: VideoFeed(
         loadPage: (page) => api.loadSubscriptionVideos(subscription, page),
         emptyMessage: '这个订阅目前没有可显示的视频。',
+        showSearchAndFilters: true,
+        searchHint: '搜索此订阅中的视频',
       ),
     );
   }
