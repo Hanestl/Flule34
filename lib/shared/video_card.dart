@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/providers.dart';
@@ -283,14 +285,18 @@ class VideoCard extends ConsumerWidget {
     return ListenableBuilder(
       listenable: settingsRepository,
       builder: (context, _) {
-        final blurThumbnail = settingsRepository.settings.blurThumbnails;
-        return Card(
+        final settings = settingsRepository.settings;
+        final blurThumbnail = settings.blurThumbnails;
+        final card = Card(
           clipBehavior: Clip.antiAlias,
           margin: compact
               ? const EdgeInsets.all(5)
               : const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: InkWell(
-            onTap: onTap,
+            onTap: () {
+              ref.read(videoPreviewControllerProvider).hide();
+              onTap();
+            },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -344,12 +350,15 @@ class VideoCard extends ConsumerWidget {
                       Positioned(
                         right: 4,
                         top: 4,
-                        child: IconButton.filledTonal(
-                          tooltip: '视频操作',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () =>
-                              unawaited(_showActions(context, ref)),
-                          icon: const Icon(Icons.more_vert),
+                        child: GestureDetector(
+                          onLongPress: () {},
+                          child: IconButton.filledTonal(
+                            tooltip: '视频操作',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () =>
+                                unawaited(_showActions(context, ref)),
+                            icon: const Icon(Icons.more_vert),
+                          ),
                         ),
                       ),
                       if (video.duration != null)
@@ -465,6 +474,31 @@ class VideoCard extends ConsumerWidget {
               ],
             ),
           ),
+        );
+        if (!settings.videoPreviewEnabled) {
+          return card;
+        }
+        return RawGestureDetector(
+          behavior: HitTestBehavior.opaque,
+          gestures: <Type, GestureRecognizerFactory>{
+            LongPressGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  LongPressGestureRecognizer
+                >(
+                  () => LongPressGestureRecognizer(
+                    duration: const Duration(seconds: 1),
+                  ),
+                  (recognizer) {
+                    recognizer.onLongPress = () {
+                      HapticFeedback.selectionClick();
+                      ref
+                          .read(videoPreviewControllerProvider)
+                          .show(video, onOpen: onTap);
+                    };
+                  },
+                ),
+          },
+          child: card,
         );
       },
     );

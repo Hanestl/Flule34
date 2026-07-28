@@ -994,6 +994,37 @@ void main() {
     );
   });
 
+  test('预览补全使用网站搜索表单并解析专用预览地址', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    Uri? request;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        request = options.uri;
+        return _htmlResponse('''
+          <div class="item thumb">
+            <a class="th" href="/video/4514001/target-video/">
+              <div class="img wrap_image" data-preview="/preview.mp4">
+                <img class="thumb" data-original="/thumb.jpg">
+              </div>
+            </a>
+            <div class="thumb_title">目标视频</div>
+          </div>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+
+    final videos = await api.searchVideosForPreview('目标视频');
+
+    expect(request?.path, '/search/');
+    expect(request?.queryParameters, {'q': '目标视频'});
+    expect(videos.single.id, '4514001');
+    expect(videos.single.previewUrl, 'https://rule34video.com/preview.mp4');
+  });
+
   test('空关键词也可仅依靠筛选条件搜索', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);

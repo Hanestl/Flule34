@@ -17,6 +17,7 @@ void main() {
       title: '测试视频',
       slug: 'test-video',
       thumbnailUrl: 'https://example.com/336x189/1.jpg',
+      previewUrl: 'https://example.com/preview.mp4',
       rating: 98,
       ratingVotes: 321,
     );
@@ -25,7 +26,9 @@ void main() {
     await repository.addVideo(libraryId: secondId, video: video);
 
     expect(await repository.libraryIdsForVideo(video.id), {firstId, secondId});
-    expect((await repository.watchVideos(firstId).first).single.rating, 98);
+    final storedVideo = (await repository.watchVideos(firstId).first).single;
+    expect(storedVideo.rating, 98);
+    expect(storedVideo.previewUrl, 'https://example.com/preview.mp4');
     final summaries = await repository.watchLibrarySummaries().first;
     expect(
       summaries.where((item) => item.library.id == firstId).single.videoCount,
@@ -46,5 +49,26 @@ void main() {
       repository.createLibrary(' favorites '),
       throwsA(isA<LocalLibraryException>()),
     );
+  });
+
+  test('旧本地视频补全预览地址后会持久化到所有所在库', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    final repository = DriftLocalLibraryRepository(harness.database);
+    final firstId = await repository.createLibrary('库一');
+    final secondId = await repository.createLibrary('库二');
+    const video = VideoItem(id: '4514001', title: '旧视频', slug: 'old-video');
+    await repository.addVideo(libraryId: firstId, video: video);
+    await repository.addVideo(libraryId: secondId, video: video);
+
+    await harness.database.updateLocalLibraryVideoPreviewUrl(
+      videoId: video.id,
+      previewUrl: 'https://example.com/resolved.mp4',
+    );
+
+    final firstVideo = (await repository.watchVideos(firstId).first).single;
+    final secondVideo = (await repository.watchVideos(secondId).first).single;
+    expect(firstVideo.previewUrl, 'https://example.com/resolved.mp4');
+    expect(secondVideo.previewUrl, 'https://example.com/resolved.mp4');
   });
 }

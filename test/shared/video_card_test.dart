@@ -147,6 +147,90 @@ void main() {
     expect(find.text('分享'), findsOneWidget);
     expect(find.text('移出此库'), findsOneWidget);
   });
+
+  testWidgets('长按卡片文字一秒后创建预览并继承原点击行为', (tester) async {
+    var tapped = false;
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: VideoCard(
+              video: const VideoItem(
+                id: 'preview-1',
+                title: '长按预览',
+                slug: 'long-press-preview',
+                previewUrl: 'https://example.com/preview.mp4',
+              ),
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('长按预览')),
+    );
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(container.read(videoPreviewControllerProvider).request, isNull);
+    await tester.pump(const Duration(milliseconds: 150));
+
+    final controller = container.read(videoPreviewControllerProvider);
+    final request = controller.request;
+    expect(request?.video.id, 'preview-1');
+    expect(tapped, isFalse);
+    await gesture.up();
+
+    controller.open();
+    await tester.pump();
+    expect(tapped, isTrue);
+  });
+
+  testWidgets('关闭视频预览设置后长按不会创建预览请求', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container
+        .read(appSettingsRepositoryProvider)
+        .setVideoPreviewEnabled(false);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: VideoCard(
+              video: VideoItem(
+                id: 'preview-disabled',
+                title: '预览已关闭',
+                slug: 'preview-disabled',
+              ),
+              onTap: _noop,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('预览已关闭')),
+    );
+    await tester.pump(const Duration(milliseconds: 1100));
+
+    expect(container.read(videoPreviewControllerProvider).request, isNull);
+    await gesture.up();
+  });
 }
 
 void _noop() {}

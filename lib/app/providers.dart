@@ -15,6 +15,7 @@ import '../core/services/media_volume_service.dart';
 import '../core/services/screen_wake_lock_service.dart';
 import '../core/services/share_service.dart';
 import '../core/services/subscription_activity_index.dart';
+import '../core/services/video_preview_service.dart';
 import '../shared/scroll_to_top_overlay.dart';
 import '../features/downloads/data/background_download_platform_service.dart';
 import '../features/downloads/data/download_repository.dart';
@@ -159,6 +160,25 @@ final localLibraryRepositoryProvider = Provider<LocalLibraryRepository>((ref) {
     ref.watch(appDatabaseProvider),
     logService: ref.watch(appLogServiceProvider),
   );
+});
+
+final videoPreviewResolverProvider = Provider<VideoPreviewResolver>((ref) {
+  final api = ref.watch(rule34VideoApiProvider);
+  final database = ref.watch(appDatabaseProvider);
+  return VideoPreviewResolver(
+    search: api.searchVideosForPreview,
+    persist: ({required String videoId, required String? previewUrl}) =>
+        database.updateLocalLibraryVideoPreviewUrl(
+          videoId: videoId,
+          previewUrl: previewUrl,
+        ),
+  );
+});
+
+final videoPreviewControllerProvider = Provider<VideoPreviewController>((ref) {
+  final controller = VideoPreviewController();
+  ref.onDispose(controller.dispose);
+  return controller;
 });
 
 final curatedLibrarySeederProvider = Provider<CuratedLibrarySeeder>((ref) {

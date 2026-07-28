@@ -3008,6 +3008,17 @@ class $LocalLibraryVideosTable extends LocalLibraryVideos
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _previewUrlMeta = const VerificationMeta(
+    'previewUrl',
+  );
+  @override
+  late final GeneratedColumn<String> previewUrl = GeneratedColumn<String>(
+    'preview_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _durationLabelMeta = const VerificationMeta(
     'durationLabel',
   );
@@ -3078,6 +3089,7 @@ class $LocalLibraryVideosTable extends LocalLibraryVideos
     title,
     slug,
     thumbnailUrl,
+    previewUrl,
     durationLabel,
     publishedLabel,
     views,
@@ -3136,6 +3148,12 @@ class $LocalLibraryVideosTable extends LocalLibraryVideos
           data['thumbnail_url']!,
           _thumbnailUrlMeta,
         ),
+      );
+    }
+    if (data.containsKey('preview_url')) {
+      context.handle(
+        _previewUrlMeta,
+        previewUrl.isAcceptableOrUnknown(data['preview_url']!, _previewUrlMeta),
       );
     }
     if (data.containsKey('duration_label')) {
@@ -3212,6 +3230,10 @@ class $LocalLibraryVideosTable extends LocalLibraryVideos
         DriftSqlType.string,
         data['${effectivePrefix}thumbnail_url'],
       ),
+      previewUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preview_url'],
+      ),
       durationLabel: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}duration_label'],
@@ -3252,6 +3274,7 @@ class LocalLibraryVideo extends DataClass
   final String title;
   final String slug;
   final String? thumbnailUrl;
+  final String? previewUrl;
   final String? durationLabel;
   final String? publishedLabel;
   final int? views;
@@ -3264,6 +3287,7 @@ class LocalLibraryVideo extends DataClass
     required this.title,
     required this.slug,
     this.thumbnailUrl,
+    this.previewUrl,
     this.durationLabel,
     this.publishedLabel,
     this.views,
@@ -3280,6 +3304,9 @@ class LocalLibraryVideo extends DataClass
     map['slug'] = Variable<String>(slug);
     if (!nullToAbsent || thumbnailUrl != null) {
       map['thumbnail_url'] = Variable<String>(thumbnailUrl);
+    }
+    if (!nullToAbsent || previewUrl != null) {
+      map['preview_url'] = Variable<String>(previewUrl);
     }
     if (!nullToAbsent || durationLabel != null) {
       map['duration_label'] = Variable<String>(durationLabel);
@@ -3309,6 +3336,9 @@ class LocalLibraryVideo extends DataClass
       thumbnailUrl: thumbnailUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbnailUrl),
+      previewUrl: previewUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(previewUrl),
       durationLabel: durationLabel == null && nullToAbsent
           ? const Value.absent()
           : Value(durationLabel),
@@ -3339,6 +3369,7 @@ class LocalLibraryVideo extends DataClass
       title: serializer.fromJson<String>(json['title']),
       slug: serializer.fromJson<String>(json['slug']),
       thumbnailUrl: serializer.fromJson<String?>(json['thumbnailUrl']),
+      previewUrl: serializer.fromJson<String?>(json['previewUrl']),
       durationLabel: serializer.fromJson<String?>(json['durationLabel']),
       publishedLabel: serializer.fromJson<String?>(json['publishedLabel']),
       views: serializer.fromJson<int?>(json['views']),
@@ -3356,6 +3387,7 @@ class LocalLibraryVideo extends DataClass
       'title': serializer.toJson<String>(title),
       'slug': serializer.toJson<String>(slug),
       'thumbnailUrl': serializer.toJson<String?>(thumbnailUrl),
+      'previewUrl': serializer.toJson<String?>(previewUrl),
       'durationLabel': serializer.toJson<String?>(durationLabel),
       'publishedLabel': serializer.toJson<String?>(publishedLabel),
       'views': serializer.toJson<int?>(views),
@@ -3371,6 +3403,7 @@ class LocalLibraryVideo extends DataClass
     String? title,
     String? slug,
     Value<String?> thumbnailUrl = const Value.absent(),
+    Value<String?> previewUrl = const Value.absent(),
     Value<String?> durationLabel = const Value.absent(),
     Value<String?> publishedLabel = const Value.absent(),
     Value<int?> views = const Value.absent(),
@@ -3383,6 +3416,7 @@ class LocalLibraryVideo extends DataClass
     title: title ?? this.title,
     slug: slug ?? this.slug,
     thumbnailUrl: thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
+    previewUrl: previewUrl.present ? previewUrl.value : this.previewUrl,
     durationLabel: durationLabel.present
         ? durationLabel.value
         : this.durationLabel,
@@ -3403,6 +3437,9 @@ class LocalLibraryVideo extends DataClass
       thumbnailUrl: data.thumbnailUrl.present
           ? data.thumbnailUrl.value
           : this.thumbnailUrl,
+      previewUrl: data.previewUrl.present
+          ? data.previewUrl.value
+          : this.previewUrl,
       durationLabel: data.durationLabel.present
           ? data.durationLabel.value
           : this.durationLabel,
@@ -3426,6 +3463,7 @@ class LocalLibraryVideo extends DataClass
           ..write('title: $title, ')
           ..write('slug: $slug, ')
           ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('previewUrl: $previewUrl, ')
           ..write('durationLabel: $durationLabel, ')
           ..write('publishedLabel: $publishedLabel, ')
           ..write('views: $views, ')
@@ -3443,6 +3481,7 @@ class LocalLibraryVideo extends DataClass
     title,
     slug,
     thumbnailUrl,
+    previewUrl,
     durationLabel,
     publishedLabel,
     views,
@@ -3459,6 +3498,7 @@ class LocalLibraryVideo extends DataClass
           other.title == this.title &&
           other.slug == this.slug &&
           other.thumbnailUrl == this.thumbnailUrl &&
+          other.previewUrl == this.previewUrl &&
           other.durationLabel == this.durationLabel &&
           other.publishedLabel == this.publishedLabel &&
           other.views == this.views &&
@@ -3473,6 +3513,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
   final Value<String> title;
   final Value<String> slug;
   final Value<String?> thumbnailUrl;
+  final Value<String?> previewUrl;
   final Value<String?> durationLabel;
   final Value<String?> publishedLabel;
   final Value<int?> views;
@@ -3486,6 +3527,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
     this.title = const Value.absent(),
     this.slug = const Value.absent(),
     this.thumbnailUrl = const Value.absent(),
+    this.previewUrl = const Value.absent(),
     this.durationLabel = const Value.absent(),
     this.publishedLabel = const Value.absent(),
     this.views = const Value.absent(),
@@ -3500,6 +3542,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
     required String title,
     required String slug,
     this.thumbnailUrl = const Value.absent(),
+    this.previewUrl = const Value.absent(),
     this.durationLabel = const Value.absent(),
     this.publishedLabel = const Value.absent(),
     this.views = const Value.absent(),
@@ -3517,6 +3560,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
     Expression<String>? title,
     Expression<String>? slug,
     Expression<String>? thumbnailUrl,
+    Expression<String>? previewUrl,
     Expression<String>? durationLabel,
     Expression<String>? publishedLabel,
     Expression<int>? views,
@@ -3531,6 +3575,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
       if (title != null) 'title': title,
       if (slug != null) 'slug': slug,
       if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (previewUrl != null) 'preview_url': previewUrl,
       if (durationLabel != null) 'duration_label': durationLabel,
       if (publishedLabel != null) 'published_label': publishedLabel,
       if (views != null) 'views': views,
@@ -3547,6 +3592,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
     Value<String>? title,
     Value<String>? slug,
     Value<String?>? thumbnailUrl,
+    Value<String?>? previewUrl,
     Value<String?>? durationLabel,
     Value<String?>? publishedLabel,
     Value<int?>? views,
@@ -3561,6 +3607,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
       title: title ?? this.title,
       slug: slug ?? this.slug,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      previewUrl: previewUrl ?? this.previewUrl,
       durationLabel: durationLabel ?? this.durationLabel,
       publishedLabel: publishedLabel ?? this.publishedLabel,
       views: views ?? this.views,
@@ -3588,6 +3635,9 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
     }
     if (thumbnailUrl.present) {
       map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
+    }
+    if (previewUrl.present) {
+      map['preview_url'] = Variable<String>(previewUrl.value);
     }
     if (durationLabel.present) {
       map['duration_label'] = Variable<String>(durationLabel.value);
@@ -3621,6 +3671,7 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
           ..write('title: $title, ')
           ..write('slug: $slug, ')
           ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('previewUrl: $previewUrl, ')
           ..write('durationLabel: $durationLabel, ')
           ..write('publishedLabel: $publishedLabel, ')
           ..write('views: $views, ')
@@ -6018,6 +6069,7 @@ typedef $$LocalLibraryVideosTableCreateCompanionBuilder =
       required String title,
       required String slug,
       Value<String?> thumbnailUrl,
+      Value<String?> previewUrl,
       Value<String?> durationLabel,
       Value<String?> publishedLabel,
       Value<int?> views,
@@ -6033,6 +6085,7 @@ typedef $$LocalLibraryVideosTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String> slug,
       Value<String?> thumbnailUrl,
+      Value<String?> previewUrl,
       Value<String?> durationLabel,
       Value<String?> publishedLabel,
       Value<int?> views,
@@ -6100,6 +6153,11 @@ class $$LocalLibraryVideosTableFilterComposer
 
   ColumnFilters<String> get thumbnailUrl => $composableBuilder(
     column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get previewUrl => $composableBuilder(
+    column: $table.previewUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6186,6 +6244,11 @@ class $$LocalLibraryVideosTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get previewUrl => $composableBuilder(
+    column: $table.previewUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get durationLabel => $composableBuilder(
     column: $table.durationLabel,
     builder: (column) => ColumnOrderings(column),
@@ -6260,6 +6323,11 @@ class $$LocalLibraryVideosTableAnnotationComposer
 
   GeneratedColumn<String> get thumbnailUrl => $composableBuilder(
     column: $table.thumbnailUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get previewUrl => $composableBuilder(
+    column: $table.previewUrl,
     builder: (column) => column,
   );
 
@@ -6349,6 +6417,7 @@ class $$LocalLibraryVideosTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String> slug = const Value.absent(),
                 Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> previewUrl = const Value.absent(),
                 Value<String?> durationLabel = const Value.absent(),
                 Value<String?> publishedLabel = const Value.absent(),
                 Value<int?> views = const Value.absent(),
@@ -6362,6 +6431,7 @@ class $$LocalLibraryVideosTableTableManager
                 title: title,
                 slug: slug,
                 thumbnailUrl: thumbnailUrl,
+                previewUrl: previewUrl,
                 durationLabel: durationLabel,
                 publishedLabel: publishedLabel,
                 views: views,
@@ -6377,6 +6447,7 @@ class $$LocalLibraryVideosTableTableManager
                 required String title,
                 required String slug,
                 Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> previewUrl = const Value.absent(),
                 Value<String?> durationLabel = const Value.absent(),
                 Value<String?> publishedLabel = const Value.absent(),
                 Value<int?> views = const Value.absent(),
@@ -6390,6 +6461,7 @@ class $$LocalLibraryVideosTableTableManager
                 title: title,
                 slug: slug,
                 thumbnailUrl: thumbnailUrl,
+                previewUrl: previewUrl,
                 durationLabel: durationLabel,
                 publishedLabel: publishedLabel,
                 views: views,

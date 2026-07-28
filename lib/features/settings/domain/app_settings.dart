@@ -77,6 +77,7 @@ final class AppSettings {
     required this.networkPlaybackPolicy,
     required this.autoplay,
     required this.loopPlayback,
+    required this.videoPreviewEnabled,
     required this.rememberPlaybackProgress,
     required this.keepScreenAwake,
     required this.backgroundPlayback,
@@ -99,6 +100,7 @@ final class AppSettings {
     networkPlaybackPolicy: NetworkPlaybackPolicy.automatic,
     autoplay: false,
     loopPlayback: false,
+    videoPreviewEnabled: true,
     rememberPlaybackProgress: true,
     keepScreenAwake: true,
     backgroundPlayback: false,
@@ -120,6 +122,7 @@ final class AppSettings {
   final NetworkPlaybackPolicy networkPlaybackPolicy;
   final bool autoplay;
   final bool loopPlayback;
+  final bool videoPreviewEnabled;
   final bool rememberPlaybackProgress;
   final bool keepScreenAwake;
   final bool backgroundPlayback;
@@ -141,6 +144,7 @@ final class AppSettings {
     NetworkPlaybackPolicy? networkPlaybackPolicy,
     bool? autoplay,
     bool? loopPlayback,
+    bool? videoPreviewEnabled,
     bool? rememberPlaybackProgress,
     bool? keepScreenAwake,
     bool? backgroundPlayback,
@@ -163,6 +167,7 @@ final class AppSettings {
           networkPlaybackPolicy ?? this.networkPlaybackPolicy,
       autoplay: autoplay ?? this.autoplay,
       loopPlayback: loopPlayback ?? this.loopPlayback,
+      videoPreviewEnabled: videoPreviewEnabled ?? this.videoPreviewEnabled,
       rememberPlaybackProgress:
           rememberPlaybackProgress ?? this.rememberPlaybackProgress,
       keepScreenAwake: keepScreenAwake ?? this.keepScreenAwake,

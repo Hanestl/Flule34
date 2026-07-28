@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/settings/domain/app_settings.dart';
+import '../shared/video_preview_overlay.dart';
 import 'providers.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -29,8 +30,28 @@ class Flule34App extends ConsumerWidget {
             AppThemePreference.dark => ThemeMode.dark,
           },
           routerConfig: router,
+          builder: (context, child) => VideoPreviewOverlay(
+            navigationListenable: router.routerDelegate,
+            bottomInsetBuilder: (context) {
+              final path = router.routerDelegate.currentConfiguration.uri.path;
+              if (!_showsBottomNavigation(path)) {
+                return 0;
+              }
+              return NavigationBarTheme.of(context).height ?? 80;
+            },
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );
   }
+}
+
+bool _showsBottomNavigation(String path) {
+  return path == '/' ||
+      path == '/discover' ||
+      path == '/library' ||
+      path.startsWith('/library/') ||
+      path == '/profile' ||
+      path.startsWith('/profile/');
 }

@@ -268,6 +268,18 @@ class Rule34VideoApi {
     );
   }
 
+  Future<List<VideoItem>> searchVideosForPreview(String query) {
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty) {
+      return Future.value(const <VideoItem>[]);
+    }
+    return _paginatedVideoList(
+      '/search/',
+      page: 1,
+      query: <String, String>{'q': normalizedQuery},
+    );
+  }
+
   Future<List<TagSuggestion>> searchTags(String query) async {
     return (await searchSuggestions(query, SearchSuggestionKind.tag))
         .map(
@@ -1567,7 +1579,7 @@ class Rule34VideoApi {
       responseType: ResponseType.plain,
       followRedirects: false,
       headers: const {
-        'User-Agent': 'Flule34 Android/1.4.0',
+        'User-Agent': 'Flule34 Android/1.4.1',
         'Accept':
             'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       },

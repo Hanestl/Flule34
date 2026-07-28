@@ -13,6 +13,8 @@ final class AppSettingsRepository extends ChangeNotifier {
       'flule34.settings.network_playback_policy';
   static const _autoplayKey = 'flule34.settings.autoplay';
   static const _loopPlaybackKey = 'flule34.settings.loop_playback';
+  static const _videoPreviewEnabledKey =
+      'flule34.settings.video_preview_enabled';
   static const _rememberPlaybackProgressKey =
       'flule34.settings.remember_playback_progress';
   static const _keepScreenAwakeKey = 'flule34.settings.keep_screen_awake';
@@ -65,6 +67,7 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_videoLayoutKey),
       _readString(_legacyHomeVideoLayoutKey),
       _readString(_subscriptionLayoutKey),
+      _readBool(_videoPreviewEnabledKey),
     ]);
     _settings = AppSettings(
       theme: _themeValue(values[0] as String?),
@@ -79,6 +82,8 @@ final class AppSettingsRepository extends ChangeNotifier {
       ),
       autoplay: values[3] as bool? ?? AppSettings.defaults.autoplay,
       loopPlayback: values[4] as bool? ?? AppSettings.defaults.loopPlayback,
+      videoPreviewEnabled:
+          values[20] as bool? ?? AppSettings.defaults.videoPreviewEnabled,
       rememberPlaybackProgress:
           values[5] as bool? ?? AppSettings.defaults.rememberPlaybackProgress,
       keepScreenAwake:
@@ -158,6 +163,11 @@ final class AppSettingsRepository extends ChangeNotifier {
   Future<void> setLoopPlayback(bool value) async {
     await _store.writeBool(_loopPlaybackKey, value);
     _update(_settings.copyWith(loopPlayback: value));
+  }
+
+  Future<void> setVideoPreviewEnabled(bool value) async {
+    await _store.writeBool(_videoPreviewEnabledKey, value);
+    _update(_settings.copyWith(videoPreviewEnabled: value));
   }
 
   Future<void> setRememberPlaybackProgress(bool value) async {

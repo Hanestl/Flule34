@@ -105,6 +105,7 @@ class LocalLibraryVideos extends Table {
   TextColumn get title => text()();
   TextColumn get slug => text()();
   TextColumn get thumbnailUrl => text().nullable()();
+  TextColumn get previewUrl => text().nullable()();
   TextColumn get durationLabel => text().nullable()();
   TextColumn get publishedLabel => text().nullable()();
   IntColumn get views => integer().nullable()();
@@ -142,7 +143,7 @@ final class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -190,11 +191,26 @@ final class AppDatabase extends _$AppDatabase {
         );
         await migrator.createTable(schema.curatedLibrarySeeds);
       },
+      from6To7: (migrator, schema) async {
+        await migrator.addColumn(
+          schema.localLibraryVideos,
+          schema.localLibraryVideos.previewUrl,
+        );
+      },
     ),
     beforeOpen: (_) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<void> updateLocalLibraryVideoPreviewUrl({
+    required String videoId,
+    required String? previewUrl,
+  }) {
+    return (update(localLibraryVideos)
+          ..where((item) => item.videoId.equals(videoId)))
+        .write(LocalLibraryVideosCompanion(previewUrl: Value(previewUrl)));
+  }
 
   Future<void> recordAuthenticatedAccount(
     String userId, {

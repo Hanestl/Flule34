@@ -131,6 +131,15 @@ class PlaybackSettingsPage extends ConsumerWidget {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
+          title: const Text('视频预览'),
+          subtitle: const Text('长按视频封面预览'),
+          value: settings.videoPreviewEnabled,
+          onChanged: (value) {
+            unawaited(_save(context, repository.setVideoPreviewEnabled(value)));
+          },
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
           title: const Text('播放时保持屏幕常亮'),
           subtitle: const Text('仅在视频正在播放时生效，暂停或离开页面后自动恢复。'),
           value: settings.keepScreenAwake,

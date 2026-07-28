@@ -11,6 +11,7 @@ import 'generated/schema_v2.dart' as v2;
 import 'generated/schema_v3.dart' as v3;
 import 'generated/schema_v5.dart' as v5;
 import 'generated/schema_v6.dart' as v6;
+import 'generated/schema_v7.dart' as v7;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -276,6 +277,68 @@ void main() {
         expect([newLibrary], await newDb.select(newDb.localLibraries).get());
         expect([newVideo], await newDb.select(newDb.localLibraryVideos).get());
         expect(await newDb.select(newDb.curatedLibrarySeeds).get(), isEmpty);
+      },
+    );
+  });
+
+  test('migration from v6 to v7 preserves local videos', () async {
+    const timestamp = 1700000000;
+    const oldLibrary = v6.LocalLibrariesData(
+      id: 1,
+      name: '旧本地库',
+      normalizedName: '旧本地库',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    const newLibrary = v7.LocalLibrariesData(
+      id: 1,
+      name: '旧本地库',
+      normalizedName: '旧本地库',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    const oldVideo = v6.LocalLibraryVideosData(
+      libraryId: 1,
+      videoId: '4514001',
+      title: '旧视频',
+      slug: 'old-video',
+      thumbnailUrl: 'https://example.com/thumb.jpg',
+      durationLabel: '2:00',
+      rating: 99,
+      ratingVotes: 100,
+      addedAt: timestamp,
+    );
+    const newVideo = v7.LocalLibraryVideosData(
+      libraryId: 1,
+      videoId: '4514001',
+      title: '旧视频',
+      slug: 'old-video',
+      thumbnailUrl: 'https://example.com/thumb.jpg',
+      durationLabel: '2:00',
+      rating: 99,
+      ratingVotes: 100,
+      addedAt: timestamp,
+    );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 6,
+      newVersion: 7,
+      createOld: v6.DatabaseAtV6.new,
+      createNew: v7.DatabaseAtV7.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insert(oldDb.localLibraries, oldLibrary);
+        batch.insert(oldDb.localLibraryVideos, oldVideo);
+      },
+      validateItems: (newDb) async {
+        expect([newLibrary], await newDb.select(newDb.localLibraries).get());
+        expect([newVideo], await newDb.select(newDb.localLibraryVideos).get());
+        expect(
+          (await newDb.select(newDb.localLibraryVideos).get())
+              .single
+              .previewUrl,
+          null,
+        );
       },
     );
   });

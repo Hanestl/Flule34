@@ -30,11 +30,15 @@ class SiteParser {
           _clean(image?.attributes['alt']) ??
           '未命名视频';
       final thumbnail = _imageUrl(image);
+      final preview = _url(
+        card.querySelector('[data-preview]')?.attributes['data-preview'],
+      );
       result[match.group(1)!] = VideoItem(
         id: match.group(1)!,
         slug: match.group(2)!,
         title: title,
         thumbnailUrl: thumbnail,
+        previewUrl: preview,
         duration: _clean(card.querySelector('.time')?.text),
         publishedLabel: _clean(card.querySelector('.thumb_info .added')?.text),
         views: _compactNumber(

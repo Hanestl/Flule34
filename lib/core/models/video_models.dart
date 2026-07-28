@@ -321,6 +321,7 @@ class VideoItem {
     required this.title,
     required this.slug,
     this.thumbnailUrl,
+    this.previewUrl,
     this.duration,
     this.publishedLabel,
     this.views,
@@ -335,6 +336,7 @@ class VideoItem {
   final String title;
   final String slug;
   final String? thumbnailUrl;
+  final String? previewUrl;
   final String? duration;
   final String? publishedLabel;
   final int? views;
@@ -367,6 +369,7 @@ class VideoItem {
     String? title,
     String? slug,
     String? thumbnailUrl,
+    Object? previewUrl = _unset,
     String? duration,
     String? publishedLabel,
     int? views,
@@ -379,6 +382,9 @@ class VideoItem {
       title: title ?? this.title,
       slug: slug ?? this.slug,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      previewUrl: identical(previewUrl, _unset)
+          ? this.previewUrl
+          : previewUrl as String?,
       duration: duration ?? this.duration,
       publishedLabel: publishedLabel ?? this.publishedLabel,
       views: views ?? this.views,

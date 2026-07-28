@@ -30,6 +30,7 @@ void main() {
     expect(videos.single.slug, 'example-video');
     expect(videos.single.title, 'Example video');
     expect(videos.single.thumbnailUrl, 'https://rule34video.com/thumbnail.jpg');
+    expect(videos.single.previewUrl, 'https://rule34video.com/preview.mp4');
     expect(videos.single.duration, '2:34');
     expect(videos.single.publishedLabel, '23 minutes ago');
     expect(videos.single.rating, 100);
