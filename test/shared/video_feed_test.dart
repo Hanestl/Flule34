@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -110,6 +112,45 @@ void main() {
 
     expect(find.text('Hydra 精选'), findsOneWidget);
     expect(find.text('其他视频'), findsNothing);
+  });
+
+  testWidgets('刷新期间保留旧列表，直到新内容加载完成', (tester) async {
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
+    final container = ProviderContainer(
+      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+    );
+    addTearDown(container.dispose);
+    final refreshed = Completer<List<VideoItem>>();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: VideoFeed(
+              loadPage: (page) async => page == 1
+                  ? const [VideoItem(id: '1', title: '旧内容', slug: 'old')]
+                  : const [],
+              refreshPage: (_) => refreshed.future,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+    await tester.pump();
+
+    expect(find.text('旧内容'), findsOneWidget);
+
+    refreshed.complete(const [VideoItem(id: '2', title: '新内容', slug: 'new')]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('旧内容'), findsNothing);
+    expect(find.text('新内容'), findsOneWidget);
   });
 }
 

@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../app/providers.dart';
 import '../app/router/route_names.dart';
 import '../core/models/video_models.dart';
+import '../core/services/predictive_prefetch_service.dart';
 import 'video_card.dart';
 import 'video_list_filters.dart';
 
@@ -13,21 +15,29 @@ class VideoFeed extends ConsumerStatefulWidget {
   const VideoFeed({
     super.key,
     required this.loadPage,
+    this.refreshPage,
     this.emptyMessage = '没有找到视频。',
     this.itemFilter,
     this.columns = 1,
     this.showSearchAndFilters = false,
     this.searchHint = '搜索已加载的视频',
     this.sortNewest = false,
+    this.active = true,
+    this.onItemsLoaded,
+    this.prefetchService,
   });
 
   final Future<List<VideoItem>> Function(int page) loadPage;
+  final Future<List<VideoItem>> Function(int page)? refreshPage;
   final String emptyMessage;
   final bool Function(VideoItem video)? itemFilter;
   final int columns;
   final bool showSearchAndFilters;
   final String searchHint;
   final bool sortNewest;
+  final bool active;
+  final ValueChanged<List<VideoItem>>? onItemsLoaded;
+  final PredictivePrefetchService? prefetchService;
 
   @override
   ConsumerState<VideoFeed> createState() => _VideoFeedState();
@@ -49,7 +59,17 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _load(reset: true);
+    if (widget.active) {
+      _load(reset: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant VideoFeed oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active && _videos.isEmpty) {
+      _load(reset: true);
+    }
   }
 
   @override
@@ -67,7 +87,7 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
     }
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load({required bool reset, bool forceRefresh = false}) async {
     if (_loading || (!reset && !_hasMore)) {
       return;
     }
@@ -75,7 +95,6 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       _loading = true;
       _error = null;
       if (reset) {
-        _videos.clear();
         _page = 1;
         _hasMore = true;
       }
@@ -83,20 +102,31 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
     try {
       var attempts = 0;
       do {
-        final page = await widget.loadPage(_page);
+        final firstResetPage = reset && attempts == 0;
+        final page =
+            await (firstResetPage && forceRefresh && widget.refreshPage != null
+                ? widget.refreshPage!(_page)
+                : widget.loadPage(_page));
         if (!mounted) {
           return;
         }
+        final existingIds = firstResetPage
+            ? <String>{}
+            : _videos.map((item) => item.id).toSet();
         final newItems = page
-            .where((item) => !_videos.any((saved) => saved.id == item.id))
+            .where((item) => existingIds.add(item.id))
             .toList(growable: false);
         setState(() {
+          if (firstResetPage) {
+            _videos.clear();
+          }
           _videos.addAll(newItems);
           _page += 1;
           // 网站不同列表的分页数量并不完全一致。只要本页仍返回了新内容，
           // 就允许再探测一页；最后一页之后的空响应会可靠地结束分页。
           _hasMore = page.isNotEmpty && newItems.isNotEmpty;
         });
+        widget.onItemsLoaded?.call(List.unmodifiable(_videos));
         attempts += 1;
       } while (_hasMore && attempts < 3 && _visibleVideos().length < 8);
     } catch (error) {
@@ -114,6 +144,9 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (!widget.active && _videos.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final visibleVideos = _visibleVideos();
     final body = _buildBody(context, visibleVideos);
     if (!widget.showSearchAndFilters) {
@@ -184,7 +217,7 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
     }
 
     return RefreshIndicator(
-      onRefresh: () => _load(reset: true),
+      onRefresh: () => _load(reset: true, forceRefresh: true),
       child: CustomScrollView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -223,11 +256,21 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
     return VideoCard(
       video: video,
       compact: compact,
-      onTap: () => context.pushNamed(
-        AppRouteNames.video,
-        pathParameters: {'id': video.id, 'slug': video.slug},
-        extra: video,
-      ),
+      onTap: () {
+        final PredictivePrefetchService prefetch =
+            widget.prefetchService ??
+            ref.read<PredictivePrefetchService>(
+              predictivePrefetchServiceProvider,
+            );
+        prefetch.prioritizeForeground(
+          adoptKey: PredictivePrefetchKey.video(video.id),
+        );
+        context.pushNamed(
+          AppRouteNames.video,
+          pathParameters: {'id': video.id, 'slug': video.slug},
+          extra: video,
+        );
+      },
     );
   }
 
@@ -250,9 +293,11 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => _load(reset: false),
+              onPressed: () => _page == 1
+                  ? _load(reset: true, forceRefresh: true)
+                  : _load(reset: false),
               icon: const Icon(Icons.refresh),
-              label: const Text('重试加载下一页'),
+              label: Text(_page == 1 ? '重试刷新' : '重试加载下一页'),
             ),
           ],
         ),

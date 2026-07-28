@@ -10,6 +10,8 @@ import '../core/session/secret_store.dart';
 import '../core/session/secure_cookie_storage.dart';
 import '../core/session/session_store.dart';
 import '../core/services/network_status_service.dart';
+import '../core/services/predictive_prefetch_service.dart';
+import '../core/services/media_volume_service.dart';
 import '../core/services/screen_wake_lock_service.dart';
 import '../core/services/share_service.dart';
 import '../features/downloads/data/background_download_platform_service.dart';
@@ -42,6 +44,10 @@ final networkStatusServiceProvider = Provider<NetworkStatusService>((ref) {
 
 final screenWakeLockServiceProvider = Provider<ScreenWakeLockService>((ref) {
   return WakelockScreenWakeLockService();
+});
+
+final mediaVolumeServiceProvider = Provider<MediaVolumeService>((ref) {
+  return const PlatformMediaVolumeService();
 });
 
 final shareServiceProvider = Provider<ShareService>((ref) {
@@ -79,6 +85,22 @@ final rule34VideoApiProvider = Provider<Rule34VideoApi>((ref) {
   final api = Rule34VideoApi(sessionStore: ref.watch(sessionStoreProvider));
   ref.onDispose(api.close);
   return api;
+});
+
+final predictivePrefetchServiceProvider = Provider<PredictivePrefetchService>((
+  ref,
+) {
+  final sessionStore = ref.watch(sessionStoreProvider);
+  final service = PredictivePrefetchService(
+    api: ref.watch(rule34VideoApiProvider),
+    sessionStore: sessionStore,
+  );
+  sessionStore.addListener(service.onSessionChanged);
+  ref.onDispose(() {
+    sessionStore.removeListener(service.onSessionChanged);
+    service.dispose();
+  });
+  return service;
 });
 
 final downloadPlatformServiceProvider = Provider<DownloadPlatformService>((
@@ -146,6 +168,7 @@ final appInitializationProvider = FutureProvider<void>((ref) async {
     final sessionStore = ref.read(sessionStoreProvider);
     await sessionStore.load();
     await ref.read(rule34VideoApiProvider).restoreSession();
+    ref.read(predictivePrefetchServiceProvider).scheduleStartup();
     await ref.read(downloadRepositoryProvider).initialize();
     unawaited(logs.info('bootstrap', 'App 初始化完成。'));
   } catch (error, stackTrace) {

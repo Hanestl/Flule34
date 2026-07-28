@@ -386,7 +386,7 @@ final class DownloadRepository {
   Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/1.3.0',
+      'User-Agent': 'Flule34 Android/1.3.1',
     };
     final cookie = await _api.sessionCookieHeader();
     if (cookie != null) {

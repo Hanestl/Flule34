@@ -7,12 +7,25 @@ import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/database/app_database.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
+import 'package:flule34/core/services/predictive_prefetch_service.dart';
 import 'package:flule34/features/search/data/search_history_repository.dart';
 import 'package:flule34/features/search/search_page.dart';
 import 'package:flule34/features/settings/data/app_settings_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
 
 import '../../helpers/test_session_harness.dart';
+
+PredictivePrefetchService _createPrefetch(
+  Rule34VideoApi api,
+  SessionStore sessionStore,
+) {
+  final service = PredictivePrefetchService(
+    api: api,
+    sessionStore: sessionStore,
+  );
+  addTearDown(service.dispose);
+  return service;
+}
 
 void main() {
   testWidgets('未登录搜索不会创建匿名历史', (tester) async {
@@ -35,6 +48,7 @@ void main() {
         child: MaterialApp(
           home: SearchPage(
             api: api,
+            prefetchService: _createPrefetch(api, harness.sessionStore),
             historyRepository: SearchHistoryRepository(
               harness.database,
               harness.sessionStore,
@@ -78,6 +92,7 @@ void main() {
         child: MaterialApp(
           home: SearchPage(
             api: api,
+            prefetchService: _createPrefetch(api, harness.sessionStore),
             historyRepository: SearchHistoryRepository(
               harness.database,
               harness.sessionStore,
@@ -189,7 +204,11 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
-          home: SearchPage(api: api, historyRepository: historyRepository),
+          home: SearchPage(
+            api: api,
+            historyRepository: historyRepository,
+            prefetchService: _createPrefetch(api, harness.sessionStore),
+          ),
         ),
       ),
     );

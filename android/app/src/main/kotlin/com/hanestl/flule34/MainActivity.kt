@@ -1,6 +1,8 @@
 package com.hanestl.flule34
 
 import android.net.Uri
+import android.content.Context
+import android.media.AudioManager
 import android.provider.OpenableColumns
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
@@ -29,6 +31,40 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_URI", "文件 URI 不能为空", null)
                     } else {
                         result.success(deleteFile(Uri.parse(rawUri)))
+                    }
+                }
+
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(messenger, MEDIA_VOLUME_CHANNEL).setMethodCallHandler { call, result ->
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager == null) {
+                result.error("UNAVAILABLE", "无法获取系统媒体音量服务", null)
+                return@setMethodCallHandler
+            }
+            when (call.method) {
+                "current" -> result.success(normalizedMediaVolume(audioManager))
+                "setNormalized" -> {
+                    val value = call.argument<Double>("value")
+                    if (value == null) {
+                        result.error("INVALID_VALUE", "音量值不能为空", null)
+                    } else {
+                        try {
+                            val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                            val target = (value.coerceIn(0.0, 1.0) * maximum).toInt()
+                            audioManager.setStreamVolume(
+                                AudioManager.STREAM_MUSIC,
+                                target,
+                                0,
+                            )
+                            result.success(null)
+                        } catch (_: SecurityException) {
+                            result.error("UNAVAILABLE", "系统拒绝调节媒体音量", null)
+                        } catch (_: RuntimeException) {
+                            result.error("UNAVAILABLE", "调节媒体音量失败", null)
+                        }
                     }
                 }
 
@@ -132,7 +168,16 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun normalizedMediaVolume(audioManager: AudioManager): Double {
+        val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (maximum <= 0) {
+            return 0.0
+        }
+        return audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / maximum
+    }
+
     private companion object {
         const val STORAGE_CHANNEL = "com.hanestl.flule34/storage_access"
+        const val MEDIA_VOLUME_CHANNEL = "com.hanestl.flule34/media_volume"
     }
 }

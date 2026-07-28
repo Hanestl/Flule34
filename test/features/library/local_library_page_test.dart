@@ -22,7 +22,13 @@ void main() {
 
     await tester.tap(find.text('新建本地库'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), '测试分类');
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextField),
+      ),
+      '测试分类',
+    );
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
 

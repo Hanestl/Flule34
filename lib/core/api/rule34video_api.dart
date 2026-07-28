@@ -31,8 +31,13 @@ final class SessionExpiredException extends ApiException {
   const SessionExpiredException() : super('登录状态已过期，请重新登录。');
 }
 
+final class RequestCancelledException extends ApiException {
+  const RequestCancelledException() : super('后台预加载已让位于当前操作。');
+}
+
 class Rule34VideoApi {
-  static const _videoDetailsCacheTtl = Duration(minutes: 2);
+  static const _videoDetailsCacheTtl = Duration(minutes: 5);
+  static const _videoPageCacheTtl = Duration(minutes: 5);
 
   Rule34VideoApi({
     required this.sessionStore,
@@ -62,12 +67,16 @@ class Rule34VideoApi {
   String? _playlistCacheUserId;
   final Map<String, _VideoDetailsCacheEntry> _videoDetailsCache = {};
   final Map<String, Future<VideoDetails>> _videoDetailsRequests = {};
+  final Map<String, _VideoPageCacheEntry> _videoPageCache = {};
+  final Map<String, Future<List<VideoItem>>> _videoPageRequests = {};
   final Map<String, bool> _favoriteStatusByVideoId = {};
   String? _favoriteCacheUserId;
   MemberProfile? _currentUserProfileCache;
   String? _currentUserProfileCacheUserId;
   Future<MemberProfile>? _currentUserProfileRequest;
   bool _currentUserProfileRefreshed = false;
+  Future<List<PlaylistItem>>? _playlistRequest;
+  Future<List<SubscriptionItem>>? _subscriptionRequest;
 
   void close() {
     _dio.close(force: true);
@@ -292,6 +301,20 @@ class Rule34VideoApi {
   }
 
   Future<VideoDetails> loadVideoDetails(VideoItem video) {
+    return _loadVideoDetails(video);
+  }
+
+  Future<void> prefetchVideoDetails(
+    VideoItem video, {
+    required CancelToken cancelToken,
+  }) async {
+    await _loadVideoDetails(video, cancelToken: cancelToken);
+  }
+
+  Future<VideoDetails> _loadVideoDetails(
+    VideoItem video, {
+    CancelToken? cancelToken,
+  }) {
     final key = _videoDetailsCacheKey(video.id);
     final cached = _videoDetailsCache[key];
     if (cached != null &&
@@ -303,7 +326,7 @@ class Rule34VideoApi {
       return pending;
     }
     late final Future<VideoDetails> request;
-    request = _fetchVideoDetails(video)
+    request = _fetchVideoDetails(video, cancelToken: cancelToken)
         .then((details) {
           if (identical(_videoDetailsRequests[key], request)) {
             _videoDetailsCache[key] = _VideoDetailsCacheEntry(
@@ -329,24 +352,30 @@ class Rule34VideoApi {
     return loadVideoDetails(video);
   }
 
-  Future<VideoDetails> _fetchVideoDetails(VideoItem video) async {
+  Future<VideoDetails> _fetchVideoDetails(
+    VideoItem video, {
+    CancelToken? cancelToken,
+  }) async {
     String body;
     var usedPublicRequest = false;
     try {
-      body = await _get(video.detailPath);
+      body = await _get(video.detailPath, cancelToken: cancelToken);
     } on SessionExpiredException {
-      body = await _getPublic(video.detailPath);
+      body = await _getPublic(video.detailPath, cancelToken: cancelToken);
       usedPublicRequest = true;
     } on HttpStatusException catch (error) {
       if (error.statusCode != 403) {
         rethrow;
       }
-      body = await _getPublic(video.detailPath);
+      body = await _getPublic(video.detailPath, cancelToken: cancelToken);
       usedPublicRequest = true;
     }
     var details = SiteParser.videoDetails(source: body, fallback: video);
     if (details.sources.isEmpty && !usedPublicRequest) {
-      final publicBody = await _getPublic(video.detailPath);
+      final publicBody = await _getPublic(
+        video.detailPath,
+        cancelToken: cancelToken,
+      );
       final publicDetails = SiteParser.videoDetails(
         source: publicBody,
         fallback: video,
@@ -450,7 +479,8 @@ class Rule34VideoApi {
     }
     try {
       final profile = await request;
-      if (sessionStore.currentUserId == userId) {
+      if (sessionStore.currentUserId == userId &&
+          (force || identical(_currentUserProfileRequest, request))) {
         _currentUserProfileCache = profile;
         _currentUserProfileRefreshed = true;
       }
@@ -558,16 +588,39 @@ class Rule34VideoApi {
     try {
       await _get('/logout/');
     } finally {
+      _resetSubscriptionCache();
+      _clearPlaylistCache();
+      _videoPageCache.clear();
+      _videoPageRequests.clear();
+      _videoDetailsCache.clear();
+      _videoDetailsRequests.clear();
       await sessionStore.clear(forgetCredentials: true);
     }
   }
 
-  Future<List<VideoItem>> loadFavorites(int page) async {
+  Future<List<VideoItem>> loadFavorites(int page, {bool force = false}) {
+    return _loadFavoritesPage(page, force: force);
+  }
+
+  Future<void> prefetchFavorites({required CancelToken cancelToken}) async {
+    await _loadFavoritesPage(1, cancelToken: cancelToken);
+  }
+
+  Future<List<VideoItem>> _loadFavoritesPage(
+    int page, {
+    bool force = false,
+    CancelToken? cancelToken,
+  }) async {
     _requireLogin();
     final path = page > 1
         ? '/my/favourites/videos/$page/'
         : '/my/favourites/videos/';
-    final items = await _paginatedVideoList(path, page: page);
+    final items = await _cachedVideoPage(
+      key: _videoPageCacheKey('favorites', page),
+      force: force,
+      loader: () =>
+          _paginatedVideoList(path, page: page, cancelToken: cancelToken),
+    );
     _syncFavoriteCache();
     for (final item in items) {
       _favoriteStatusByVideoId[item.id] = true;
@@ -577,42 +630,102 @@ class Rule34VideoApi {
         .toList(growable: false);
   }
 
-  Future<List<VideoItem>> loadHistory(int page) async {
+  Future<List<VideoItem>> loadHistory(int page, {bool force = false}) {
+    return _loadHistoryPage(page, force: force);
+  }
+
+  Future<void> prefetchHistory({required CancelToken cancelToken}) async {
+    await _loadHistoryPage(1, cancelToken: cancelToken);
+  }
+
+  void invalidateHistoryCache() {
+    _clearVideoPageCache('history');
+  }
+
+  Future<List<VideoItem>> _loadHistoryPage(
+    int page, {
+    bool force = false,
+    CancelToken? cancelToken,
+  }) async {
     _requireLogin();
     final path = page > 1 ? '/my/history/$page/' : '/my/history/';
-    return _paginatedVideoList(path, page: page);
+    return _cachedVideoPage(
+      key: _videoPageCacheKey('history', page),
+      force: force,
+      loader: () =>
+          _paginatedVideoList(path, page: page, cancelToken: cancelToken),
+    );
   }
 
   Future<List<PlaylistItem>> loadMyPlaylists({bool force = false}) async {
+    return _loadMyPlaylists(force: force);
+  }
+
+  Future<void> prefetchPlaylists({required CancelToken cancelToken}) async {
+    await _loadMyPlaylists(cancelToken: cancelToken);
+  }
+
+  Future<List<PlaylistItem>> _loadMyPlaylists({
+    bool force = false,
+    CancelToken? cancelToken,
+  }) async {
     _requireLogin();
     final userId = sessionStore.currentUserId!;
     if (!force && _playlistCache != null && _playlistCacheUserId == userId) {
       return _playlistCache!;
     }
-    final result = <String, PlaylistItem>{};
-    for (var page = 1; page <= 50; page += 1) {
-      final items = await loadMyPlaylistsPage(page);
-      if (items.isEmpty) {
-        break;
-      }
-      final before = result.length;
-      for (final item in items) {
-        result[item.id] = item;
-      }
-      if (result.length == before) {
-        break;
-      }
+    if (!force && _playlistRequest != null) {
+      return _playlistRequest!;
     }
-    _playlistCache = result.values.toList(growable: false);
-    _playlistCacheUserId = userId;
-    return _playlistCache!;
+    late final Future<List<PlaylistItem>> request;
+    request =
+        () async {
+          final result = <String, PlaylistItem>{};
+          for (var page = 1; page <= 50; page += 1) {
+            _throwIfCancelled(cancelToken);
+            final items = await _loadMyPlaylistsPage(
+              page,
+              cancelToken: cancelToken,
+            );
+            if (items.isEmpty) {
+              break;
+            }
+            final before = result.length;
+            for (final item in items) {
+              result[item.id] = item;
+            }
+            if (result.length == before) {
+              break;
+            }
+          }
+          final value = result.values.toList(growable: false);
+          if (sessionStore.currentUserId == userId &&
+              identical(_playlistRequest, request)) {
+            _playlistCache = value;
+            _playlistCacheUserId = userId;
+          }
+          return value;
+        }().whenComplete(() {
+          if (identical(_playlistRequest, request)) {
+            _playlistRequest = null;
+          }
+        });
+    _playlistRequest = request;
+    return request;
   }
 
   Future<List<PlaylistItem>> loadMyPlaylistsPage(int page) async {
+    return _loadMyPlaylistsPage(page);
+  }
+
+  Future<List<PlaylistItem>> _loadMyPlaylistsPage(
+    int page, {
+    CancelToken? cancelToken,
+  }) async {
     _requireLogin();
     final path = page > 1 ? '/my/playlists/$page/' : '/my/playlists/';
     try {
-      return SiteParser.playlists(await _get(path));
+      return SiteParser.playlists(await _get(path, cancelToken: cancelToken));
     } on HttpStatusException catch (error) {
       if (page > 1 && error.statusCode == 404) {
         return const [];
@@ -685,6 +798,17 @@ class Rule34VideoApi {
   }
 
   Future<List<SubscriptionItem>> loadSubscriptions({bool force = false}) async {
+    return _loadSubscriptions(force: force);
+  }
+
+  Future<void> prefetchSubscriptions({required CancelToken cancelToken}) async {
+    await _loadSubscriptions(cancelToken: cancelToken);
+  }
+
+  Future<List<SubscriptionItem>> _loadSubscriptions({
+    bool force = false,
+    CancelToken? cancelToken,
+  }) async {
     _requireLogin();
     final userId = sessionStore.currentUserId!;
     if (!force &&
@@ -695,28 +819,53 @@ class Rule34VideoApi {
     if (force || _subscriptionCacheUserId != userId) {
       _resetSubscriptionCache();
     }
-    final result = <String, SubscriptionItem>{};
-    for (var page = 1; page <= 50; page += 1) {
-      final items = await loadSubscriptionsPage(page);
-      if (items.isEmpty) {
-        break;
-      }
-      final before = result.length;
-      for (final item in items) {
-        result[item.path] = item;
-      }
-      if (result.length == before) {
-        break;
-      }
+    if (!force && _subscriptionRequest != null) {
+      return _subscriptionRequest!;
     }
-    _subscriptionCache = result.values.toList(growable: false);
-    _subscriptionCacheUserId = userId;
-    return _subscriptionCache!;
+    late final Future<List<SubscriptionItem>> request;
+    request =
+        () async {
+          final result = <String, SubscriptionItem>{};
+          for (var page = 1; page <= 50; page += 1) {
+            _throwIfCancelled(cancelToken);
+            final items = await _loadSubscriptionsPage(
+              page,
+              cancelToken: cancelToken,
+            );
+            if (items.isEmpty) {
+              break;
+            }
+            for (final item in items) {
+              result[item.path] = item;
+            }
+          }
+          final value = result.values.toList(growable: false);
+          if (sessionStore.currentUserId == userId &&
+              identical(_subscriptionRequest, request)) {
+            _subscriptionCache = value;
+            _subscriptionCacheUserId = userId;
+          }
+          return value;
+        }().whenComplete(() {
+          if (identical(_subscriptionRequest, request)) {
+            _subscriptionRequest = null;
+          }
+        });
+    _subscriptionRequest = request;
+    return request;
   }
 
   Future<List<SubscriptionItem>> loadSubscriptionsPage(
     int page, {
     bool force = false,
+  }) async {
+    return _loadSubscriptionsPage(page, force: force);
+  }
+
+  Future<List<SubscriptionItem>> _loadSubscriptionsPage(
+    int page, {
+    bool force = false,
+    CancelToken? cancelToken,
   }) async {
     _requireLogin();
     final userId = sessionStore.currentUserId!;
@@ -737,9 +886,22 @@ class Rule34VideoApi {
     if (cached != null) {
       return cached;
     }
-    final path = page > 1 ? '/my/subscriptions/$page/' : '/my/subscriptions/';
+    // 网站的订阅列表并不是普通的 /2/ 路径分页；第二页起必须请求
+    // KVS 异步区块，否则会拿到空页面并错误地认为已经到底。
+    final path = '/my/subscriptions/';
+    final query = page > 1
+        ? <String, String>{
+            'mode': 'async',
+            'function': 'get_block',
+            'block_id': 'list_members_subscriptions_my_subscriptions',
+            'sort_by': 'added_date',
+            'from_my_subscriptions': '$page',
+          }
+        : null;
     try {
-      final result = SiteParser.subscriptions(await _get(path));
+      final result = SiteParser.subscriptions(
+        await _get(path, query: query, cancelToken: cancelToken),
+      );
       _subscriptionPageCache[page] = result;
       return result;
     } on HttpStatusException catch (error) {
@@ -826,6 +988,7 @@ class Rule34VideoApi {
     );
     _syncFavoriteCache();
     _favoriteStatusByVideoId[video.id] = add;
+    _clearVideoPageCache('favorites');
     _videoDetailsCache.removeWhere((key, _) => key.endsWith(':${video.id}'));
   }
 
@@ -932,8 +1095,9 @@ class Rule34VideoApi {
   Future<List<VideoItem>> _videoList(
     String path, {
     Map<String, String>? query,
+    CancelToken? cancelToken,
   }) async {
-    final body = await _get(path, query: query);
+    final body = await _get(path, query: query, cancelToken: cancelToken);
     return SiteParser.videoList(body);
   }
 
@@ -941,9 +1105,10 @@ class Rule34VideoApi {
     String path, {
     required int page,
     Map<String, String>? query,
+    CancelToken? cancelToken,
   }) async {
     try {
-      return await _videoList(path, query: query);
+      return await _videoList(path, query: query, cancelToken: cancelToken);
     } on HttpStatusException catch (error) {
       if (page > 1 && error.statusCode == 404) {
         return const [];
@@ -956,31 +1121,54 @@ class Rule34VideoApi {
     String path, {
     Map<String, String>? query,
     bool retryExpiredSession = true,
+    CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _dio.get<String>(path, queryParameters: query);
-      return _readResponse(await _followRedirects(response));
+      _throwIfCancelled(cancelToken);
+      final response = await _dio.get<String>(
+        path,
+        queryParameters: query,
+        cancelToken: cancelToken,
+      );
+      return _readResponse(
+        await _followRedirects(response, cancelToken: cancelToken),
+      );
     } on SessionExpiredException {
       if (retryExpiredSession && await _tryRestoreWithCredentials()) {
-        return _get(path, query: query, retryExpiredSession: false);
+        return _get(
+          path,
+          query: query,
+          retryExpiredSession: false,
+          cancelToken: cancelToken,
+        );
       }
       await _clearExpiredSession();
       rethrow;
     } on DioException catch (error) {
+      if (CancelToken.isCancel(error)) {
+        throw const RequestCancelledException();
+      }
       throw ApiException(_networkMessage(error));
     }
   }
 
-  Future<String> _getPublic(String path, {Map<String, String>? query}) async {
+  Future<String> _getPublic(
+    String path, {
+    Map<String, String>? query,
+    CancelToken? cancelToken,
+  }) async {
     try {
+      _throwIfCancelled(cancelToken);
       final response = await _publicDio.get<String>(
         path,
         queryParameters: query,
+        cancelToken: cancelToken,
       );
       final resolved = await _followRedirects(
         response,
         client: _publicDio,
         detectSessionExpiry: false,
+        cancelToken: cancelToken,
       );
       final status = resolved.statusCode ?? 0;
       if (status < 200 || status >= 300) {
@@ -988,7 +1176,65 @@ class Rule34VideoApi {
       }
       return resolved.data ?? '';
     } on DioException catch (error) {
+      if (CancelToken.isCancel(error)) {
+        throw const RequestCancelledException();
+      }
       throw ApiException(_networkMessage(error));
+    }
+  }
+
+  Future<List<VideoItem>> _cachedVideoPage({
+    required String key,
+    required bool force,
+    required Future<List<VideoItem>> Function() loader,
+  }) {
+    if (force) {
+      _videoPageCache.remove(key);
+      _videoPageRequests.remove(key);
+    } else {
+      final cached = _videoPageCache[key];
+      if (cached != null &&
+          DateTime.now().difference(cached.createdAt) < _videoPageCacheTtl) {
+        return Future.value(cached.items);
+      }
+      final pending = _videoPageRequests[key];
+      if (pending != null) {
+        return pending;
+      }
+    }
+    late final Future<List<VideoItem>> request;
+    request = loader()
+        .then((items) {
+          if (identical(_videoPageRequests[key], request)) {
+            _videoPageCache[key] = _VideoPageCacheEntry(
+              items: items,
+              createdAt: DateTime.now(),
+            );
+          }
+          return items;
+        })
+        .whenComplete(() {
+          if (identical(_videoPageRequests[key], request)) {
+            _videoPageRequests.remove(key);
+          }
+        });
+    _videoPageRequests[key] = request;
+    return request;
+  }
+
+  String _videoPageCacheKey(String scope, int page) {
+    return '${sessionStore.currentUserId ?? 'public'}:$scope:$page';
+  }
+
+  void _clearVideoPageCache(String scope) {
+    final marker = ':$scope:';
+    _videoPageCache.removeWhere((key, _) => key.contains(marker));
+    _videoPageRequests.removeWhere((key, _) => key.contains(marker));
+  }
+
+  void _throwIfCancelled(CancelToken? cancelToken) {
+    if (cancelToken?.isCancelled == true) {
+      throw const RequestCancelledException();
     }
   }
 
@@ -1120,6 +1366,7 @@ class Rule34VideoApi {
     Response<String> response, {
     Dio? client,
     bool detectSessionExpiry = true,
+    CancelToken? cancelToken,
   }) async {
     var current = response;
     final requestClient = client ?? _dio;
@@ -1141,6 +1388,7 @@ class Rule34VideoApi {
       current = await requestClient.getUri<String>(
         nextUri,
         options: Options(followRedirects: false),
+        cancelToken: cancelToken,
       );
     }
     throw const ApiException('服务器重定向次数过多。');
@@ -1224,11 +1472,13 @@ class Rule34VideoApi {
     _subscriptionCacheUserId = null;
     _subscriptionPageCache.clear();
     _subscriptionResolutionRequests.clear();
+    _subscriptionRequest = null;
   }
 
   void _clearPlaylistCache() {
     _playlistCache = null;
     _playlistCacheUserId = null;
+    _playlistRequest = null;
   }
 
   void _syncCurrentUserProfileCache(String userId) {
@@ -1258,7 +1508,7 @@ class Rule34VideoApi {
       responseType: ResponseType.plain,
       followRedirects: false,
       headers: const {
-        'User-Agent': 'Flule34 Android/1.3.0',
+        'User-Agent': 'Flule34 Android/1.3.1',
         'Accept':
             'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       },
@@ -1323,5 +1573,12 @@ final class _VideoDetailsCacheEntry {
   });
 
   final VideoDetails details;
+  final DateTime createdAt;
+}
+
+final class _VideoPageCacheEntry {
+  const _VideoPageCacheEntry({required this.items, required this.createdAt});
+
+  final List<VideoItem> items;
   final DateTime createdAt;
 }

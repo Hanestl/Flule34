@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class AppShell extends StatelessWidget {
+import '../../app/providers.dart';
+
+class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -27,6 +30,7 @@ class AppShell extends StatelessWidget {
         bottomNavigationBar: NavigationBar(
           selectedIndex: navigationShell.currentIndex,
           onDestinationSelected: (index) {
+            ref.read(predictivePrefetchServiceProvider).prioritizeForeground();
             navigationShell.goBranch(
               index,
               initialLocation: index == navigationShell.currentIndex,

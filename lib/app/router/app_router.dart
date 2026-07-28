@@ -77,6 +77,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   localLibraryRepository: ref.read(
                     localLibraryRepositoryProvider,
                   ),
+                  prefetchService: ref.read(predictivePrefetchServiceProvider),
                 ),
                 routes: [
                   GoRoute(
@@ -176,8 +177,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: '/search',
         name: AppRouteNames.search,
-        builder: (context, state) =>
-            SearchPage(api: api, historyRepository: searchHistoryRepository),
+        builder: (context, state) => SearchPage(
+          api: api,
+          historyRepository: searchHistoryRepository,
+          prefetchService: ref.read(predictivePrefetchServiceProvider),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,

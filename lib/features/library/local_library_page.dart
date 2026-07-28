@@ -9,15 +9,40 @@ import '../../shared/video_list_filters.dart';
 import 'data/local_library_repository.dart';
 import 'local_library_name_dialog.dart';
 
-class LocalLibraryOverview extends StatelessWidget {
+enum LocalLibraryOverviewSort {
+  modified('最近修改'),
+  created('最新创建'),
+  name('按名字');
+
+  const LocalLibraryOverviewSort(this.label);
+
+  final String label;
+}
+
+class LocalLibraryOverview extends StatefulWidget {
   const LocalLibraryOverview({super.key, required this.repository});
 
   final LocalLibraryRepository repository;
 
   @override
+  State<LocalLibraryOverview> createState() => _LocalLibraryOverviewState();
+}
+
+class _LocalLibraryOverviewState extends State<LocalLibraryOverview> {
+  final TextEditingController _searchController = TextEditingController();
+  var _query = '';
+  var _sort = LocalLibraryOverviewSort.modified;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<LocalLibrarySummary>>(
-      stream: repository.watchLibrarySummaries(),
+      stream: widget.repository.watchLibrarySummaries(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text(snapshot.error.toString()));
@@ -25,65 +50,148 @@ class LocalLibraryOverview extends StatelessWidget {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final libraries = snapshot.requireData;
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-          children: [
-            FilledButton.tonalIcon(
-              onPressed: () => _create(context),
-              icon: const Icon(Icons.create_new_folder_outlined),
-              label: const Text('新建本地库'),
-            ),
-            const SizedBox(height: 12),
-            if (libraries.isEmpty)
-              const _EmptyLibraries()
-            else
-              for (final summary in libraries)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    leading: const Icon(Icons.video_library_outlined),
-                    title: Text(summary.library.name),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${summary.videoCount}',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        PopupMenuButton<_LibraryAction>(
-                          onSelected: (action) {
-                            switch (action) {
-                              case _LibraryAction.rename:
-                                _rename(context, summary.library);
-                              case _LibraryAction.delete:
-                                _delete(context, summary.library);
-                            }
-                          },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(
-                              value: _LibraryAction.rename,
-                              child: Text('重命名'),
-                            ),
-                            PopupMenuItem(
-                              value: _LibraryAction.delete,
-                              child: Text('删除'),
-                            ),
-                          ],
-                        ),
+        final libraries = _visibleLibraries(snapshot.requireData);
+        return Material(
+          type: MaterialType.transparency,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () => _create(context),
+                icon: const Icon(Icons.create_new_folder_outlined),
+                label: const Text('新建本地库'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SearchBar(
+                      controller: _searchController,
+                      leading: const Icon(Icons.search),
+                      hintText: '搜索本地库',
+                      trailing: [
+                        if (_query.isNotEmpty)
+                          IconButton(
+                            tooltip: '清除',
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
                       ],
-                    ),
-                    onTap: () => context.pushNamed(
-                      AppRouteNames.localLibrary,
-                      pathParameters: {'id': '${summary.library.id}'},
-                      extra: summary.library,
+                      onChanged: (value) =>
+                          setState(() => _query = value.trim()),
                     ),
                   ),
-                ),
-          ],
+                  const SizedBox(width: 8),
+                  PopupMenuButton<LocalLibraryOverviewSort>(
+                    tooltip: '排序',
+                    initialValue: _sort,
+                    onSelected: (value) => setState(() => _sort = value),
+                    itemBuilder: (context) => LocalLibraryOverviewSort.values
+                        .map(
+                          (item) => PopupMenuItem(
+                            value: item,
+                            child: Text(item.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                    child: const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Icon(Icons.sort),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (libraries.isEmpty)
+                _query.isEmpty
+                    ? const _EmptyLibraries()
+                    : const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 48),
+                        child: Center(child: Text('没有符合条件的本地库。')),
+                      )
+              else
+                for (final summary in libraries)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: const Icon(Icons.video_library_outlined),
+                      title: Text(summary.library.name),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${summary.videoCount}',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          PopupMenuButton<_LibraryAction>(
+                            onSelected: (action) {
+                              switch (action) {
+                                case _LibraryAction.rename:
+                                  _rename(context, summary.library);
+                                case _LibraryAction.delete:
+                                  _delete(context, summary.library);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: _LibraryAction.rename,
+                                child: Text('重命名'),
+                              ),
+                              PopupMenuItem(
+                                value: _LibraryAction.delete,
+                                child: Text('删除'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      onTap: () => context.pushNamed(
+                        AppRouteNames.localLibrary,
+                        pathParameters: {'id': '${summary.library.id}'},
+                        extra: summary.library,
+                      ),
+                    ),
+                  ),
+            ],
+          ),
         );
       },
     );
+  }
+
+  List<LocalLibrarySummary> _visibleLibraries(
+    List<LocalLibrarySummary> source,
+  ) {
+    final normalized = _query.trim().toLowerCase();
+    final result = source
+        .where(
+          (item) =>
+              normalized.isEmpty ||
+              item.library.name.toLowerCase().contains(normalized),
+        )
+        .toList(growable: true);
+    switch (_sort) {
+      case LocalLibraryOverviewSort.modified:
+        result.sort(
+          (left, right) =>
+              right.library.updatedAt.compareTo(left.library.updatedAt),
+        );
+      case LocalLibraryOverviewSort.created:
+        result.sort(
+          (left, right) =>
+              right.library.createdAt.compareTo(left.library.createdAt),
+        );
+      case LocalLibraryOverviewSort.name:
+        result.sort(
+          (left, right) => left.library.name.toLowerCase().compareTo(
+            right.library.name.toLowerCase(),
+          ),
+        );
+    }
+    return result;
   }
 
   Future<void> _create(BuildContext context) async {
@@ -92,7 +200,7 @@ class LocalLibraryOverview extends StatelessWidget {
       return;
     }
     try {
-      await repository.createLibrary(name);
+      await widget.repository.createLibrary(name);
     } catch (error) {
       if (context.mounted) {
         _message(context, error.toString());
@@ -110,7 +218,7 @@ class LocalLibraryOverview extends StatelessWidget {
       return;
     }
     try {
-      await repository.renameLibrary(library.id, name);
+      await widget.repository.renameLibrary(library.id, name);
     } catch (error) {
       if (context.mounted) {
         _message(context, error.toString());
@@ -137,7 +245,7 @@ class LocalLibraryOverview extends StatelessWidget {
       ),
     );
     if (confirmed == true) {
-      await repository.deleteLibrary(library.id);
+      await widget.repository.deleteLibrary(library.id);
     }
   }
 }

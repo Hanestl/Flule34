@@ -27,12 +27,39 @@ void main() {
     expect(videoCacheKey('456', _source), 'flule34_456_720p');
     expect(
       playlistVideoPreCacheSizeForNetwork(NetworkClass.wifi),
-      64 * 1024 * 1024,
+      96 * 1024 * 1024,
     );
     expect(
       playlistVideoPreCacheSizeForNetwork(NetworkClass.mobile),
-      24 * 1024 * 1024,
+      32 * 1024 * 1024,
     );
+  });
+
+  test('播放器滑动手势先锁定轴向，再计算进度和音量目标', () {
+    expect(playerGestureAxisForDelta(const Offset(6, 6)), isNull);
+    expect(
+      playerGestureAxisForDelta(const Offset(30, 8)),
+      PlayerGestureAxis.horizontal,
+    );
+    expect(
+      playerGestureAxisForDelta(const Offset(8, -30)),
+      PlayerGestureAxis.vertical,
+    );
+    expect(
+      playerGestureTargetPosition(
+        initial: const Duration(minutes: 3),
+        duration: const Duration(minutes: 30),
+        deltaX: 50,
+        width: 100,
+      ),
+      const Duration(minutes: 8),
+    );
+    expect(
+      playerGestureTargetVolume(initial: 0.4, deltaY: -50, height: 100),
+      0.9,
+    );
+    expect(playerProgressStrokeWidth(false), 3);
+    expect(playerProgressStrokeWidth(true), 5);
   });
 
   test('竖屏保持当前方向时使用真实屏幕比例', () {
@@ -125,6 +152,22 @@ void main() {
         null,
       ),
     );
+    const volumeChannel = MethodChannel('com.hanestl.flule34/media_volume');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      volumeChannel,
+      (call) async {
+        if (call.method == 'current') {
+          return 0.5;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        volumeChannel,
+        null,
+      ),
+    );
     final originalPlatform = VideoPlayerPlatform.instance;
     final platform = _FakeVideoPlayerPlatform();
     VideoPlayerPlatform.instance = platform;
@@ -183,6 +226,13 @@ void main() {
     for (var attempt = 0; attempt < 10 && platform.playCount == 0; attempt++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
+    final gestureArea = find.byKey(const ValueKey('video-controls-tap-area'));
+    final detector = tester.widget<GestureDetector>(gestureArea);
+    expect(detector.onPanStart, isNotNull);
+    expect(detector.onPanUpdate, isNotNull);
+    expect(detector.onPanEnd, isNotNull);
+    expect(detector.onDoubleTap, isNotNull);
+
     final stateBeforeSwitch = tester.state(find.byType(VideoPlayerPage));
     await tester.pumpWidget(
       UncontrolledProviderScope(

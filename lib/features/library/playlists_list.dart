@@ -6,10 +6,21 @@ import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import 'playlist_form_dialog.dart';
 
+enum PlaylistOverviewSort {
+  source('最新创建'),
+  name('按名字'),
+  videoCount('视频数量');
+
+  const PlaylistOverviewSort(this.label);
+
+  final String label;
+}
+
 class PlaylistsList extends StatefulWidget {
-  const PlaylistsList({super.key, required this.api});
+  const PlaylistsList({super.key, required this.api, this.active = true});
 
   final Rule34VideoApi api;
+  final bool active;
 
   @override
   State<PlaylistsList> createState() => _PlaylistsListState();
@@ -17,19 +28,80 @@ class PlaylistsList extends StatefulWidget {
 
 class _PlaylistsListState extends State<PlaylistsList>
     with AutomaticKeepAliveClientMixin {
-  late Future<List<PlaylistItem>> _future;
+  final TextEditingController _searchController = TextEditingController();
+  Future<List<PlaylistItem>>? _future;
   var _mutating = false;
+  var _query = '';
+  var _sort = PlaylistOverviewSort.source;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.api.loadMyPlaylists();
+    if (widget.active) {
+      _future = widget.api.loadMyPlaylists();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PlaylistsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active && _future == null) {
+      setState(() => _future = widget.api.loadMyPlaylists());
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _reload() async {
     final future = widget.api.loadMyPlaylists(force: true);
     setState(() => _future = future);
     await future;
+  }
+
+  List<PlaylistItem> _visiblePlaylists(List<PlaylistItem> source) {
+    final normalized = _query.trim().toLowerCase();
+    final sourceIndex = <String, int>{
+      for (var index = 0; index < source.length; index += 1)
+        source[index].id: index,
+    };
+    final result = source
+        .where(
+          (item) =>
+              normalized.isEmpty ||
+              item.title.toLowerCase().contains(normalized),
+        )
+        .toList(growable: true);
+    switch (_sort) {
+      case PlaylistOverviewSort.source:
+        break;
+      case PlaylistOverviewSort.name:
+        result.sort((left, right) {
+          final compared = left.title.toLowerCase().compareTo(
+            right.title.toLowerCase(),
+          );
+          return compared == 0
+              ? (sourceIndex[left.id] ?? 0).compareTo(
+                  sourceIndex[right.id] ?? 0,
+                )
+              : compared;
+        });
+      case PlaylistOverviewSort.videoCount:
+        result.sort((left, right) {
+          final compared = (right.videoCount ?? -1).compareTo(
+            left.videoCount ?? -1,
+          );
+          return compared == 0
+              ? (sourceIndex[left.id] ?? 0).compareTo(
+                  sourceIndex[right.id] ?? 0,
+                )
+              : compared;
+        });
+    }
+    return result;
   }
 
   @override
@@ -52,6 +124,9 @@ class _PlaylistsListState extends State<PlaylistsList>
           child: FutureBuilder<List<PlaylistItem>>(
             future: _future,
             builder: (context, snapshot) {
+              if (_future == null) {
+                return const SizedBox.shrink();
+              }
               if (snapshot.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
               }
@@ -65,58 +140,115 @@ class _PlaylistsListState extends State<PlaylistsList>
               if (playlists.isEmpty) {
                 return const Center(child: Text('账号中还没有播放列表。'));
               }
-              return RefreshIndicator(
-                onRefresh: _reload,
-                child: ListView.builder(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
-                  itemCount: playlists.length,
-                  itemBuilder: (context, index) {
-                    final playlist = playlists[index];
-                    return Card(
-                      child: ListTile(
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.playlist_play),
+              final visible = _visiblePlaylists(playlists);
+              return Material(
+                type: MaterialType.transparency,
+                child: RefreshIndicator(
+                  onRefresh: _reload,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
+                    itemCount: visible.isEmpty ? 2 : visible.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return _toolbar(context);
+                      }
+                      if (visible.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 44),
+                          child: Center(child: Text('没有符合条件的播放列表。')),
+                        );
+                      }
+                      final playlist = visible[index - 1];
+                      return Card(
+                        child: ListTile(
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.playlist_play),
+                          ),
+                          title: Text(playlist.title),
+                          subtitle: playlist.videoCount == null
+                              ? null
+                              : Text('${playlist.videoCount} 个视频'),
+                          trailing: PopupMenuButton<_PlaylistAction>(
+                            enabled: !_mutating,
+                            onSelected: (action) {
+                              switch (action) {
+                                case _PlaylistAction.edit:
+                                  _editPlaylist(playlist);
+                                case _PlaylistAction.delete:
+                                  _deletePlaylist(playlist);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: _PlaylistAction.edit,
+                                child: Text('编辑'),
+                              ),
+                              PopupMenuItem(
+                                value: _PlaylistAction.delete,
+                                child: Text('删除'),
+                              ),
+                            ],
+                          ),
+                          onTap: () => context.pushNamed(
+                            AppRouteNames.playlist,
+                            pathParameters: {'id': playlist.id},
+                            extra: playlist,
+                          ),
                         ),
-                        title: Text(playlist.title),
-                        subtitle: playlist.videoCount == null
-                            ? null
-                            : Text('${playlist.videoCount} 个视频'),
-                        trailing: PopupMenuButton<_PlaylistAction>(
-                          enabled: !_mutating,
-                          onSelected: (action) {
-                            switch (action) {
-                              case _PlaylistAction.edit:
-                                _editPlaylist(playlist);
-                              case _PlaylistAction.delete:
-                                _deletePlaylist(playlist);
-                            }
-                          },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(
-                              value: _PlaylistAction.edit,
-                              child: Text('编辑'),
-                            ),
-                            PopupMenuItem(
-                              value: _PlaylistAction.delete,
-                              child: Text('删除'),
-                            ),
-                          ],
-                        ),
-                        onTap: () => context.pushNamed(
-                          AppRouteNames.playlist,
-                          pathParameters: {'id': playlist.id},
-                          extra: playlist,
-                        ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _toolbar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: SearchBar(
+              controller: _searchController,
+              leading: const Icon(Icons.search),
+              hintText: '搜索播放列表',
+              trailing: [
+                if (_query.isNotEmpty)
+                  IconButton(
+                    tooltip: '清除',
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _query = '');
+                    },
+                    icon: const Icon(Icons.close),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _query = value.trim()),
+            ),
+          ),
+          const SizedBox(width: 8),
+          PopupMenuButton<PlaylistOverviewSort>(
+            tooltip: '排序',
+            initialValue: _sort,
+            onSelected: (value) => setState(() => _sort = value),
+            itemBuilder: (context) => PlaylistOverviewSort.values
+                .map(
+                  (item) => PopupMenuItem(value: item, child: Text(item.label)),
+                )
+                .toList(growable: false),
+            child: const Padding(
+              padding: EdgeInsets.all(10),
+              child: Icon(Icons.sort),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

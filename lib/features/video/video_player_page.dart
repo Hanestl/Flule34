@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import '../../core/logging/app_log_service.dart';
 import '../../core/models/video_models.dart';
 import '../../core/security/error_redaction.dart';
 import '../../core/services/network_status_service.dart';
+import '../../core/services/media_volume_service.dart';
 import '../../core/services/screen_wake_lock_service.dart';
 import '../playback/data/playback_repository.dart';
 import '../settings/domain/app_settings.dart';
@@ -28,9 +30,9 @@ int videoPreCacheSizeForNetwork(NetworkClass network) {
 
 int playlistVideoPreCacheSizeForNetwork(NetworkClass network) {
   return switch (network) {
-    NetworkClass.wifi => 64 * 1024 * 1024,
-    NetworkClass.mobile => 24 * 1024 * 1024,
-    NetworkClass.other => 40 * 1024 * 1024,
+    NetworkClass.wifi => 96 * 1024 * 1024,
+    NetworkClass.mobile => 32 * 1024 * 1024,
+    NetworkClass.other => 64 * 1024 * 1024,
     NetworkClass.offline => 0,
   };
 }
@@ -77,6 +79,53 @@ bool videoControlsUseFullscreenLayoutAfterEvent(
 bool videoControlsAnimateOpacityAfterEvent(BetterPlayerEventType event) {
   return event != BetterPlayerEventType.openFullscreen;
 }
+
+enum PlayerGestureAxis { horizontal, vertical }
+
+PlayerGestureAxis? playerGestureAxisForDelta(
+  Offset delta, {
+  double threshold = 14,
+}) {
+  if (delta.distance < threshold) {
+    return null;
+  }
+  return delta.dx.abs() >= delta.dy.abs()
+      ? PlayerGestureAxis.horizontal
+      : PlayerGestureAxis.vertical;
+}
+
+Duration playerGestureTargetPosition({
+  required Duration initial,
+  required Duration duration,
+  required double deltaX,
+  required double width,
+}) {
+  if (width <= 0 || duration <= Duration.zero) {
+    return initial;
+  }
+  final span = duration < const Duration(minutes: 10)
+      ? duration
+      : const Duration(minutes: 10);
+  return Duration(
+    milliseconds:
+        (initial.inMilliseconds + deltaX / width * span.inMilliseconds)
+            .round()
+            .clamp(0, duration.inMilliseconds),
+  );
+}
+
+double playerGestureTargetVolume({
+  required double initial,
+  required double deltaY,
+  required double height,
+}) {
+  if (height <= 0) {
+    return initial.clamp(0.0, 1.0).toDouble();
+  }
+  return (initial - deltaY / height).clamp(0.0, 1.0).toDouble();
+}
+
+double playerProgressStrokeWidth(bool active) => active ? 5 : 3;
 
 class VideoPlayerHandle {
   bool get isFullScreen => _isFullScreen?.call() ?? false;
@@ -159,7 +208,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
   static const _mediaHeaders = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.3.0',
+    'User-Agent': 'Flule34 Android/1.3.1',
   };
 
   BetterPlayerController? _controller;
@@ -176,6 +225,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _operation = 0;
   var _lastSavedSecond = -1;
   var _lastKnownPlaying = false;
+  var _historyCacheInvalidated = false;
   var _wakeLockEnabled = false;
   var _playbackSpeed = 1.0;
   var _hasPreparedSource = false;
@@ -251,6 +301,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       _error = null;
       _finishedNotified = false;
       _lastSavedSecond = -1;
+      _historyCacheInvalidated = false;
       _startupLogged = false;
       _playbackStarted = false;
       _bufferingCount = 0;
@@ -455,6 +506,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
               selectedSource: _selectedSource,
               onSourceChanged: _changeSource,
               onVisibilityChanged: onVisibilityChanged,
+              mediaVolume: ref.read(mediaVolumeServiceProvider),
             );
           },
         ),
@@ -801,6 +853,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       return;
     }
     _lastKnownPlaying = value.isPlaying;
+    if (value.isPlaying && !_historyCacheInvalidated) {
+      _historyCacheInvalidated = true;
+      widget.api.invalidateHistoryCache();
+    }
     final keepAwake =
         ref.read(appSettingsRepositoryProvider).settings.keepScreenAwake &&
         value.isPlaying;
@@ -1000,6 +1056,7 @@ class _FluleVideoControls extends StatefulWidget {
     required this.selectedSource,
     required this.onSourceChanged,
     required this.onVisibilityChanged,
+    required this.mediaVolume,
   });
 
   final BetterPlayerController controller;
@@ -1008,6 +1065,7 @@ class _FluleVideoControls extends StatefulWidget {
   final VideoSource selectedSource;
   final ValueChanged<VideoSource> onSourceChanged;
   final ValueChanged<bool> onVisibilityChanged;
+  final MediaVolumeService mediaVolume;
 
   @override
   State<_FluleVideoControls> createState() => _FluleVideoControlsState();
@@ -1017,11 +1075,21 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   static const _speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
   ValueNotifier<VideoPlayerValue>? _videoController;
   Timer? _hideTimer;
+  Timer? _lockTimer;
+  Timer? _gestureFeedbackTimer;
   late bool _visible;
   late bool _useFullscreenLayout;
   var _animateOpacity = true;
   Duration? _dragPosition;
   List<({Duration start, Duration end})> _stableBuffered = const [];
+  var _locked = false;
+  var _lockVisible = false;
+  Offset? _panStart;
+  Duration? _panPosition;
+  double _panVolume = 1;
+  PlayerGestureAxis? _gestureAxis;
+  Duration? _gestureTargetPosition;
+  String? _gestureFeedback;
 
   @override
   void initState() {
@@ -1030,6 +1098,13 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     _useFullscreenLayout = widget.controller.isFullScreen;
     widget.controller.addEventsListener(_onPlayerEvent);
     _bindVideoController();
+    unawaited(
+      widget.mediaVolume.current().then((volume) {
+        if (volume != null) {
+          _panVolume = volume;
+        }
+      }),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -1058,6 +1133,8 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _lockTimer?.cancel();
+    _gestureFeedbackTimer?.cancel();
     widget.controller.removeEventsListener(_onPlayerEvent);
     _videoController?.removeListener(_onValueChanged);
     super.dispose();
@@ -1092,6 +1169,8 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
       case BetterPlayerEventType.hideFullscreen:
         _bindVideoController();
         setState(() {
+          _locked = false;
+          _lockVisible = false;
           _visible = videoControlsVisibleAfterFullscreenEvent(
             event.betterPlayerEventType,
             _visible,
@@ -1104,6 +1183,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
             event.betterPlayerEventType,
           );
         });
+        _lockTimer?.cancel();
         widget.onVisibilityChanged(true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -1167,7 +1247,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
 
   void _scheduleHide() {
     _hideTimer?.cancel();
-    if (_videoController?.value.isPlaying != true) {
+    if (_locked || _videoController?.value.isPlaying != true) {
       return;
     }
     _hideTimer = Timer(const Duration(seconds: 3), () {
@@ -1189,71 +1269,250 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     }
   }
 
-  Future<void> _seekRelative(Duration delta) async {
-    final value = _videoController?.value;
-    final duration = value?.duration;
-    if (value == null || duration == null) {
+  void _showGestureFeedback(String value) {
+    _gestureFeedbackTimer?.cancel();
+    setState(() => _gestureFeedback = value);
+    _gestureFeedbackTimer = Timer(const Duration(milliseconds: 650), () {
+      if (mounted) {
+        setState(() => _gestureFeedback = null);
+      }
+    });
+  }
+
+  Future<void> _togglePlaybackFromGesture() async {
+    if (_videoController?.value.isPlaying == true) {
+      await widget.controller.pause();
+      _hideTimer?.cancel();
+    } else {
+      await widget.controller.play();
+    }
+    _hideTimer?.cancel();
+    if (_visible) {
+      setState(() => _visible = false);
+      widget.onVisibilityChanged(false);
+    }
+    _showGestureFeedback(
+      _videoController?.value.isPlaying == true ? '播放' : '暂停',
+    );
+  }
+
+  void _showLockButton() {
+    if (!_locked) {
       return;
     }
-    final target = Duration(
-      milliseconds: (value.position + delta).inMilliseconds.clamp(
-        0,
-        duration.inMilliseconds,
-      ),
+    _lockTimer?.cancel();
+    setState(() => _lockVisible = true);
+    _lockTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && _locked) {
+        setState(() => _lockVisible = false);
+      }
+    });
+  }
+
+  void _toggleLock() {
+    _hideTimer?.cancel();
+    _lockTimer?.cancel();
+    if (_locked) {
+      setState(() {
+        _locked = false;
+        _lockVisible = false;
+      });
+      _showControls();
+      return;
+    }
+    setState(() {
+      _locked = true;
+      _lockVisible = true;
+      _visible = false;
+    });
+    widget.onVisibilityChanged(false);
+    _showLockButton();
+  }
+
+  void _onPanStart(DragStartDetails details) {
+    if (_locked) {
+      return;
+    }
+    final value = _videoController?.value;
+    if (value?.duration == null) {
+      return;
+    }
+    _hideTimer?.cancel();
+    setState(() {
+      _panStart = details.localPosition;
+      _panPosition = value!.position;
+      _gestureTargetPosition = null;
+      _gestureAxis = null;
+    });
+    unawaited(
+      widget.mediaVolume.current().then((volume) {
+        if (mounted && _panStart != null && volume != null) {
+          _panVolume = volume;
+        }
+      }),
     );
+  }
+
+  void _onPanUpdate(DragUpdateDetails details) {
+    final start = _panStart;
+    final value = _videoController?.value;
+    final duration = value?.duration;
+    if (start == null || value == null || duration == null || _locked) {
+      return;
+    }
+    final delta = details.localPosition - start;
+    final axis = _gestureAxis ?? playerGestureAxisForDelta(delta);
+    if (axis == null) {
+      return;
+    }
+    _gestureAxis = axis;
+    final size = context.size ?? MediaQuery.sizeOf(context);
+    if (axis == PlayerGestureAxis.horizontal) {
+      final target = playerGestureTargetPosition(
+        initial: _panPosition ?? value.position,
+        duration: duration,
+        deltaX: delta.dx,
+        width: size.width,
+      );
+      setState(() {
+        _gestureTargetPosition = target;
+        _dragPosition = target;
+        _gestureFeedback = '${_time(target)} / ${_time(duration)}';
+        _visible = true;
+      });
+      widget.onVisibilityChanged(true);
+      return;
+    }
+    final target = playerGestureTargetVolume(
+      initial: _panVolume,
+      deltaY: delta.dy,
+      height: size.height,
+    );
+    setState(() => _gestureFeedback = '音量 ${(target * 100).round()}%');
+    unawaited(widget.mediaVolume.setNormalized(target));
+  }
+
+  void _onPanEnd(DragEndDetails details) {
+    final target = _gestureTargetPosition;
+    final axis = _gestureAxis;
+    setState(() {
+      _panStart = null;
+      _panPosition = null;
+      _gestureTargetPosition = null;
+      _gestureAxis = null;
+      if (axis != PlayerGestureAxis.horizontal) {
+        _dragPosition = null;
+      }
+    });
+    if (axis == PlayerGestureAxis.horizontal && target != null) {
+      unawaited(_commitPanSeek(target));
+    }
+    if (_gestureFeedback != null) {
+      _showGestureFeedback(_gestureFeedback!);
+    }
+    if (!_locked) {
+      _scheduleHide();
+    }
+  }
+
+  Future<void> _commitPanSeek(Duration target) async {
     await widget.controller.seekTo(target);
-    _showControls();
+    if (mounted && _dragPosition == target) {
+      setState(() => _dragPosition = null);
+    }
+  }
+
+  void _onPanCancel() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _panStart = null;
+      _panPosition = null;
+      _gestureTargetPosition = null;
+      _gestureAxis = null;
+      _dragPosition = null;
+      _gestureFeedback = null;
+    });
+    _scheduleHide();
   }
 
   @override
   Widget build(BuildContext context) {
     final value = _videoController?.value;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        GestureDetector(
-          key: const ValueKey('video-controls-tap-area'),
-          behavior: HitTestBehavior.opaque,
-          onTap: _toggleControls,
-          onDoubleTapDown: (details) {
-            final width = MediaQuery.sizeOf(context).width;
-            unawaited(
-              _seekRelative(
-                details.localPosition.dx < width / 2
-                    ? const Duration(seconds: -10)
-                    : const Duration(seconds: 10),
-              ),
-            );
-          },
-          child: const SizedBox.expand(),
-        ),
-        IgnorePointer(
-          ignoring: !_visible,
-          child: AnimatedOpacity(
-            key: const ValueKey('video-controls-opacity'),
-            opacity: _visible ? 1 : 0,
-            duration: _animateOpacity
-                ? const Duration(milliseconds: 160)
-                : Duration.zero,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (_useFullscreenLayout)
+    return GestureDetector(
+      key: const ValueKey('video-controls-tap-area'),
+      behavior: HitTestBehavior.opaque,
+      dragStartBehavior: DragStartBehavior.down,
+      onTap: _locked ? _showLockButton : _toggleControls,
+      onDoubleTap: _locked
+          ? _showLockButton
+          : () => unawaited(_togglePlaybackFromGesture()),
+      onPanStart: _locked ? null : _onPanStart,
+      onPanUpdate: _locked ? null : _onPanUpdate,
+      onPanEnd: _locked ? null : _onPanEnd,
+      onPanCancel: _locked ? null : _onPanCancel,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          IgnorePointer(
+            ignoring: !_visible || _locked,
+            child: AnimatedOpacity(
+              key: const ValueKey('video-controls-opacity'),
+              opacity: _visible ? 1 : 0,
+              duration: _animateOpacity
+                  ? const Duration(milliseconds: 160)
+                  : Duration.zero,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_useFullscreenLayout)
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: _buildTopRow(context),
+                    ),
                   Align(
-                    alignment: Alignment.topCenter,
-                    child: _buildTopRow(context),
+                    alignment: Alignment.bottomCenter,
+                    child: value == null || !value.initialized
+                        ? const SizedBox.shrink()
+                        : _buildControlRow(context, value),
                   ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: value == null || !value.initialized
-                      ? const SizedBox.shrink()
-                      : _buildControlRow(context, value),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+          if (_useFullscreenLayout && (_visible || _lockVisible))
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SafeArea(
+                child: IconButton.filledTonal(
+                  tooltip: _locked ? '解锁控件' : '锁定控件',
+                  onPressed: _toggleLock,
+                  icon: Icon(_locked ? Icons.lock : Icons.lock_open),
+                ),
+              ),
+            ),
+          if (_gestureFeedback != null)
+            Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: Text(
+                    _gestureFeedback!,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1341,15 +1600,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
                     value: value,
                     dragPosition: _dragPosition,
                     buffered: _stableBuffered,
-                    onDragStart: (position) {
-                      _hideTimer?.cancel();
-                      setState(() => _dragPosition = position);
-                    },
-                    onDragUpdate: (position) {
-                      setState(() => _dragPosition = position);
-                    },
-                    onDragEnd: (position) async {
-                      setState(() => _dragPosition = null);
+                    onSeek: (position) async {
                       await widget.controller.seekTo(position);
                       _showControls();
                     },
@@ -1517,17 +1768,13 @@ class _VideoProgressBar extends StatelessWidget {
     required this.value,
     required this.dragPosition,
     required this.buffered,
-    required this.onDragStart,
-    required this.onDragUpdate,
-    required this.onDragEnd,
+    required this.onSeek,
   });
 
   final VideoPlayerValue value;
   final Duration? dragPosition;
   final List<({Duration start, Duration end})> buffered;
-  final ValueChanged<Duration> onDragStart;
-  final ValueChanged<Duration> onDragUpdate;
-  final ValueChanged<Duration> onDragEnd;
+  final ValueChanged<Duration> onSeek;
 
   Duration _positionFor(double dx, double width) {
     final duration = value.duration ?? Duration.zero;
@@ -1545,22 +1792,16 @@ class _VideoProgressBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) => GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown: (details) => onDragEnd(
+        onTapUp: (details) => onSeek(
           _positionFor(details.localPosition.dx, constraints.maxWidth),
         ),
-        onHorizontalDragStart: (details) => onDragStart(
-          _positionFor(details.localPosition.dx, constraints.maxWidth),
-        ),
-        onHorizontalDragUpdate: (details) => onDragUpdate(
-          _positionFor(details.localPosition.dx, constraints.maxWidth),
-        ),
-        onHorizontalDragEnd: (_) => onDragEnd(dragPosition ?? value.position),
         child: CustomPaint(
           painter: _ProgressPainter(
             duration: value.duration ?? Duration.zero,
             position: dragPosition ?? value.position,
             buffered: buffered,
             playedColor: Theme.of(context).colorScheme.primary,
+            active: dragPosition != null,
           ),
           child: const SizedBox(height: 28),
         ),
@@ -1600,27 +1841,30 @@ class _ProgressPainter extends CustomPainter {
     required this.position,
     required this.buffered,
     required this.playedColor,
+    required this.active,
   });
 
   final Duration duration;
   final Duration position;
   final List<({Duration start, Duration end})> buffered;
   final Color playedColor;
+  final bool active;
 
   @override
   void paint(Canvas canvas, Size size) {
     final centerY = size.height / 2;
+    final strokeWidth = playerProgressStrokeWidth(active);
     final background = Paint()
       ..color = Colors.white30
-      ..strokeWidth = 3
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
     final cached = Paint()
       ..color = Colors.white60
-      ..strokeWidth = 3
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
     final played = Paint()
       ..color = playedColor
-      ..strokeWidth = 3
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(
       Offset(0, centerY),
@@ -1641,7 +1885,11 @@ class _ProgressPainter extends CustomPainter {
           .clamp(0.0, 1.0);
       final x = size.width * fraction;
       canvas.drawLine(Offset(0, centerY), Offset(x, centerY), played);
-      canvas.drawCircle(Offset(x, centerY), 5, Paint()..color = playedColor);
+      canvas.drawCircle(
+        Offset(x, centerY),
+        active ? 6.5 : 5,
+        Paint()..color = playedColor,
+      );
     }
   }
 
@@ -1650,7 +1898,8 @@ class _ProgressPainter extends CustomPainter {
     return oldDelegate.duration != duration ||
         oldDelegate.position != position ||
         oldDelegate.buffered != buffered ||
-        oldDelegate.playedColor != playedColor;
+        oldDelegate.playedColor != playedColor ||
+        oldDelegate.active != active;
   }
 }
 

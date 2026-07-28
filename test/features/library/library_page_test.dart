@@ -7,6 +7,7 @@ import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/database/app_database.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
+import 'package:flule34/core/services/predictive_prefetch_service.dart';
 import 'package:flule34/features/library/library_page.dart';
 import 'package:flule34/features/library/data/local_library_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
@@ -20,6 +21,11 @@ void main() {
     await harness.sessionStore.load();
     await harness.sessionStore.authenticate('1001');
     final api = _LibraryApi(harness.sessionStore);
+    final prefetch = PredictivePrefetchService(
+      api: api,
+      sessionStore: harness.sessionStore,
+    );
+    addTearDown(prefetch.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -30,6 +36,7 @@ void main() {
           home: LibraryPage(
             api: api,
             localLibraryRepository: _FakeLocalLibraryRepository(),
+            prefetchService: prefetch,
           ),
         ),
       ),
@@ -45,6 +52,11 @@ void main() {
     expect(find.text('稍后观看'), findsNothing);
     expect(find.text('播放列表'), findsOneWidget);
     expect(find.text('媒体库'), findsNothing);
+    expect(api.favoriteLoads, 0);
+
+    await tester.tap(find.text('收藏'));
+    await tester.pumpAndSettle();
+    expect(api.favoriteLoads, 1);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -106,11 +118,17 @@ final class _MemorySettingsStore implements AppSettingsStore {
 final class _LibraryApi extends Rule34VideoApi {
   _LibraryApi(SessionStore sessionStore) : super(sessionStore: sessionStore);
 
-  @override
-  Future<List<VideoItem>> loadFavorites(int page) async => const [];
+  var favoriteLoads = 0;
 
   @override
-  Future<List<VideoItem>> loadHistory(int page) async => const [];
+  Future<List<VideoItem>> loadFavorites(int page, {bool force = false}) async {
+    favoriteLoads += 1;
+    return const [];
+  }
+
+  @override
+  Future<List<VideoItem>> loadHistory(int page, {bool force = false}) async =>
+      const [];
 
   @override
   Future<List<SubscriptionItem>> loadSubscriptions({

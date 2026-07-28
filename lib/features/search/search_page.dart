@@ -7,6 +7,7 @@ import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/database/app_database.dart';
 import '../../core/models/video_models.dart';
+import '../../core/services/predictive_prefetch_service.dart';
 import '../../shared/video_card.dart' show formatCount;
 import '../../shared/video_feed.dart';
 import 'data/search_history_repository.dart';
@@ -17,10 +18,12 @@ class SearchPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.historyRepository,
+    required this.prefetchService,
   });
 
   final Rule34VideoApi api;
   final SearchHistoryRepository historyRepository;
+  final PredictivePrefetchService prefetchService;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -55,12 +58,15 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<List<ContentCollectionItem>> _loadPopularTags() {
-    return widget.api
-        .loadDiscoveryDirectory(
-          const DiscoveryDirectorySpec(
-            title: '热门标签',
-            path: '/tags/',
-            kind: DiscoveryKind.tag,
+    return widget.prefetchService
+        .runForeground(
+          PredictivePrefetchKey.feed('search-popular-tags', 1),
+          () => widget.api.loadDiscoveryDirectory(
+            const DiscoveryDirectorySpec(
+              title: '热门标签',
+              path: '/tags/',
+              kind: DiscoveryKind.tag,
+            ),
           ),
         )
         .then((items) => items.take(12).toList(growable: false));
@@ -124,18 +130,21 @@ class _SearchPageState extends State<SearchPage> {
       });
     }
     var failed = false;
-    final values = await Future.wait(
-      SearchSuggestionKind.values.map((kind) async {
-        try {
-          return MapEntry(
-            kind,
-            await widget.api.searchSuggestions(query, kind),
-          );
-        } catch (_) {
-          failed = true;
-          return MapEntry(kind, const <SearchSuggestion>[]);
-        }
-      }),
+    final values = await widget.prefetchService.runForeground(
+      'search:suggestions:$query',
+      () => Future.wait(
+        SearchSuggestionKind.values.map((kind) async {
+          try {
+            return MapEntry(
+              kind,
+              await widget.api.searchSuggestions(query, kind),
+            );
+          } catch (_) {
+            failed = true;
+            return MapEntry(kind, const <SearchSuggestion>[]);
+          }
+        }),
+      ),
     );
     if (!mounted || generation != _suggestionGeneration) {
       return;
@@ -565,8 +574,11 @@ class _SearchPageState extends State<SearchPage> {
   Widget _buildVideoResults() {
     return VideoFeed(
       key: ValueKey('$_searchRevision:$_activeQuery'),
-      loadPage: (page) =>
-          widget.api.searchVideos(_activeQuery, page, filters: _filters),
+      loadPage: (page) => widget.prefetchService.runForeground(
+        PredictivePrefetchKey.feed('search:$_searchRevision', page),
+        () => widget.api.searchVideos(_activeQuery, page, filters: _filters),
+      ),
+      prefetchService: widget.prefetchService,
       itemFilter: _filters.hasQualityFilters ? _filters.matchesQuality : null,
       emptyMessage: '没有找到符合条件的视频。',
     );

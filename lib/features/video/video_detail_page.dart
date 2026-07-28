@@ -11,6 +11,7 @@ import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../core/services/share_service.dart';
+import '../../core/services/predictive_prefetch_service.dart';
 import '../../shared/video_card.dart';
 import '../../shared/site_avatar.dart';
 import '../auth/login_sheet.dart';
@@ -87,9 +88,15 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage>
   Future<VideoDetails> _loadDetails({bool force = false}) async {
     final stopwatch = Stopwatch()..start();
     try {
-      final details = force
-          ? await widget.api.refreshVideoDetails(widget.video)
-          : await widget.api.loadVideoDetails(widget.video);
+      final details = await ref
+          .read(predictivePrefetchServiceProvider)
+          .runForeground(
+            PredictivePrefetchKey.video(widget.video.id),
+            () => force
+                ? widget.api.refreshVideoDetails(widget.video)
+                : widget.api.loadVideoDetails(widget.video),
+            resumeDelay: const Duration(seconds: 3),
+          );
       stopwatch.stop();
       unawaited(
         ref
@@ -154,7 +161,7 @@ class _DetailLoading extends StatelessWidget {
 
   static const _headers = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.3.0',
+    'User-Agent': 'Flule34 Android/1.3.1',
   };
 
   final VideoItem video;

@@ -305,6 +305,45 @@ void main() {
     );
   });
 
+  test('收藏第一页会复用在途请求和短时缓存，强制刷新才重新请求', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    var requests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((_) async {
+        requests += 1;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        return _htmlResponse(
+          _videoListItem(
+            id: '1',
+            slug: 'cached-favorite',
+            title: '缓存收藏',
+            published: 'today',
+          ),
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    final token = CancelToken();
+    final values = await Future.wait([
+      api.loadFavorites(1),
+      api
+          .prefetchFavorites(cancelToken: token)
+          .then((_) => api.loadFavorites(1)),
+    ]);
+    await api.loadFavorites(1);
+
+    expect(values.expand((items) => items).map((item) => item.id), ['1', '1']);
+    expect(requests, 1);
+
+    await api.loadFavorites(1, force: true);
+    expect(requests, 2);
+  });
+
   test('普通 403 保留登录状态并按 HTTP 错误上报', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
@@ -368,17 +407,18 @@ void main() {
     );
   });
 
-  test('账号历史和订阅接口使用正确的分页路径', () async {
+  test('账号历史和订阅接口使用网站异步区块分页参数', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
     await harness.sessionStore.authenticate('2421071');
-    final paths = <String>[];
+    final requests = <RequestOptions>[];
     final api = Rule34VideoApi(
       sessionStore: harness.sessionStore,
       httpClientAdapter: _TestAdapter((options) {
-        paths.add(options.uri.path);
-        if (options.uri.path == '/my/subscriptions/') {
+        requests.add(options);
+        if (options.uri.path == '/my/subscriptions/' &&
+            !options.uri.queryParameters.containsKey('from_my_subscriptions')) {
           return _htmlResponse('''
             <div class="item">
               <a href="/models/example-artist/" title="Example Artist">
@@ -387,7 +427,8 @@ void main() {
             </div>
           ''');
         }
-        if (options.uri.path == '/my/subscriptions/2/') {
+        if (options.uri.path == '/my/subscriptions/' &&
+            options.uri.queryParameters['from_my_subscriptions'] == '2') {
           return _htmlResponse('<html></html>');
         }
         return _htmlResponse('<html></html>');
@@ -399,12 +440,51 @@ void main() {
     final subscription = (await api.loadSubscriptions()).single;
     await api.loadSubscriptionVideos(subscription, 2);
 
-    expect(paths, [
+    expect(requests.map((request) => request.uri.path), [
       '/my/history/3/',
       '/my/subscriptions/',
-      '/my/subscriptions/2/',
+      '/my/subscriptions/',
       '/models/example-artist/2/',
     ]);
+    final nextSubscriptionsRequest = requests[2].uri.queryParameters;
+    expect(nextSubscriptionsRequest, {
+      'mode': 'async',
+      'function': 'get_block',
+      'block_id': 'list_members_subscriptions_my_subscriptions',
+      'sort_by': 'added_date',
+      'from_my_subscriptions': '2',
+    });
+  });
+
+  test('订阅分页即使中间页只有重复项也会继续读取后续页', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        final page =
+            int.tryParse(
+              options.uri.queryParameters['from_my_subscriptions'] ?? '1',
+            ) ??
+            1;
+        return switch (page) {
+          1 || 2 => _htmlResponse('''
+              <div class="item"><a href="/models/first/">First</a></div>
+            '''),
+          3 => _htmlResponse('''
+              <div class="item"><a href="/models/third/">Third</a></div>
+            '''),
+          _ => _htmlResponse('<html></html>'),
+        };
+      }),
+    );
+    addTearDown(api.close);
+
+    final subscriptions = await api.loadSubscriptions();
+
+    expect(subscriptions.map((item) => item.title), ['First', 'Third']);
   });
 
   test('关注视频按发布时间从新到旧返回', () async {
@@ -456,7 +536,8 @@ void main() {
     final api = Rule34VideoApi(
       sessionStore: harness.sessionStore,
       httpClientAdapter: _TestAdapter((options) {
-        if (options.uri.path == '/my/subscriptions/2/') {
+        if (options.uri.path == '/my/subscriptions/' &&
+            options.uri.queryParameters.containsKey('from_my_subscriptions')) {
           return _htmlResponse('<html></html>');
         }
         requests += 1;
