@@ -1221,6 +1221,96 @@ void main() {
     expect(bodies[0], {'action': 'subscribe', 'subscribe_user_id': '42'});
     expect(bodies[1], {'action': 'unsubscribe', 'unsubscribe_user_id': '42'});
   });
+
+  test('订阅列表中的上传者可以直接取消订阅', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final requests = <RequestOptions>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options);
+        return _htmlResponse('<success/>');
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.unsubscribeSubscription(
+      const SubscriptionItem(
+        title: 'Uploader',
+        path: '/members/42/',
+        kind: SubscriptionKind.member,
+      ),
+    );
+
+    expect(requests.single.uri.path, '/members/42/');
+    expect(_requestFields(requests.single.data), {
+      'action': 'unsubscribe',
+      'unsubscribe_user_id': '42',
+    });
+  });
+
+  test('订阅列表中的艺术家通过其视频元数据取消订阅', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final requests = <RequestOptions>[];
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests.add(options);
+        if (options.method == 'POST') {
+          return _htmlResponse('<success/>');
+        }
+        if (options.uri.path == '/models/hydrafxx/') {
+          return _htmlResponse(
+            _videoListItem(
+              id: '4505897',
+              slug: 'example',
+              title: 'Example',
+              published: '1 day ago',
+            ),
+          );
+        }
+        return _htmlResponse('''
+          <link rel="canonical" href="/video/4505897/example/">
+          <script>
+            flashvars = {
+              video_url: 'https://cdn.example.com/video_720p.mp4',
+              video_url_text: '720p'
+            };
+          </script>
+          <span class="js-video-vote-chip"
+                data-item-type="model"
+                data-item-id="639">
+            <a href="/models/hydrafxx/"><span>HydraFXX</span></a>
+          </span>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.unsubscribeSubscription(
+      const SubscriptionItem(
+        title: 'HydraFXX',
+        path: '/models/hydrafxx/',
+        kind: SubscriptionKind.model,
+      ),
+    );
+
+    expect(requests.map((request) => request.uri.path), [
+      '/models/hydrafxx/',
+      '/video/4505897/example/',
+      '/video/4505897/example/',
+    ]);
+    expect(_requestFields(requests.last.data), {
+      'action': 'unsubscribe',
+      'unsubscribe_model_id': '639',
+    });
+  });
 }
 
 ResponseBody _htmlResponse(String body) {

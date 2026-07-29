@@ -10,6 +10,7 @@ import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../shared/site_avatar.dart';
 import '../settings/domain/app_settings.dart';
+import 'subscription_actions.dart';
 
 enum SubscriptionSort {
   added('最新订阅'),
@@ -36,6 +37,7 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
   final TextEditingController _searchController = TextEditingController();
   List<SubscriptionItem> _subscriptions = const [];
   final Map<String, int?> _updatedAgeByPath = {};
+  final Set<String> _removingPaths = {};
   var _loading = false;
   var _updatingSort = false;
   var _query = '';
@@ -308,13 +310,14 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
       initialData: item,
       builder: (context, resolvedSnapshot) {
         final resolved = resolvedSnapshot.data ?? item;
+        final removing = _removingPaths.contains(resolved.path);
         return Card(
           margin: compact
               ? const EdgeInsets.all(5)
               : const EdgeInsets.only(bottom: 8),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: () => _openSubscription(resolved),
+            onTap: removing ? null : () => _openSubscription(resolved),
             child: Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: compact ? 10 : 14,
@@ -346,6 +349,41 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
                       ],
                     ),
                   ),
+                  if (removing)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else if (widget.api.canUnsubscribeSubscription(resolved))
+                    SizedBox(
+                      width: 36,
+                      height: 40,
+                      child: PopupMenuButton<_SubscriptionAction>(
+                        tooltip: '更多操作',
+                        padding: EdgeInsets.zero,
+                        iconSize: 20,
+                        onSelected: (action) {
+                          if (action == _SubscriptionAction.unsubscribe) {
+                            unawaited(_unsubscribe(resolved));
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: _SubscriptionAction.unsubscribe,
+                            child: Row(
+                              children: [
+                                Icon(Icons.notifications_off_outlined),
+                                SizedBox(width: 12),
+                                Text('取消订阅'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -355,13 +393,55 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
     );
   }
 
-  void _openSubscription(SubscriptionItem subscription) {
-    context.pushNamed(
+  Future<void> _openSubscription(SubscriptionItem subscription) async {
+    final removed = await context.pushNamed<bool>(
       AppRouteNames.subscription,
       pathParameters: {'kind': subscription.kind.name},
       queryParameters: {'path': subscription.path, 'title': subscription.title},
       extra: subscription,
     );
+    if (removed == true && mounted) {
+      _removeSubscription(subscription);
+    }
+  }
+
+  Future<void> _unsubscribe(SubscriptionItem subscription) async {
+    if (_removingPaths.contains(subscription.path) ||
+        !await confirmUnsubscribeSubscription(context, subscription) ||
+        !mounted) {
+      return;
+    }
+    setState(() => _removingPaths.add(subscription.path));
+    try {
+      await widget.api.unsubscribeSubscription(subscription);
+      if (!mounted) {
+        return;
+      }
+      _removeSubscription(subscription);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已取消订阅。')));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _removingPaths.remove(subscription.path));
+      }
+    }
+  }
+
+  void _removeSubscription(SubscriptionItem subscription) {
+    setState(() {
+      _subscriptions = _subscriptions
+          .where((item) => item.path != subscription.path)
+          .toList(growable: false);
+      _updatedAgeByPath.remove(subscription.path);
+      _removingPaths.remove(subscription.path);
+    });
   }
 
   Widget _refreshableMessage({required String message, VoidCallback? onRetry}) {
@@ -451,3 +531,5 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
   @override
   bool get wantKeepAlive => true;
 }
+
+enum _SubscriptionAction { unsubscribe }

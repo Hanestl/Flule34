@@ -1138,6 +1138,59 @@ class Rule34VideoApi {
     );
   }
 
+  bool canUnsubscribeSubscription(SubscriptionItem subscription) {
+    return switch (subscription.kind) {
+      SubscriptionKind.category ||
+      SubscriptionKind.model ||
+      SubscriptionKind.member => true,
+      SubscriptionKind.playlist || SubscriptionKind.channel => false,
+    };
+  }
+
+  Future<void> unsubscribeSubscription(SubscriptionItem subscription) async {
+    _requireLogin();
+    switch (subscription.kind) {
+      case SubscriptionKind.member:
+        final match = RegExp(r'/members/(\d+)/').firstMatch(subscription.path);
+        final id = match?.group(1);
+        if (id == null) {
+          throw const ApiException('无法识别这个上传者的订阅信息。');
+        }
+        await toggleUploaderSubscription(
+          uploader: UploaderSummary(id: id, name: subscription.title),
+          subscribe: false,
+        );
+        return;
+      case SubscriptionKind.category:
+      case SubscriptionKind.model:
+        final videos = await loadSubscriptionVideos(subscription, 1);
+        for (final video in videos.take(3)) {
+          final details = await loadVideoDetails(video);
+          final metadata = details.metadataItems
+              .cast<VideoMetadataItem?>()
+              .firstWhere(
+                (item) =>
+                    item?.path == subscription.path &&
+                    item?.kind == subscription.kind.discoveryKind,
+                orElse: () => null,
+              );
+          if (metadata == null) {
+            continue;
+          }
+          await toggleSubscription(
+            video: video,
+            item: metadata,
+            subscribe: false,
+          );
+          return;
+        }
+        throw const ApiException('无法识别这个订阅，请从相关视频详情页取消。');
+      case SubscriptionKind.playlist:
+      case SubscriptionKind.channel:
+        throw const ApiException('此类型暂不支持在 App 内取消订阅。');
+    }
+  }
+
   Future<void> toggleSubscription({
     required VideoItem video,
     required VideoMetadataItem item,
@@ -1579,7 +1632,7 @@ class Rule34VideoApi {
       responseType: ResponseType.plain,
       followRedirects: false,
       headers: const {
-        'User-Agent': 'Flule34 Android/1.4.2',
+        'User-Agent': 'Flule34 Android/1.4.3',
         'Accept':
             'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       },

@@ -209,7 +209,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
   static const _mediaHeaders = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.4.2',
+    'User-Agent': 'Flule34 Android/1.4.3',
   };
 
   BetterPlayerController? _controller;

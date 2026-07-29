@@ -561,6 +561,14 @@ enum SubscriptionKind {
   const SubscriptionKind(this.label);
 
   final String label;
+
+  DiscoveryKind? get discoveryKind => switch (this) {
+    SubscriptionKind.category => DiscoveryKind.category,
+    SubscriptionKind.model => DiscoveryKind.model,
+    SubscriptionKind.member ||
+    SubscriptionKind.playlist ||
+    SubscriptionKind.channel => null,
+  };
 }
 
 class SubscriptionItem {
