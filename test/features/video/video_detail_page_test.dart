@@ -308,6 +308,12 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   Future<bool> cancel(String taskId) async => true;
 
   @override
+  Future<bool> pause(String taskId) async => true;
+
+  @override
+  Future<bool> resume(String taskId) async => true;
+
+  @override
   Future<bool> delete({
     required String taskId,
     String? fileUri,

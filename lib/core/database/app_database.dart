@@ -373,21 +373,29 @@ final class AppDatabase extends _$AppDatabase {
   Stream<List<DownloadRecord>> watchDownloads(String userId) {
     return (select(downloadRecords)
           ..where((record) => record.userId.equals(userId))
-          ..orderBy([(record) => OrderingTerm.desc(record.updatedAt)]))
+          ..orderBy([
+            (record) => OrderingTerm.desc(record.createdAt),
+            (record) => OrderingTerm.desc(record.id),
+          ]))
         .watch();
   }
 
   Future<List<DownloadRecord>> downloadsForUser(String userId) {
     return (select(downloadRecords)
           ..where((record) => record.userId.equals(userId))
-          ..orderBy([(record) => OrderingTerm.desc(record.updatedAt)]))
+          ..orderBy([
+            (record) => OrderingTerm.desc(record.createdAt),
+            (record) => OrderingTerm.desc(record.id),
+          ]))
         .get();
   }
 
   Future<List<DownloadRecord>> allDownloads() {
-    return (select(
-      downloadRecords,
-    )..orderBy([(record) => OrderingTerm.desc(record.updatedAt)])).get();
+    return (select(downloadRecords)..orderBy([
+          (record) => OrderingTerm.desc(record.createdAt),
+          (record) => OrderingTerm.desc(record.id),
+        ]))
+        .get();
   }
 
   Future<List<DownloadRecord>> activeDownloads(String userId) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/logging/app_log_service.dart';
@@ -139,6 +140,27 @@ final class BackgroundDownloadPlatformService
   @override
   Future<bool> cancel(String taskId) {
     return _downloader.cancelTaskWithId(taskId);
+  }
+
+  @override
+  Future<bool> pause(String taskId) async {
+    final task = await _downloadTask(taskId);
+    return task == null ? false : _downloader.pause(task);
+  }
+
+  @override
+  Future<bool> resume(String taskId) async {
+    final task = await _downloadTask(taskId);
+    return task == null ? false : _downloader.resume(task);
+  }
+
+  Future<DownloadTask?> _downloadTask(String taskId) async {
+    final activeTask = await _downloader.taskForId(taskId);
+    if (activeTask is DownloadTask) {
+      return activeTask;
+    }
+    final storedTask = (await _downloader.database.recordForId(taskId))?.task;
+    return storedTask is DownloadTask ? storedTask : null;
   }
 
   @override
@@ -342,16 +364,27 @@ final class BackgroundDownloadPlatformService
   }
 
   void _onProgress(TaskProgressUpdate update) {
+    final event = progressEventForUpdate(update);
+    if (event != null) {
+      _events.add(event);
+    }
+  }
+
+  @visibleForTesting
+  static DownloadProgressEvent? progressEventForUpdate(
+    TaskProgressUpdate update,
+  ) {
+    if (update.progress < 0) {
+      return null;
+    }
     final hasTotal = update.hasExpectedFileSize && update.expectedFileSize > 0;
     final progress = update.progress.clamp(0.0, 1.0);
-    _events.add(
-      DownloadProgressEvent(
-        taskId: update.task.taskId,
-        bytesDownloaded: hasTotal
-            ? (update.expectedFileSize * progress).round()
-            : 0,
-        totalBytes: hasTotal ? update.expectedFileSize : null,
-      ),
+    return DownloadProgressEvent(
+      taskId: update.task.taskId,
+      bytesDownloaded: hasTotal
+          ? (update.expectedFileSize * progress).round()
+          : 0,
+      totalBytes: hasTotal ? update.expectedFileSize : null,
     );
   }
 

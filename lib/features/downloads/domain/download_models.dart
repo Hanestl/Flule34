@@ -147,6 +147,10 @@ abstract interface class DownloadPlatformService {
 
   Future<bool> enqueue(DownloadRequest request);
 
+  Future<bool> pause(String taskId);
+
+  Future<bool> resume(String taskId);
+
   Future<bool> cancel(String taskId);
 
   Future<bool> openFile(String fileUri);

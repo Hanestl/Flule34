@@ -212,6 +212,20 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(downloadQuality: value));
   }
 
+  Future<void> setDownloadQualityPreference({
+    required bool askEveryTime,
+    required VideoQualityPreference quality,
+  }) async {
+    await _store.writeString(_downloadQualityKey, quality.name);
+    await _store.writeBool(_askDownloadQualityKey, askEveryTime);
+    _update(
+      _settings.copyWith(
+        askDownloadQuality: askEveryTime,
+        downloadQuality: quality,
+      ),
+    );
+  }
+
   Future<void> setWifiOnlyDownloads(bool value) async {
     await _store.writeBool(_wifiOnlyDownloadsKey, value);
     _update(_settings.copyWith(wifiOnlyDownloads: value));

@@ -361,44 +361,56 @@ class _DownloadCardState extends State<_DownloadCard>
     required bool invalid,
   }) {
     final record = widget.record;
-    if (_busy) {
-      return const Padding(
-        padding: EdgeInsets.all(12),
-        child: SizedBox.square(
-          dimension: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
-    return Wrap(
-      children: [
-        if (record.state == 'failed' || record.state == 'not_found')
-          IconButton(
-            tooltip: '刷新地址并重试',
-            onPressed: () => _run(
-              () => widget.repository.retry(record),
-              successMessage: '已刷新视频地址并重新加入下载队列。',
-            ),
-            icon: const Icon(Icons.refresh),
-          ),
-        if (_isActive(record.state))
-          IconButton(
-            tooltip: '取消',
-            onPressed: () => _run(() => widget.repository.cancel(record.id)),
-            icon: const Icon(Icons.close),
-          ),
-        if (record.state == 'complete' && !invalid && !validating)
-          IconButton(
-            tooltip: '播放文件',
-            onPressed: _open,
-            icon: const Icon(Icons.play_circle_outline),
-          ),
-        IconButton(
-          tooltip: invalid ? '移除失效记录' : '删除',
-          onPressed: () => _confirmDelete(invalid: invalid),
-          icon: const Icon(Icons.delete_outline),
-        ),
-      ],
+    return SizedBox(
+      height: kMinInteractiveDimension,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: _busy
+            ? const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Wrap(
+                children: [
+                  if (record.state == 'failed' ||
+                      record.state == 'not_found' ||
+                      record.state == 'canceled')
+                    IconButton(
+                      tooltip: '重新下载',
+                      onPressed: () => _run(
+                        () => widget.repository.retry(record),
+                        successMessage: '已重新加入下载队列。',
+                      ),
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  if (_canPause(record.state))
+                    IconButton(
+                      tooltip: '暂停',
+                      onPressed: () =>
+                          _run(() => widget.repository.pause(record.id)),
+                      icon: const Icon(Icons.pause_circle_outline),
+                    ),
+                  if (record.state == 'paused')
+                    IconButton(
+                      tooltip: '继续',
+                      onPressed: () =>
+                          _run(() => widget.repository.resume(record.id)),
+                      icon: const Icon(Icons.play_arrow),
+                    ),
+                  if (record.state == 'complete' && !invalid && !validating)
+                    IconButton(
+                      tooltip: '播放文件',
+                      onPressed: _open,
+                      icon: const Icon(Icons.play_circle_outline),
+                    ),
+                  IconButton(
+                    tooltip: invalid ? '移除失效记录' : '删除',
+                    onPressed: () => _confirmDelete(invalid: invalid),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -600,6 +612,10 @@ bool _isActive(String state) {
     'waiting_to_retry',
     'paused',
   }.contains(state);
+}
+
+bool _canPause(String state) {
+  return const {'queued', 'running', 'waiting_to_retry'}.contains(state);
 }
 
 String _stateLabel(String state) => switch (state) {

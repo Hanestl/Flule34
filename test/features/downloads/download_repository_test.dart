@@ -86,6 +86,33 @@ void main() {
     expect(platform.sharedStoragePermissionChecks, 1);
   });
 
+  test('暂停与继续操作会传递给后台下载服务', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    final repository = DownloadRepository(
+      harness.database,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+
+    expect(await repository.pause(id), isTrue);
+    expect(await repository.resume(id), isTrue);
+    expect(platform.pausedTaskIds, [id]);
+    expect(platform.resumedTaskIds, [id]);
+    expect(await repository.pause('missing-task'), isFalse);
+  });
+
   test('完成事件使用实际文件大小并保存公共文件 URI', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
@@ -417,6 +444,8 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   final Map<String, bool> deleteExternalFlags = {};
   final Map<String, DownloadFileInspection> inspections = {};
   final List<int> maxConcurrentValues = [];
+  final List<String> pausedTaskIds = [];
+  final List<String> resumedTaskIds = [];
   var notificationPermissionGranted = true;
   var sharedStoragePermissionGranted = true;
   var sharedStoragePermissionChecks = 0;
@@ -452,6 +481,18 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
 
   @override
   Future<bool> cancel(String taskId) async => true;
+
+  @override
+  Future<bool> pause(String taskId) async {
+    pausedTaskIds.add(taskId);
+    return true;
+  }
+
+  @override
+  Future<bool> resume(String taskId) async {
+    resumedTaskIds.add(taskId);
+    return true;
+  }
 
   @override
   Future<bool> openFile(String fileUri) async {

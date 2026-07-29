@@ -243,6 +243,14 @@ final class DownloadRepository {
     return success;
   }
 
+  Future<bool> pause(String id) {
+    return _knownAction(id, _platformService.pause);
+  }
+
+  Future<bool> resume(String id) {
+    return _knownAction(id, _platformService.resume);
+  }
+
   Future<bool> open(DownloadRecord record) async {
     final validation = await validateFile(record);
     if (!validation.valid) {
@@ -386,7 +394,7 @@ final class DownloadRepository {
   Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/1.4.1',
+      'User-Agent': 'Flule34 Android/1.4.2',
     };
     final cookie = await _api.sessionCookieHeader();
     if (cookie != null) {

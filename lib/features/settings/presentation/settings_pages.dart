@@ -246,21 +246,16 @@ class DownloadSettingsPage extends ConsumerWidget {
       title: '下载设置',
       repository: repository,
       builder: (context, settings) => [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('每次下载前询问清晰度'),
-          value: settings.askDownloadQuality,
-          onChanged: (value) {
-            unawaited(_save(context, repository.setAskDownloadQuality(value)));
-          },
-        ),
-        if (!settings.askDownloadQuality)
-          _QualityTile(
-            title: '默认下载清晰度',
-            value: settings.downloadQuality,
-            onChanged: (value) =>
-                _save(context, repository.setDownloadQuality(value)),
+        _DownloadQualityTile(
+          value: _DownloadQualityChoice.fromSettings(settings),
+          onChanged: (value) => _save(
+            context,
+            repository.setDownloadQualityPreference(
+              askEveryTime: value == _DownloadQualityChoice.ask,
+              quality: value.quality ?? settings.downloadQuality,
+            ),
           ),
+        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('仅使用 Wi-Fi 下载'),
@@ -560,6 +555,61 @@ class _QualityTile extends StatelessWidget {
             .map(
               (quality) =>
                   DropdownMenuItem(value: quality, child: Text(quality.label)),
+            )
+            .toList(growable: false),
+        onChanged: (next) {
+          if (next != null) {
+            unawaited(onChanged(next));
+          }
+        },
+      ),
+    );
+  }
+}
+
+enum _DownloadQualityChoice {
+  ask(null),
+  highest(VideoQualityPreference.highest),
+  p2160(VideoQualityPreference.p2160),
+  p1080(VideoQualityPreference.p1080),
+  p720(VideoQualityPreference.p720),
+  p480(VideoQualityPreference.p480),
+  p360(VideoQualityPreference.p360);
+
+  const _DownloadQualityChoice(this.quality);
+
+  final VideoQualityPreference? quality;
+
+  String get label => quality?.label ?? '每次询问';
+
+  static _DownloadQualityChoice fromSettings(AppSettings settings) {
+    if (settings.askDownloadQuality) {
+      return ask;
+    }
+    return values.firstWhere(
+      (choice) => choice.quality == settings.downloadQuality,
+      orElse: () => highest,
+    );
+  }
+}
+
+class _DownloadQualityTile extends StatelessWidget {
+  const _DownloadQualityTile({required this.value, required this.onChanged});
+
+  final _DownloadQualityChoice value;
+  final Future<void> Function(_DownloadQualityChoice value) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('下载清晰度'),
+      trailing: DropdownButton<_DownloadQualityChoice>(
+        value: value,
+        items: _DownloadQualityChoice.values
+            .map(
+              (choice) =>
+                  DropdownMenuItem(value: choice, child: Text(choice.label)),
             )
             .toList(growable: false),
         onChanged: (next) {

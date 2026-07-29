@@ -34,6 +34,10 @@ void main() {
     await repository.setVideoLayout(ContentLayout.doubleColumn);
     await repository.setSubscriptionLayout(ContentLayout.singleColumn);
     await repository.setVideoPreviewEnabled(false);
+    await repository.setDownloadQualityPreference(
+      askEveryTime: false,
+      quality: VideoQualityPreference.p720,
+    );
 
     final restored = AppSettingsRepository(store);
     addTearDown(restored.dispose);
@@ -58,6 +62,8 @@ void main() {
     expect(restored.settings.videoLayout, ContentLayout.doubleColumn);
     expect(restored.settings.subscriptionLayout, ContentLayout.singleColumn);
     expect(restored.settings.videoPreviewEnabled, isFalse);
+    expect(restored.settings.askDownloadQuality, isFalse);
+    expect(restored.settings.downloadQuality, VideoQualityPreference.p720);
   });
 
   test('旧纯黑主题迁移为中性深色主题', () async {

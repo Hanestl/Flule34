@@ -104,4 +104,51 @@ void main() {
     await database.deleteAccountData('1001');
     expect(await database.select(database.searchHistories).get(), isEmpty);
   });
+
+  test('下载列表按创建时间稳定排序且不会被进度更新置顶', () async {
+    await database.recordAuthenticatedAccount('1001');
+    final older = DateTime.utc(2026, 7, 29, 8);
+    final newer = older.add(const Duration(minutes: 1));
+
+    await database.saveDownloadRecord(
+      DownloadRecordsCompanion(
+        id: const Value('older'),
+        userId: const Value('1001'),
+        videoId: const Value('video-older'),
+        title: const Value('较早任务'),
+        quality: const Value('720p'),
+        state: const Value('running'),
+        createdAt: Value(older),
+        updatedAt: Value(newer.add(const Duration(minutes: 2))),
+      ),
+    );
+    await database.saveDownloadRecord(
+      DownloadRecordsCompanion(
+        id: const Value('newer'),
+        userId: const Value('1001'),
+        videoId: const Value('video-newer'),
+        title: const Value('较新任务'),
+        quality: const Value('1080p'),
+        state: const Value('running'),
+        createdAt: Value(newer),
+        updatedAt: Value(newer),
+      ),
+    );
+
+    expect(
+      (await database.watchDownloads('1001').first).map((item) => item.id),
+      ['newer', 'older'],
+    );
+
+    await database.updateDownloadProgress(
+      id: 'older',
+      bytesDownloaded: 512,
+      totalBytes: 1024,
+    );
+
+    expect(
+      (await database.watchDownloads('1001').first).map((item) => item.id),
+      ['newer', 'older'],
+    );
+  });
 }
