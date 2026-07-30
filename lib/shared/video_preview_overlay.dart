@@ -136,7 +136,7 @@ class _VideoPreviewPanel extends StatefulWidget {
 class _VideoPreviewPanelState extends State<_VideoPreviewPanel> {
   static const _headers = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.4.3',
+    'User-Agent': 'Flule34 Android/1.4.4',
   };
 
   VideoPlayerController? _player;

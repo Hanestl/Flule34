@@ -19,6 +19,9 @@ final class BackgroundDownloadPlatformService
   BackgroundDownloadPlatformService._(this._maxConcurrent, this._logs);
 
   static const _group = 'flule34-downloads';
+  static const notificationGroupId = 'flule34-background-tasks';
+  static const requestTimeout = Duration(seconds: 15);
+  static const runningNotification = TaskNotification('后台任务进行中', '正在处理');
   static const _privateDirectory = 'downloads';
   static const _publicDirectory = 'Flule34';
   static const _mediaStoreInspectionDelays = <Duration>[
@@ -47,6 +50,10 @@ final class BackgroundDownloadPlatformService
     if (_initialized) {
       return;
     }
+    await _downloader.configure(
+      globalConfig: (Config.requestTimeout, requestTimeout),
+      androidConfig: (Config.runInForeground, Config.always),
+    );
     await setMaxConcurrent(_maxConcurrent);
     _downloader
         .registerCallbacks(
@@ -56,16 +63,10 @@ final class BackgroundDownloadPlatformService
         )
         .configureNotificationForGroup(
           _group,
-          running: const TaskNotification(
-            '正在下载 {displayName}',
-            '{progress} · {networkSpeed} · 剩余 {timeRemaining}',
-          ),
-          complete: const TaskNotification('下载完成', '{displayName}'),
-          error: const TaskNotification('下载失败', '{displayName}'),
-          paused: const TaskNotification('下载已暂停', '{displayName}'),
-          canceled: const TaskNotification('下载已取消', '{displayName}'),
+          running: runningNotification,
           progressBar: true,
           tapOpensFile: false,
+          groupNotificationId: notificationGroupId,
         );
     await _downloader.start(autoCleanDatabase: false);
     await _downloader.trackTasksInGroup(_group);
@@ -121,7 +122,7 @@ final class BackgroundDownloadPlatformService
         group: _group,
         updates: Updates.statusAndProgress,
         requiresWiFi: request.requiresWiFi,
-        retries: 2,
+        retries: 4,
         allowPause: true,
         priority: 0,
         metaData: request.metadata,
@@ -266,13 +267,12 @@ final class BackgroundDownloadPlatformService
       }
       return;
     }
+    final exception = update.exception;
     _events.add(
       DownloadStatusEvent(
         taskId: taskId,
         state: state,
-        errorMessage: update.exception == null
-            ? null
-            : redactSensitiveText(update.exception),
+        errorMessage: exception == null ? null : displayErrorFor(exception),
       ),
     );
     unawaited(
@@ -386,6 +386,24 @@ final class BackgroundDownloadPlatformService
           : 0,
       totalBytes: hasTotal ? update.expectedFileSize : null,
     );
+  }
+
+  @visibleForTesting
+  static String displayErrorFor(Object error) {
+    final message = redactSensitiveText(error);
+    if (RegExp(
+      r'\b(?:job)?cancel(?:l)?(?:ed|ing|ation)\b|\{cancelling\}',
+      caseSensitive: false,
+    ).hasMatch(message)) {
+      return '下载任务被系统中断，请重试。';
+    }
+    if (RegExp(
+      r'connection reset|socketexception|timed?\s*out|network is unreachable|broken pipe',
+      caseSensitive: false,
+    ).hasMatch(message)) {
+      return '网络连接中断，请检查网络后重试。';
+    }
+    return message;
   }
 
   DownloadTaskState _mapStatus(TaskStatus status) => switch (status) {

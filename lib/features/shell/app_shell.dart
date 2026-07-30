@@ -4,17 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
-import '../../shared/scroll_to_top_overlay.dart';
 
 class AppShell extends ConsumerWidget {
-  const AppShell({
-    super.key,
-    required this.navigationShell,
-    required this.locationKey,
-  });
+  const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
-  final String locationKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,14 +26,7 @@ class AppShell extends ConsumerWidget {
         systemNavigationBarContrastEnforced: false,
       ),
       child: Scaffold(
-        body: SafeArea(
-          bottom: false,
-          child: ScrollToTopOverlay(
-            key: ValueKey(locationKey),
-            controller: ref.watch(scrollToTopControllerProvider),
-            child: navigationShell,
-          ),
-        ),
+        body: SafeArea(bottom: false, child: navigationShell),
         bottomNavigationBar: NavigationBar(
           selectedIndex: navigationShell.currentIndex,
           onDestinationSelected: (index) {

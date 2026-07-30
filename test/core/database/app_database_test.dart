@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' hide isNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,43 +13,30 @@ void main() {
 
   tearDown(() => database.close());
 
-  test('不同账号的播放进度相互隔离', () async {
-    await database.recordAuthenticatedAccount('1001');
-    await database.recordAuthenticatedAccount('2002');
-
+  test('播放进度按设备保存并以视频为唯一记录', () async {
     await database.savePlaybackPosition(
-      userId: '1001',
       videoId: '4505897',
       positionMs: 12000,
       durationMs: 60000,
     );
     await database.savePlaybackPosition(
-      userId: '2002',
       videoId: '4505897',
       positionMs: 34000,
       durationMs: 60000,
     );
 
-    final first = await database.findPlaybackPosition(
-      userId: '1001',
-      videoId: '4505897',
-    );
-    final second = await database.findPlaybackPosition(
-      userId: '2002',
-      videoId: '4505897',
-    );
+    final record = await database.findPlaybackPosition(videoId: '4505897');
 
-    expect(first?.positionMs, 12000);
-    expect(second?.positionMs, 34000);
+    expect(record?.positionMs, 34000);
+    expect(
+      await database.select(database.playbackPositions).get(),
+      hasLength(1),
+    );
   });
 
-  test('删除账号会级联清除该账号的进度与下载记录', () async {
+  test('删除账号不会删除设备播放进度，但仍清除账号下载记录', () async {
     await database.recordAuthenticatedAccount('1001');
-    await database.savePlaybackPosition(
-      userId: '1001',
-      videoId: '4505897',
-      positionMs: 12000,
-    );
+    await database.savePlaybackPosition(videoId: '4505897', positionMs: 12000);
     await database.saveDownloadRecord(
       DownloadRecordsCompanion(
         id: const Value('download-1'),
@@ -66,11 +53,17 @@ void main() {
     await database.deleteAccountData('1001');
 
     expect(await database.findAccount('1001'), isNull);
-    expect(
-      await database.findPlaybackPosition(userId: '1001', videoId: '4505897'),
-      isNull,
-    );
+    expect(await database.findPlaybackPosition(videoId: '4505897'), isNotNull);
     expect(await database.select(database.downloadRecords).get(), isEmpty);
+  });
+
+  test('可以一次清除全部设备播放进度', () async {
+    await database.savePlaybackPosition(videoId: '4505897', positionMs: 12000);
+    await database.savePlaybackPosition(videoId: '4505898', positionMs: 24000);
+
+    await database.deleteAllPlaybackPositions();
+
+    expect(await database.select(database.playbackPositions).get(), isEmpty);
   });
 
   test('搜索历史按账号隔离并对大小写去重', () async {

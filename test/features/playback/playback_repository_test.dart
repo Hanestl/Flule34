@@ -8,18 +8,13 @@ import 'package:flule34/features/settings/data/app_settings_store.dart';
 import '../../helpers/test_session_harness.dart';
 
 void main() {
-  test('播放进度按账号保存和恢复', () async {
+  test('未登录也能按设备保存和恢复播放进度', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('1001');
     final settings = await _createSettings();
     addTearDown(settings.dispose);
-    final repository = PlaybackRepository(
-      harness.database,
-      harness.sessionStore,
-      settings,
-    );
+    final repository = PlaybackRepository(harness.database, settings);
 
     await repository.savePosition(
       video: _video,
@@ -35,9 +30,12 @@ void main() {
     expect(continueWatching.single.title, _video.title);
     expect(continueWatching.single.slug, _video.slug);
 
-    await harness.sessionStore.authenticate('2002');
-    expect(await repository.loadPosition('4505897'), isNull);
     await harness.sessionStore.authenticate('1001');
+    expect(
+      await repository.loadPosition('4505897'),
+      const Duration(seconds: 30),
+    );
+    await harness.sessionStore.authenticate('2002');
     expect(
       await repository.loadPosition('4505897'),
       const Duration(seconds: 30),
@@ -48,14 +46,9 @@ void main() {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('1001');
     final settings = await _createSettings();
     addTearDown(settings.dispose);
-    final repository = PlaybackRepository(
-      harness.database,
-      harness.sessionStore,
-      settings,
-    );
+    final repository = PlaybackRepository(harness.database, settings);
 
     await repository.savePosition(
       video: _video,
@@ -65,24 +58,18 @@ void main() {
 
     expect(await repository.loadPosition('4505897'), isNull);
     final record = await harness.database.findPlaybackPosition(
-      userId: '1001',
       videoId: '4505897',
     );
     expect(record?.positionMs, 0);
   });
 
-  test('关闭进度记忆后不读取或写入进度', () async {
+  test('关闭进度记忆并清空后不再读取或写入进度', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
-    await harness.sessionStore.authenticate('1001');
     final settings = await _createSettings();
     addTearDown(settings.dispose);
-    final repository = PlaybackRepository(
-      harness.database,
-      harness.sessionStore,
-      settings,
-    );
+    final repository = PlaybackRepository(harness.database, settings);
     await repository.savePosition(
       video: _video,
       position: const Duration(seconds: 30),
@@ -90,6 +77,7 @@ void main() {
     );
 
     await settings.setRememberPlaybackProgress(false);
+    await repository.clearAll();
     expect(await repository.loadPosition('4505897'), isNull);
     await repository.savePosition(
       video: _video,
@@ -97,47 +85,32 @@ void main() {
       duration: const Duration(minutes: 2),
     );
     final record = await harness.database.findPlaybackPosition(
-      userId: '1001',
       videoId: '4505897',
     );
-    expect(record?.positionMs, const Duration(seconds: 30).inMilliseconds);
+    expect(record, isNull);
+    expect(await repository.watchContinueWatching().first, isEmpty);
   });
 
-  test('播放会话绑定开始时账号，切换账号不会串写进度', () async {
+  test('切换或退出账号不会改变设备播放进度', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
     await harness.sessionStore.authenticate('1001');
     final settings = await _createSettings();
     addTearDown(settings.dispose);
-    final repository = PlaybackRepository(
-      harness.database,
-      harness.sessionStore,
-      settings,
-    );
-    const boundUserId = '1001';
+    final repository = PlaybackRepository(harness.database, settings);
 
     await harness.sessionStore.authenticate('2002');
-    await repository.savePositionForAccount(
-      userId: boundUserId,
+    await repository.savePosition(
       video: _video,
       position: const Duration(seconds: 30),
       duration: const Duration(minutes: 2),
     );
+    await harness.sessionStore.clear();
 
     expect(
-      await harness.database.findPlaybackPosition(
-        userId: '1001',
-        videoId: _video.id,
-      ),
-      isNotNull,
-    );
-    expect(
-      await harness.database.findPlaybackPosition(
-        userId: '2002',
-        videoId: _video.id,
-      ),
-      isNull,
+      await repository.loadPosition(_video.id),
+      const Duration(seconds: 30),
     );
   });
 }

@@ -393,18 +393,6 @@ class $PlaybackPositionsTable extends PlaybackPositions
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $PlaybackPositionsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
-  @override
-  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
-    'user_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES user_accounts (user_id) ON DELETE CASCADE',
-    ),
-  );
   static const VerificationMeta _videoIdMeta = const VerificationMeta(
     'videoId',
   );
@@ -493,7 +481,6 @@ class $PlaybackPositionsTable extends PlaybackPositions
   );
   @override
   List<GeneratedColumn> get $columns => [
-    userId,
     videoId,
     title,
     slug,
@@ -515,14 +502,6 @@ class $PlaybackPositionsTable extends PlaybackPositions
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
-    if (data.containsKey('user_id')) {
-      context.handle(
-        _userIdMeta,
-        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_userIdMeta);
-    }
     if (data.containsKey('video_id')) {
       context.handle(
         _videoIdMeta,
@@ -583,15 +562,11 @@ class $PlaybackPositionsTable extends PlaybackPositions
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {userId, videoId};
+  Set<GeneratedColumn> get $primaryKey => {videoId};
   @override
   PlaybackPosition map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return PlaybackPosition(
-      userId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}user_id'],
-      )!,
       videoId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}video_id'],
@@ -635,7 +610,6 @@ class $PlaybackPositionsTable extends PlaybackPositions
 
 class PlaybackPosition extends DataClass
     implements Insertable<PlaybackPosition> {
-  final String userId;
   final String videoId;
   final String? title;
   final String? slug;
@@ -645,7 +619,6 @@ class PlaybackPosition extends DataClass
   final int? durationMs;
   final DateTime updatedAt;
   const PlaybackPosition({
-    required this.userId,
     required this.videoId,
     this.title,
     this.slug,
@@ -658,7 +631,6 @@ class PlaybackPosition extends DataClass
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['user_id'] = Variable<String>(userId);
     map['video_id'] = Variable<String>(videoId);
     if (!nullToAbsent || title != null) {
       map['title'] = Variable<String>(title);
@@ -682,7 +654,6 @@ class PlaybackPosition extends DataClass
 
   PlaybackPositionsCompanion toCompanion(bool nullToAbsent) {
     return PlaybackPositionsCompanion(
-      userId: Value(userId),
       videoId: Value(videoId),
       title: title == null && nullToAbsent
           ? const Value.absent()
@@ -708,7 +679,6 @@ class PlaybackPosition extends DataClass
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return PlaybackPosition(
-      userId: serializer.fromJson<String>(json['userId']),
       videoId: serializer.fromJson<String>(json['videoId']),
       title: serializer.fromJson<String?>(json['title']),
       slug: serializer.fromJson<String?>(json['slug']),
@@ -723,7 +693,6 @@ class PlaybackPosition extends DataClass
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'userId': serializer.toJson<String>(userId),
       'videoId': serializer.toJson<String>(videoId),
       'title': serializer.toJson<String?>(title),
       'slug': serializer.toJson<String?>(slug),
@@ -736,7 +705,6 @@ class PlaybackPosition extends DataClass
   }
 
   PlaybackPosition copyWith({
-    String? userId,
     String? videoId,
     Value<String?> title = const Value.absent(),
     Value<String?> slug = const Value.absent(),
@@ -746,7 +714,6 @@ class PlaybackPosition extends DataClass
     Value<int?> durationMs = const Value.absent(),
     DateTime? updatedAt,
   }) => PlaybackPosition(
-    userId: userId ?? this.userId,
     videoId: videoId ?? this.videoId,
     title: title.present ? title.value : this.title,
     slug: slug.present ? slug.value : this.slug,
@@ -760,7 +727,6 @@ class PlaybackPosition extends DataClass
   );
   PlaybackPosition copyWithCompanion(PlaybackPositionsCompanion data) {
     return PlaybackPosition(
-      userId: data.userId.present ? data.userId.value : this.userId,
       videoId: data.videoId.present ? data.videoId.value : this.videoId,
       title: data.title.present ? data.title.value : this.title,
       slug: data.slug.present ? data.slug.value : this.slug,
@@ -783,7 +749,6 @@ class PlaybackPosition extends DataClass
   @override
   String toString() {
     return (StringBuffer('PlaybackPosition(')
-          ..write('userId: $userId, ')
           ..write('videoId: $videoId, ')
           ..write('title: $title, ')
           ..write('slug: $slug, ')
@@ -798,7 +763,6 @@ class PlaybackPosition extends DataClass
 
   @override
   int get hashCode => Object.hash(
-    userId,
     videoId,
     title,
     slug,
@@ -812,7 +776,6 @@ class PlaybackPosition extends DataClass
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlaybackPosition &&
-          other.userId == this.userId &&
           other.videoId == this.videoId &&
           other.title == this.title &&
           other.slug == this.slug &&
@@ -824,7 +787,6 @@ class PlaybackPosition extends DataClass
 }
 
 class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
-  final Value<String> userId;
   final Value<String> videoId;
   final Value<String?> title;
   final Value<String?> slug;
@@ -835,7 +797,6 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const PlaybackPositionsCompanion({
-    this.userId = const Value.absent(),
     this.videoId = const Value.absent(),
     this.title = const Value.absent(),
     this.slug = const Value.absent(),
@@ -847,7 +808,6 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     this.rowid = const Value.absent(),
   });
   PlaybackPositionsCompanion.insert({
-    required String userId,
     required String videoId,
     this.title = const Value.absent(),
     this.slug = const Value.absent(),
@@ -857,10 +817,8 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     this.durationMs = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
-  }) : userId = Value(userId),
-       videoId = Value(videoId);
+  }) : videoId = Value(videoId);
   static Insertable<PlaybackPosition> custom({
-    Expression<String>? userId,
     Expression<String>? videoId,
     Expression<String>? title,
     Expression<String>? slug,
@@ -872,7 +830,6 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
-      if (userId != null) 'user_id': userId,
       if (videoId != null) 'video_id': videoId,
       if (title != null) 'title': title,
       if (slug != null) 'slug': slug,
@@ -886,7 +843,6 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   }
 
   PlaybackPositionsCompanion copyWith({
-    Value<String>? userId,
     Value<String>? videoId,
     Value<String?>? title,
     Value<String?>? slug,
@@ -898,7 +854,6 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
     Value<int>? rowid,
   }) {
     return PlaybackPositionsCompanion(
-      userId: userId ?? this.userId,
       videoId: videoId ?? this.videoId,
       title: title ?? this.title,
       slug: slug ?? this.slug,
@@ -914,9 +869,6 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    if (userId.present) {
-      map['user_id'] = Variable<String>(userId.value);
-    }
     if (videoId.present) {
       map['video_id'] = Variable<String>(videoId.value);
     }
@@ -950,7 +902,6 @@ class PlaybackPositionsCompanion extends UpdateCompanion<PlaybackPosition> {
   @override
   String toString() {
     return (StringBuffer('PlaybackPositionsCompanion(')
-          ..write('userId: $userId, ')
           ..write('videoId: $videoId, ')
           ..write('title: $title, ')
           ..write('slug: $slug, ')
@@ -3721,13 +3672,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'user_accounts',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('playback_positions', kind: UpdateKind.delete)],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'user_accounts',
-        limitUpdateKind: UpdateKind.delete,
-      ),
       result: [TableUpdate('download_records', kind: UpdateKind.delete)],
     ),
     WritePropagation(
@@ -3769,30 +3713,6 @@ typedef $$UserAccountsTableUpdateCompanionBuilder =
 final class $$UserAccountsTableReferences
     extends BaseReferences<_$AppDatabase, $UserAccountsTable, UserAccount> {
   $$UserAccountsTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static MultiTypedResultKey<$PlaybackPositionsTable, List<PlaybackPosition>>
-  _playbackPositionsRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.playbackPositions,
-        aliasName: 'user_accounts__user_id__playback_positions__user_id',
-      );
-
-  $$PlaybackPositionsTableProcessedTableManager get playbackPositionsRefs {
-    final manager =
-        $$PlaybackPositionsTableTableManager(
-          $_db,
-          $_db.playbackPositions,
-        ).filter(
-          (f) => f.userId.userId.sqlEquals($_itemColumn<String>('user_id')!),
-        );
-
-    final cache = $_typedResult.readTableOrNull(
-      _playbackPositionsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
 
   static MultiTypedResultKey<$DownloadRecordsTable, List<DownloadRecord>>
   _downloadRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
@@ -3868,31 +3788,6 @@ class $$UserAccountsTableFilterComposer
     column: $table.lastAuthenticatedAt,
     builder: (column) => ColumnFilters(column),
   );
-
-  Expression<bool> playbackPositionsRefs(
-    Expression<bool> Function($$PlaybackPositionsTableFilterComposer f) f,
-  ) {
-    final $$PlaybackPositionsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.userId,
-      referencedTable: $db.playbackPositions,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PlaybackPositionsTableFilterComposer(
-            $db: $db,
-            $table: $db.playbackPositions,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 
   Expression<bool> downloadRecordsRefs(
     Expression<bool> Function($$DownloadRecordsTableFilterComposer f) f,
@@ -4008,32 +3903,6 @@ class $$UserAccountsTableAnnotationComposer
     builder: (column) => column,
   );
 
-  Expression<T> playbackPositionsRefs<T extends Object>(
-    Expression<T> Function($$PlaybackPositionsTableAnnotationComposer a) f,
-  ) {
-    final $$PlaybackPositionsTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.userId,
-          referencedTable: $db.playbackPositions,
-          getReferencedColumn: (t) => t.userId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$PlaybackPositionsTableAnnotationComposer(
-                $db: $db,
-                $table: $db.playbackPositions,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
-
   Expression<T> downloadRecordsRefs<T extends Object>(
     Expression<T> Function($$DownloadRecordsTableAnnotationComposer a) f,
   ) {
@@ -4099,7 +3968,6 @@ class $$UserAccountsTableTableManager
           (UserAccount, $$UserAccountsTableReferences),
           UserAccount,
           PrefetchHooks Function({
-            bool playbackPositionsRefs,
             bool downloadRecordsRefs,
             bool searchHistoriesRefs,
           })
@@ -4156,42 +4024,16 @@ class $$UserAccountsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({
-                playbackPositionsRefs = false,
-                downloadRecordsRefs = false,
-                searchHistoriesRefs = false,
-              }) {
+              ({downloadRecordsRefs = false, searchHistoriesRefs = false}) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
-                    if (playbackPositionsRefs) db.playbackPositions,
                     if (downloadRecordsRefs) db.downloadRecords,
                     if (searchHistoriesRefs) db.searchHistories,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
-                      if (playbackPositionsRefs)
-                        await $_getPrefetchedData<
-                          UserAccount,
-                          $UserAccountsTable,
-                          PlaybackPosition
-                        >(
-                          currentTable: table,
-                          referencedTable: $$UserAccountsTableReferences
-                              ._playbackPositionsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$UserAccountsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).playbackPositionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.userId == item.userId,
-                              ),
-                          typedResults: items,
-                        ),
                       if (downloadRecordsRefs)
                         await $_getPrefetchedData<
                           UserAccount,
@@ -4255,14 +4097,12 @@ typedef $$UserAccountsTableProcessedTableManager =
       (UserAccount, $$UserAccountsTableReferences),
       UserAccount,
       PrefetchHooks Function({
-        bool playbackPositionsRefs,
         bool downloadRecordsRefs,
         bool searchHistoriesRefs,
       })
     >;
 typedef $$PlaybackPositionsTableCreateCompanionBuilder =
     PlaybackPositionsCompanion Function({
-      required String userId,
       required String videoId,
       Value<String?> title,
       Value<String?> slug,
@@ -4275,7 +4115,6 @@ typedef $$PlaybackPositionsTableCreateCompanionBuilder =
     });
 typedef $$PlaybackPositionsTableUpdateCompanionBuilder =
     PlaybackPositionsCompanion Function({
-      Value<String> userId,
       Value<String> videoId,
       Value<String?> title,
       Value<String?> slug,
@@ -4286,37 +4125,6 @@ typedef $$PlaybackPositionsTableUpdateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<int> rowid,
     });
-
-final class $$PlaybackPositionsTableReferences
-    extends
-        BaseReferences<
-          _$AppDatabase,
-          $PlaybackPositionsTable,
-          PlaybackPosition
-        > {
-  $$PlaybackPositionsTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $UserAccountsTable _userIdTable(_$AppDatabase db) => db.userAccounts
-      .createAlias('playback_positions__user_id__user_accounts__user_id');
-
-  $$UserAccountsTableProcessedTableManager get userId {
-    final $_column = $_itemColumn<String>('user_id')!;
-
-    final manager = $$UserAccountsTableTableManager(
-      $_db,
-      $_db.userAccounts,
-    ).filter((f) => f.userId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_userIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-}
 
 class $$PlaybackPositionsTableFilterComposer
     extends Composer<_$AppDatabase, $PlaybackPositionsTable> {
@@ -4366,29 +4174,6 @@ class $$PlaybackPositionsTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
-
-  $$UserAccountsTableFilterComposer get userId {
-    final $$UserAccountsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.userId,
-      referencedTable: $db.userAccounts,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$UserAccountsTableFilterComposer(
-            $db: $db,
-            $table: $db.userAccounts,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$PlaybackPositionsTableOrderingComposer
@@ -4439,29 +4224,6 @@ class $$PlaybackPositionsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
-
-  $$UserAccountsTableOrderingComposer get userId {
-    final $$UserAccountsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.userId,
-      referencedTable: $db.userAccounts,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$UserAccountsTableOrderingComposer(
-            $db: $db,
-            $table: $db.userAccounts,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$PlaybackPositionsTableAnnotationComposer
@@ -4504,29 +4266,6 @@ class $$PlaybackPositionsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  $$UserAccountsTableAnnotationComposer get userId {
-    final $$UserAccountsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.userId,
-      referencedTable: $db.userAccounts,
-      getReferencedColumn: (t) => t.userId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$UserAccountsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.userAccounts,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$PlaybackPositionsTableTableManager
@@ -4540,9 +4279,16 @@ class $$PlaybackPositionsTableTableManager
           $$PlaybackPositionsTableAnnotationComposer,
           $$PlaybackPositionsTableCreateCompanionBuilder,
           $$PlaybackPositionsTableUpdateCompanionBuilder,
-          (PlaybackPosition, $$PlaybackPositionsTableReferences),
+          (
+            PlaybackPosition,
+            BaseReferences<
+              _$AppDatabase,
+              $PlaybackPositionsTable,
+              PlaybackPosition
+            >,
+          ),
           PlaybackPosition,
-          PrefetchHooks Function({bool userId})
+          PrefetchHooks Function()
         > {
   $$PlaybackPositionsTableTableManager(
     _$AppDatabase db,
@@ -4562,7 +4308,6 @@ class $$PlaybackPositionsTableTableManager
               ),
           updateCompanionCallback:
               ({
-                Value<String> userId = const Value.absent(),
                 Value<String> videoId = const Value.absent(),
                 Value<String?> title = const Value.absent(),
                 Value<String?> slug = const Value.absent(),
@@ -4573,7 +4318,6 @@ class $$PlaybackPositionsTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlaybackPositionsCompanion(
-                userId: userId,
                 videoId: videoId,
                 title: title,
                 slug: slug,
@@ -4586,7 +4330,6 @@ class $$PlaybackPositionsTableTableManager
               ),
           createCompanionCallback:
               ({
-                required String userId,
                 required String videoId,
                 Value<String?> title = const Value.absent(),
                 Value<String?> slug = const Value.absent(),
@@ -4597,7 +4340,6 @@ class $$PlaybackPositionsTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlaybackPositionsCompanion.insert(
-                userId: userId,
                 videoId: videoId,
                 title: title,
                 slug: slug,
@@ -4609,56 +4351,9 @@ class $$PlaybackPositionsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$PlaybackPositionsTableReferences(db, table, e),
-                ),
-              )
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
-          prefetchHooksCallback: ({userId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (userId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.userId,
-                                referencedTable:
-                                    $$PlaybackPositionsTableReferences
-                                        ._userIdTable(db),
-                                referencedColumn:
-                                    $$PlaybackPositionsTableReferences
-                                        ._userIdTable(db)
-                                        .userId,
-                              )
-                              as T;
-                    }
-
-                    return state;
-                  },
-              getPrefetchedDataCallback: (items) async {
-                return [];
-              },
-            );
-          },
+          prefetchHooksCallback: null,
         ),
       );
 }
@@ -4673,9 +4368,16 @@ typedef $$PlaybackPositionsTableProcessedTableManager =
       $$PlaybackPositionsTableAnnotationComposer,
       $$PlaybackPositionsTableCreateCompanionBuilder,
       $$PlaybackPositionsTableUpdateCompanionBuilder,
-      (PlaybackPosition, $$PlaybackPositionsTableReferences),
+      (
+        PlaybackPosition,
+        BaseReferences<
+          _$AppDatabase,
+          $PlaybackPositionsTable,
+          PlaybackPosition
+        >,
+      ),
       PlaybackPosition,
-      PrefetchHooks Function({bool userId})
+      PrefetchHooks Function()
     >;
 typedef $$DownloadRecordsTableCreateCompanionBuilder =
     DownloadRecordsCompanion Function({

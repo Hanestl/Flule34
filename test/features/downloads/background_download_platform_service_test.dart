@@ -36,4 +36,34 @@ void main() {
     expect(event?.bytesDownloaded, 500);
     expect(event?.totalBytes, 800);
   });
+
+  test('下载配置使用较短连接超时和不含内容信息的合并通知', () {
+    expect(
+      BackgroundDownloadPlatformService.requestTimeout,
+      const Duration(seconds: 15),
+    );
+    expect(
+      BackgroundDownloadPlatformService.notificationGroupId,
+      'flule34-background-tasks',
+    );
+    final notification = BackgroundDownloadPlatformService.runningNotification;
+    expect(notification.title, '后台任务进行中');
+    expect(notification.body, '正在处理');
+    expect('${notification.title}${notification.body}', isNot(contains('{')));
+  });
+
+  test('协程取消与网络异常会转换为可理解的提示', () {
+    expect(
+      BackgroundDownloadPlatformService.displayErrorFor(
+        'TaskException: v8.uO: g1 was cancelled;job=g1{Cancelling}',
+      ),
+      '下载任务被系统中断，请重试。',
+    );
+    expect(
+      BackgroundDownloadPlatformService.displayErrorFor(
+        'SocketException: Connection reset by peer',
+      ),
+      '网络连接中断，请检查网络后重试。',
+    );
+  });
 }

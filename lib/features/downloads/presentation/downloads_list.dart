@@ -277,12 +277,11 @@ class _DownloadCardState extends State<_DownloadCard>
   }) {
     final record = widget.record;
     final totalBytes = record.totalBytes ?? 0;
+    final connecting = isDownloadConnecting(record);
     final progress = switch (record.state) {
       'complete' => 1.0,
-      _ when totalBytes > 0 => (record.bytesDownloaded / totalBytes).clamp(
-        0.0,
-        1.0,
-      ),
+      _ when totalBytes > 0 && !connecting =>
+        (record.bytesDownloaded / totalBytes).clamp(0.0, 1.0),
       _ => null,
     };
     return Card(
@@ -313,7 +312,7 @@ class _DownloadCardState extends State<_DownloadCard>
                   const LinearProgressIndicator(),
                 const SizedBox(height: 7),
                 Text(
-                  _statusText(
+                  downloadStatusText(
                     record,
                     validation: validation,
                     validating: validating,
@@ -582,7 +581,14 @@ class _CoverPlaceholder extends StatelessWidget {
   }
 }
 
-String _statusText(
+const meaningfulDownloadProgressBytes = 64 * 1024;
+
+bool isDownloadConnecting(DownloadRecord record) {
+  return record.state == 'running' &&
+      record.bytesDownloaded < meaningfulDownloadProgressBytes;
+}
+
+String downloadStatusText(
   DownloadRecord record, {
   required DownloadFileValidation? validation,
   required bool validating,
@@ -599,8 +605,13 @@ String _statusText(
   if (record.state == 'complete') {
     return '${_formatBytes(total)} · 已下载';
   }
+  if (isDownloadConnecting(record)) {
+    return '正在连接';
+  }
   if (_isActive(record.state) && total > 0) {
-    return '${_formatBytes(record.bytesDownloaded)} / ${_formatBytes(total)}';
+    final progress =
+        '${_formatBytes(record.bytesDownloaded)} / ${_formatBytes(total)}';
+    return record.state == 'running' ? '正在下载 · $progress' : progress;
   }
   return _stateLabel(record.state);
 }

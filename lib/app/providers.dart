@@ -150,7 +150,6 @@ final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
 final playbackRepositoryProvider = Provider<PlaybackRepository>((ref) {
   return PlaybackRepository(
     ref.watch(appDatabaseProvider),
-    ref.watch(sessionStoreProvider),
     ref.watch(appSettingsRepositoryProvider),
   );
 });

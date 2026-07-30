@@ -19,8 +19,6 @@ class UserAccounts extends Table {
 }
 
 class PlaybackPositions extends Table {
-  TextColumn get userId =>
-      text().references(UserAccounts, #userId, onDelete: KeyAction.cascade)();
   TextColumn get videoId => text()();
   TextColumn get title => text().nullable()();
   TextColumn get slug => text().nullable()();
@@ -31,7 +29,7 @@ class PlaybackPositions extends Table {
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
-  Set<Column<Object>> get primaryKey => {userId, videoId};
+  Set<Column<Object>> get primaryKey => {videoId};
 }
 
 class DownloadRecords extends Table {
@@ -143,7 +141,7 @@ final class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -196,6 +194,43 @@ final class AppDatabase extends _$AppDatabase {
           schema.localLibraryVideos,
           schema.localLibraryVideos.previewUrl,
         );
+      },
+      from7To8: (migrator, schema) async {
+        await customStatement(
+          'ALTER TABLE playback_positions '
+          'RENAME TO playback_positions_v7',
+        );
+        await migrator.createTable(schema.playbackPositions);
+        await customStatement('''
+          INSERT INTO playback_positions (
+            video_id,
+            title,
+            slug,
+            thumbnail_url,
+            duration_label,
+            position_ms,
+            duration_ms,
+            updated_at
+          )
+          SELECT
+            legacy.video_id,
+            legacy.title,
+            legacy.slug,
+            legacy.thumbnail_url,
+            legacy.duration_label,
+            legacy.position_ms,
+            legacy.duration_ms,
+            legacy.updated_at
+          FROM playback_positions_v7 AS legacy
+          WHERE legacy.rowid = (
+            SELECT candidate.rowid
+            FROM playback_positions_v7 AS candidate
+            WHERE candidate.video_id = legacy.video_id
+            ORDER BY candidate.updated_at DESC, candidate.rowid DESC
+            LIMIT 1
+          )
+        ''');
+        await customStatement('DROP TABLE playback_positions_v7');
       },
     ),
     beforeOpen: (_) async {
@@ -252,7 +287,6 @@ final class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> savePlaybackPosition({
-    required String userId,
     required String videoId,
     required int positionMs,
     int? durationMs,
@@ -263,7 +297,6 @@ final class AppDatabase extends _$AppDatabase {
   }) {
     return into(playbackPositions).insertOnConflictUpdate(
       PlaybackPositionsCompanion(
-        userId: Value(userId),
         videoId: Value(videoId),
         title: title == null ? const Value.absent() : Value(title),
         slug: slug == null ? const Value.absent() : Value(slug),
@@ -280,22 +313,16 @@ final class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<PlaybackPosition?> findPlaybackPosition({
-    required String userId,
-    required String videoId,
-  }) {
-    return (select(playbackPositions)..where(
-          (position) =>
-              position.userId.equals(userId) & position.videoId.equals(videoId),
-        ))
-        .getSingleOrNull();
+  Future<PlaybackPosition?> findPlaybackPosition({required String videoId}) {
+    return (select(
+      playbackPositions,
+    )..where((position) => position.videoId.equals(videoId))).getSingleOrNull();
   }
 
-  Stream<List<PlaybackPosition>> watchContinueWatching(String userId) {
+  Stream<List<PlaybackPosition>> watchContinueWatching() {
     return (select(playbackPositions)
           ..where(
             (position) =>
-                position.userId.equals(userId) &
                 position.positionMs.isBiggerThanValue(0) &
                 position.title.isNotNull() &
                 position.slug.isNotNull(),
@@ -312,6 +339,12 @@ final class AppDatabase extends _$AppDatabase {
     return (select(
       downloadRecords,
     )..where((record) => record.id.equals(id))).getSingleOrNull();
+  }
+
+  Future<DownloadRecord?> findDownloadRecordByTaskId(String taskId) {
+    return (select(
+      downloadRecords,
+    )..where((record) => record.taskId.equals(taskId))).getSingleOrNull();
   }
 
   Future<DownloadRecord?> findVideoDownload({
@@ -418,10 +451,8 @@ final class AppDatabase extends _$AppDatabase {
     )..where((record) => record.id.equals(id))).go();
   }
 
-  Future<void> deletePlaybackPositionsForUser(String userId) {
-    return (delete(
-      playbackPositions,
-    )..where((position) => position.userId.equals(userId))).go();
+  Future<void> deleteAllPlaybackPositions() {
+    return delete(playbackPositions).go();
   }
 
   Future<void> recordSearchQuery({

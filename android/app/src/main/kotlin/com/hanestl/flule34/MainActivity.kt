@@ -1,8 +1,13 @@
 package com.hanestl.flule34
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.net.Uri
 import android.content.Context
 import android.media.AudioManager
+import android.os.Build
+import android.os.Bundle
 import android.provider.OpenableColumns
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
@@ -10,6 +15,11 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        createPrivateNotificationChannels()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
@@ -176,8 +186,50 @@ class MainActivity : FlutterActivity() {
         return audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / maximum
     }
 
+    private fun createPrivateNotificationChannels() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return
+        }
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        val channels = listOf(
+            Triple(
+                DOWNLOAD_NOTIFICATION_CHANNEL,
+                "后台任务",
+                "用于保持后台任务可靠运行",
+            ),
+            Triple(
+                MEDIA_NOTIFICATION_CHANNEL,
+                "媒体播放",
+                "用于保持后台播放可靠运行",
+            ),
+            Triple(
+                PLAYER_SERVICE_NOTIFICATION_CHANNEL,
+                "媒体播放服务",
+                "用于保持后台播放服务可靠运行",
+            ),
+        )
+        channels.forEach { (id, name, descriptionText) ->
+            val channel = NotificationChannel(
+                id,
+                name,
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = descriptionText
+                setSound(null, null)
+                enableLights(false)
+                enableVibration(false)
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
     private companion object {
         const val STORAGE_CHANNEL = "com.hanestl.flule34/storage_access"
         const val MEDIA_VOLUME_CHANNEL = "com.hanestl.flule34/media_volume"
+        const val DOWNLOAD_NOTIFICATION_CHANNEL = "background_downloader"
+        const val MEDIA_NOTIFICATION_CHANNEL = "flule34_media_private"
+        const val PLAYER_SERVICE_NOTIFICATION_CHANNEL = "better_player_channel"
     }
 }

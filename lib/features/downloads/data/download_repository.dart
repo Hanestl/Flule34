@@ -39,6 +39,7 @@ final class DownloadRepository {
 
   StreamSubscription<DownloadPlatformEvent>? _eventSubscription;
   final Set<String> _automaticRefreshAttempts = {};
+  final Set<String> _retrying = {};
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -93,6 +94,7 @@ final class DownloadRepository {
       throw DownloadException('刷新后已找不到 $quality 下载源，请重新选择清晰度。');
     }
     final id = _taskId(details.video.id, quality);
+    final platformTaskId = _newPlatformTaskId(id);
     final filename = _filename(details.video, quality);
     final headers = await _headers();
     final now = DateTime.now().toUtc();
@@ -109,7 +111,7 @@ final class DownloadRepository {
         ),
         fileName: Value(filename),
         state: Value(DownloadTaskState.queued.storageValue),
-        taskId: Value(id),
+        taskId: Value(platformTaskId),
         createdAt: Value(now),
         updatedAt: Value(now),
       ),
@@ -118,7 +120,7 @@ final class DownloadRepository {
     try {
       enqueued = await _platformService.enqueue(
         DownloadRequest(
-          id: id,
+          id: platformTaskId,
           url: refreshedSource.url,
           filename: filename,
           displayName: details.video.title,
@@ -159,7 +161,10 @@ final class DownloadRepository {
   }
 
   Future<bool> retry(DownloadRecord record) async {
-    final taskId = record.taskId ?? record.id;
+    if (!_retrying.add(record.id)) {
+      return false;
+    }
+    final previousTaskId = record.taskId ?? record.id;
     final video = VideoItem(
       id: record.videoId,
       title: record.title,
@@ -174,11 +179,15 @@ final class DownloadRepository {
       if (source == null) {
         throw DownloadException('刷新后已找不到 ${record.quality} 下载源。');
       }
-      await _platformService.delete(taskId: taskId, fileUri: record.filePath);
+      await _platformService.delete(
+        taskId: previousTaskId,
+        fileUri: record.filePath,
+      );
       if (!await _platformService.ensureSharedStoragePermission()) {
         throw const DownloadException('系统未授予公共下载目录写入权限。');
       }
       final filename = _filename(details.video, record.quality);
+      final platformTaskId = _newPlatformTaskId(record.id);
       final now = DateTime.now().toUtc();
       await _database.saveDownloadRecord(
         DownloadRecordsCompanion(
@@ -197,7 +206,7 @@ final class DownloadRepository {
           totalBytes: const Value(null),
           filePath: const Value(null),
           errorMessage: const Value(null),
-          taskId: Value(taskId),
+          taskId: Value(platformTaskId),
           createdAt: Value(record.createdAt),
           updatedAt: Value(now),
           completedAt: const Value(null),
@@ -205,7 +214,7 @@ final class DownloadRepository {
       );
       final enqueued = await _platformService.enqueue(
         DownloadRequest(
-          id: taskId,
+          id: platformTaskId,
           url: source.url,
           filename: filename,
           displayName: details.video.title,
@@ -229,6 +238,8 @@ final class DownloadRepository {
         errorMessage: redactSensitiveText(error),
       );
       return false;
+    } finally {
+      _retrying.remove(record.id);
     }
   }
 
@@ -385,16 +396,17 @@ final class DownloadRepository {
     String id,
     Future<bool> Function(String id) action,
   ) async {
-    if (await _database.findDownloadRecord(id) == null) {
+    final record = await _database.findDownloadRecord(id);
+    if (record == null) {
       return false;
     }
-    return action(id);
+    return action(record.taskId ?? record.id);
   }
 
   Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/1.4.3',
+      'User-Agent': 'Flule34 Android/1.4.4',
     };
     final cookie = await _api.sessionCookieHeader();
     if (cookie != null) {
@@ -408,18 +420,24 @@ final class DownloadRepository {
   }
 
   Future<void> _persistEvent(DownloadPlatformEvent event) async {
+    final record = await _database.findDownloadRecordByTaskId(event.taskId);
+    if (record == null) {
+      // 重试后旧任务仍可能迟到回调，不能让它覆盖当前任务状态。
+      return;
+    }
+    final recordId = record.id;
     switch (event) {
       case DownloadStatusEvent():
         if (event.state == DownloadTaskState.complete &&
             event.actualBytes != null) {
           await _database.updateDownloadProgress(
-            id: event.taskId,
+            id: recordId,
             bytesDownloaded: event.actualBytes!,
             totalBytes: event.actualBytes,
           );
         }
         await _database.updateDownloadStatus(
-          id: event.taskId,
+          id: recordId,
           state: event.state.storageValue,
           filePath: event.filePath,
           errorMessage: event.errorMessage,
@@ -428,18 +446,15 @@ final class DownloadRepository {
               : null,
         );
         if (event.state == DownloadTaskState.complete) {
-          _automaticRefreshAttempts.remove(event.taskId);
+          _automaticRefreshAttempts.remove(recordId);
         } else if (event.state == DownloadTaskState.failed &&
-            _isExpiredSourceError(event.errorMessage) &&
-            _automaticRefreshAttempts.add(event.taskId)) {
-          final record = await _database.findDownloadRecord(event.taskId);
-          if (record != null) {
-            unawaited(retry(record));
-          }
+            _shouldAutomaticallyRetry(event.errorMessage) &&
+            _automaticRefreshAttempts.add(recordId)) {
+          unawaited(retry(record));
         }
       case DownloadProgressEvent():
         await _database.updateDownloadProgress(
-          id: event.taskId,
+          id: recordId,
           bytesDownloaded: event.bytesDownloaded,
           totalBytes: event.totalBytes,
         );
@@ -456,14 +471,26 @@ final class DownloadRepository {
 
   bool _isExpiredSourceError(String? message) {
     return RegExp(
-      r'\b(?:401|403|404)\b|unauthori[sz]ed|forbidden|not found',
+      r'\b(?:401|403|404)\b|unauthori[sz]ed|forbidden|not found|expired',
       caseSensitive: false,
     ).hasMatch(message ?? '');
+  }
+
+  bool _shouldAutomaticallyRetry(String? message) {
+    return _isExpiredSourceError(message) ||
+        RegExp(
+          r'系统中断|网络连接中断|connection reset|socketexception|timed?\s*out|broken pipe',
+          caseSensitive: false,
+        ).hasMatch(message ?? '');
   }
 
   String _taskId(String videoId, String quality) {
     final safeQuality = quality.replaceAll(RegExp(r'[^0-9A-Za-z]+'), '_');
     return 'flule34_${videoId}_$safeQuality';
+  }
+
+  String _newPlatformTaskId(String recordId) {
+    return '${recordId}_${DateTime.now().toUtc().microsecondsSinceEpoch}';
   }
 
   String _filename(VideoItem video, String quality) {

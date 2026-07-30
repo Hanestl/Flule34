@@ -90,6 +90,7 @@ class PlaybackSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(appSettingsRepositoryProvider);
+    final playback = ref.read(playbackRepositoryProvider);
     return _SettingsScaffold(
       title: '播放设置',
       repository: repository,
@@ -179,11 +180,16 @@ class PlaybackSettingsPage extends ConsumerWidget {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('记忆播放进度'),
-          subtitle: const Text('仅登录后按账号保存；关闭后不读取或写入已有进度。'),
+          subtitle: const Text('在本机保存，与登录账号无关'),
           value: settings.rememberPlaybackProgress,
           onChanged: (value) {
             unawaited(
-              _save(context, repository.setRememberPlaybackProgress(value)),
+              _changePlaybackProgressSetting(
+                context,
+                settingsRepository: repository,
+                playbackRepository: playback,
+                enabled: value,
+              ),
             );
           },
         ),
@@ -311,7 +317,6 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
   Widget build(BuildContext context) {
     final settingsRepository = ref.watch(appSettingsRepositoryProvider);
     final searchHistory = ref.watch(searchHistoryRepositoryProvider);
-    final playback = ref.watch(playbackRepositoryProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('隐私与数据')),
       body: ListenableBuilder(
@@ -360,13 +365,10 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.delete_sweep_outlined),
-                  title: const Text('清理当前账号本地数据'),
-                  subtitle: const Text(
-                    '删除当前账号的搜索历史与观看进度；公共目录中的下载文件和下载任务不会受影响。',
-                  ),
+                  title: const Text('清理当前账号搜索历史'),
                   enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
                   onTap: widget.api.sessionStore.isLoggedIn && !_clearing
-                      ? () => _clearAccountData(playback, searchHistory)
+                      ? () => _clearAccountData(searchHistory)
                       : null,
                 ),
               ),
@@ -455,17 +457,12 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
     }
   }
 
-  Future<void> _clearAccountData(
-    PlaybackRepository playback,
-    SearchHistoryRepository searchHistory,
-  ) async {
+  Future<void> _clearAccountData(SearchHistoryRepository searchHistory) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('清理本地数据？'),
-        content: const Text(
-          '这会删除当前账号在本机保存的观看进度和搜索历史。下载文件、下载任务、网站收藏与账号资料不会改变。此操作无法撤销。',
-        ),
+        content: const Text('这会删除当前账号在本机保存的搜索历史。此操作无法撤销。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -484,14 +481,13 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
 
     setState(() => _clearing = true);
     try {
-      await playback.clearCurrentAccount();
       await searchHistory.clear();
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('当前账号的本地数据已清理。')));
+      ).showSnackBar(const SnackBar(content: Text('当前账号的搜索历史已清理。')));
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -654,6 +650,53 @@ Future<void> _save(BuildContext context, Future<void> operation) async {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('保存设置失败：$error')));
+    }
+  }
+}
+
+Future<void> _changePlaybackProgressSetting(
+  BuildContext context, {
+  required AppSettingsRepository settingsRepository,
+  required PlaybackRepository playbackRepository,
+  required bool enabled,
+}) async {
+  if (enabled) {
+    await _save(context, settingsRepository.setRememberPlaybackProgress(true));
+    return;
+  }
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('关闭记忆播放进度？'),
+      content: const Text('关闭后将清除全部本地播放进度。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('关闭并清除'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) {
+    return;
+  }
+  var disabled = false;
+  try {
+    await settingsRepository.setRememberPlaybackProgress(false);
+    disabled = true;
+    await playbackRepository.clearAll();
+  } catch (error) {
+    if (disabled) {
+      await settingsRepository.setRememberPlaybackProgress(true);
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('清除播放进度失败：$error')));
     }
   }
 }

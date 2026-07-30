@@ -53,10 +53,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-          return AppShell(
-            navigationShell: navigationShell,
-            locationKey: state.uri.toString(),
-          );
+          return AppShell(navigationShell: navigationShell);
         },
         branches: [
           StatefulShellBranch(
@@ -65,7 +62,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/',
                 name: AppRouteNames.home,
-                builder: (context, state) => HomePage(api: api),
+                builder: (context, state) =>
+                    scrollablePage(state, HomePage(api: api)),
               ),
             ],
           ),
@@ -75,7 +73,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/discover',
                 name: AppRouteNames.discover,
-                builder: (context, state) => const DiscoverPage(),
+                builder: (context, state) =>
+                    scrollablePage(state, const DiscoverPage()),
               ),
             ],
           ),
@@ -85,12 +84,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/library',
                 name: AppRouteNames.library,
-                builder: (context, state) => LibraryPage(
-                  api: api,
-                  localLibraryRepository: ref.read(
-                    localLibraryRepositoryProvider,
+                builder: (context, state) => scrollablePage(
+                  state,
+                  LibraryPage(
+                    api: api,
+                    localLibraryRepository: ref.read(
+                      localLibraryRepositoryProvider,
+                    ),
+                    prefetchService: ref.read(
+                      predictivePrefetchServiceProvider,
+                    ),
                   ),
-                  prefetchService: ref.read(predictivePrefetchServiceProvider),
                 ),
                 routes: [
                   GoRoute(
@@ -99,10 +103,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) {
                       final extra = state.extra;
                       final id = int.tryParse(state.pathParameters['id'] ?? '');
-                      return LocalLibraryPage(
-                        repository: ref.read(localLibraryRepositoryProvider),
-                        libraryId: id ?? -1,
-                        title: extra is LocalLibrary ? extra.name : '本地库',
+                      return scrollablePage(
+                        state,
+                        LocalLibraryPage(
+                          repository: ref.read(localLibraryRepositoryProvider),
+                          libraryId: id ?? -1,
+                          title: extra is LocalLibrary ? extra.name : '本地库',
+                        ),
                       );
                     },
                   ),
@@ -116,69 +123,84 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/profile',
                 name: AppRouteNames.profile,
-                builder: (context, state) => ProfilePage(api: api),
+                builder: (context, state) =>
+                    scrollablePage(state, ProfilePage(api: api)),
                 routes: [
                   GoRoute(
                     path: 'account',
                     name: AppRouteNames.account,
-                    builder: (context, state) => AccountPage(api: api),
+                    builder: (context, state) =>
+                        scrollablePage(state, AccountPage(api: api)),
                   ),
                   GoRoute(
                     path: 'appearance',
                     name: AppRouteNames.appearanceSettings,
-                    builder: (context, state) => const AppearanceSettingsPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const AppearanceSettingsPage()),
                   ),
                   GoRoute(
                     path: 'playback',
                     name: AppRouteNames.playbackSettings,
-                    builder: (context, state) => const PlaybackSettingsPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const PlaybackSettingsPage()),
                   ),
                   GoRoute(
                     path: 'content',
                     name: AppRouteNames.contentSettings,
-                    builder: (context, state) => const ContentSettingsPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const ContentSettingsPage()),
                   ),
                   GoRoute(
                     path: 'downloads',
                     name: AppRouteNames.downloadSettings,
-                    builder: (context, state) => const DownloadSettingsPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const DownloadSettingsPage()),
                   ),
                   GoRoute(
                     path: 'download-management',
                     name: AppRouteNames.downloadManagement,
-                    builder: (context, state) => DownloadManagementPage(
-                      repository: ref.read(downloadRepositoryProvider),
+                    builder: (context, state) => scrollablePage(
+                      state,
+                      DownloadManagementPage(
+                        repository: ref.read(downloadRepositoryProvider),
+                      ),
                     ),
                   ),
                   GoRoute(
                     path: 'privacy',
                     name: AppRouteNames.privacySettings,
-                    builder: (context, state) => PrivacySettingsPage(api: api),
+                    builder: (context, state) =>
+                        scrollablePage(state, PrivacySettingsPage(api: api)),
                   ),
                   GoRoute(
                     path: 'app',
                     name: AppRouteNames.appSettings,
-                    builder: (context, state) => const AppSettingsPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const AppSettingsPage()),
                   ),
                   GoRoute(
                     path: 'help',
                     name: AppRouteNames.helpFeedback,
-                    builder: (context, state) => const HelpFeedbackPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const HelpFeedbackPage()),
                   ),
                   GoRoute(
                     path: 'diagnostics',
                     name: AppRouteNames.diagnostics,
-                    builder: (context, state) => const DiagnosticsPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const DiagnosticsPage()),
                   ),
                   GoRoute(
                     path: 'update',
                     name: AppRouteNames.update,
-                    builder: (context, state) => const AppUpdatePage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const AppUpdatePage()),
                   ),
                   GoRoute(
                     path: 'about',
                     name: AppRouteNames.about,
-                    builder: (context, state) => const AboutPage(),
+                    builder: (context, state) =>
+                        scrollablePage(state, const AboutPage()),
                   ),
                 ],
               ),

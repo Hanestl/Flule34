@@ -20,6 +20,58 @@ import 'package:flule34/features/video/video_player_page.dart';
 import '../../helpers/test_session_harness.dart';
 
 void main() {
+  test('跳转第一次被忽略时会重试并以真实位置为准', () async {
+    var attempts = 0;
+    var actual = Duration.zero;
+
+    final result = await verifyPlayerSeek(
+      target: const Duration(minutes: 1, seconds: 45),
+      seek: (target) async {
+        attempts += 1;
+        if (attempts >= 2) {
+          actual = target;
+        }
+      },
+      readActualPosition: () async => actual,
+      verificationDelays: const [Duration.zero],
+    );
+
+    expect(result.matched, isTrue);
+    expect(result.position, const Duration(minutes: 1, seconds: 45));
+    expect(attempts, 2);
+  });
+
+  test('跳转始终失败时回退到播放器真实位置', () async {
+    final requested = <Duration>[];
+
+    final result = await verifyPlayerSeek(
+      target: const Duration(minutes: 1, seconds: 45),
+      seek: (target) async => requested.add(target),
+      readActualPosition: () async => const Duration(seconds: 3),
+      verificationDelays: const [Duration.zero],
+    );
+
+    expect(result.matched, isFalse);
+    expect(result.position, const Duration(seconds: 3));
+    expect(requested, [
+      const Duration(minutes: 1, seconds: 45),
+      const Duration(minutes: 1, seconds: 45),
+      const Duration(seconds: 3),
+    ]);
+  });
+
+  test('后台播放通知不暴露视频标题、作者或封面', () {
+    final configuration = playbackNotificationConfiguration(
+      showNotification: true,
+    );
+
+    expect(configuration.showNotification, isTrue);
+    expect(configuration.title, '正在播放媒体');
+    expect(configuration.author, '点击返回应用');
+    expect(configuration.imageUrl, isNull);
+    expect(configuration.notificationChannelName, 'flule34_media_private');
+  });
+
   test('下一视频预缓存按网络限制体积并复用正式缓存键', () {
     expect(videoPreCacheSizeForNetwork(NetworkClass.wifi), 16 * 1024 * 1024);
     expect(videoPreCacheSizeForNetwork(NetworkClass.mobile), 6 * 1024 * 1024);
@@ -33,6 +85,10 @@ void main() {
       playlistVideoPreCacheSizeForNetwork(NetworkClass.mobile),
       32 * 1024 * 1024,
     );
+    expect(videoBufferingConfiguration.minBufferMs, 45000);
+    expect(videoBufferingConfiguration.maxBufferMs, 180000);
+    expect(videoBufferingConfiguration.bufferForPlaybackMs, 1500);
+    expect(videoBufferingConfiguration.bufferForPlaybackAfterRebufferMs, 8000);
   });
 
   test('播放器滑动手势先锁定轴向，再计算进度和音量目标', () {
@@ -226,12 +282,23 @@ void main() {
     for (var attempt = 0; attempt < 10 && platform.playCount == 0; attempt++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    final gestureArea = find.byKey(const ValueKey('video-controls-tap-area'));
-    final detector = tester.widget<GestureDetector>(gestureArea);
-    expect(detector.onPanStart, isNotNull);
-    expect(detector.onPanUpdate, isNotNull);
-    expect(detector.onPanEnd, isNotNull);
-    expect(detector.onDoubleTap, isNotNull);
+    final panArea = find.byKey(const ValueKey('video-controls-pan-area'));
+    final panDetector = tester.widget<GestureDetector>(panArea);
+    expect(panDetector.onPanStart, isNotNull);
+    expect(panDetector.onPanUpdate, isNotNull);
+    expect(panDetector.onPanEnd, isNotNull);
+    expect(panDetector.onDoubleTap, isNull);
+    final tapArea = find.byKey(const ValueKey('video-controls-tap-area'));
+    final tapDetector = tester.widget<GestureDetector>(tapArea);
+    expect(tapDetector.onDoubleTap, isNotNull);
+
+    await handle.pause();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3, milliseconds: 100));
+    final controlsOpacity = tester.widget<AnimatedOpacity>(
+      find.byKey(const ValueKey('video-controls-opacity')),
+    );
+    expect(controlsOpacity.opacity, 0);
 
     final stateBeforeSwitch = tester.state(find.byType(VideoPlayerPage));
     await tester.pumpWidget(

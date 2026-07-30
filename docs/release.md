@@ -32,8 +32,8 @@ Set-Location ..
 
 ```powershell
 $flutter = 'D:\tools\flutter\bin\flutter.bat'
-$version = '1.4.3'
-$buildNumber = '18'
+$version = '1.4.4'
+$buildNumber = '19'
 $commit = git rev-parse HEAD
 $buildTime = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 
@@ -92,7 +92,7 @@ Windows 生成单行 Base64：
 ) | Set-Clipboard
 ```
 
-推送形如 `v1.4.3` 的已审核标签后，工作流会先校验标签版本与 `pubspec.yaml` 一致，再使用其中显式维护的构建号运行测试、只构建 arm64 APK、生成 SHA256、生成公开仓库构建证明并创建 GitHub Release。每次发布必须递增构建号，确保已安装用户可以覆盖升级。若 `docs/releases/<标签>.md` 存在，工作流会把它作为逐条 Release 说明。符号文件只作为 Actions artifact 保存，不上传到公开 Release。
+推送形如 `v1.4.4` 的已审核标签后，工作流会先校验标签版本与 `pubspec.yaml` 一致，再使用其中显式维护的构建号运行测试、只构建 arm64 APK、生成 SHA256、生成公开仓库构建证明并创建 GitHub Release。每次发布必须递增构建号，确保已安装用户可以覆盖升级。若 `docs/releases/<标签>.md` 存在，工作流会把它作为逐条 Release 说明。符号文件只作为 Actions artifact 保存，不上传到公开 Release。
 
 ## 5. 发布前验收
 

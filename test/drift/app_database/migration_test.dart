@@ -12,6 +12,7 @@ import 'generated/schema_v3.dart' as v3;
 import 'generated/schema_v5.dart' as v5;
 import 'generated/schema_v6.dart' as v6;
 import 'generated/schema_v7.dart' as v7;
+import 'generated/schema_v8.dart' as v8;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -342,4 +343,89 @@ void main() {
       },
     );
   });
+
+  test(
+    'migration from v7 to v8 merges account progress by latest update',
+    () async {
+      const older = 1700000000;
+      const newer = 1700000060;
+      const newest = 1700000120;
+      const users = [
+        v7.UserAccountsData(
+          userId: '1001',
+          createdAt: older,
+          lastAuthenticatedAt: older,
+        ),
+        v7.UserAccountsData(
+          userId: '2002',
+          createdAt: older,
+          lastAuthenticatedAt: newer,
+        ),
+      ];
+      const oldPositions = [
+        v7.PlaybackPositionsData(
+          userId: '1001',
+          videoId: 'same-video',
+          title: '旧标题',
+          slug: 'old-title',
+          positionMs: 30000,
+          durationMs: 120000,
+          updatedAt: older,
+        ),
+        v7.PlaybackPositionsData(
+          userId: '2002',
+          videoId: 'same-video',
+          title: '新标题',
+          slug: 'new-title',
+          positionMs: 70000,
+          durationMs: 120000,
+          updatedAt: newest,
+        ),
+        v7.PlaybackPositionsData(
+          userId: '1001',
+          videoId: 'other-video',
+          title: '另一条',
+          slug: 'other-video',
+          positionMs: 15000,
+          durationMs: 60000,
+          updatedAt: newer,
+        ),
+      ];
+
+      await verifier.testWithDataIntegrity(
+        oldVersion: 7,
+        newVersion: 8,
+        createOld: v7.DatabaseAtV7.new,
+        createNew: v8.DatabaseAtV8.new,
+        openTestedDatabase: AppDatabase.new,
+        createItems: (batch, oldDb) {
+          batch.insertAll(oldDb.userAccounts, users);
+          batch.insertAll(oldDb.playbackPositions, oldPositions);
+        },
+        validateItems: (newDb) async {
+          final positions = await newDb.select(newDb.playbackPositions).get()
+            ..sort((left, right) => left.videoId.compareTo(right.videoId));
+          expect(positions, [
+            const v8.PlaybackPositionsData(
+              videoId: 'other-video',
+              title: '另一条',
+              slug: 'other-video',
+              positionMs: 15000,
+              durationMs: 60000,
+              updatedAt: newer,
+            ),
+            const v8.PlaybackPositionsData(
+              videoId: 'same-video',
+              title: '新标题',
+              slug: 'new-title',
+              positionMs: 70000,
+              durationMs: 120000,
+              updatedAt: newest,
+            ),
+          ]);
+          expect(await newDb.select(newDb.userAccounts).get(), hasLength(2));
+        },
+      );
+    },
+  );
 }

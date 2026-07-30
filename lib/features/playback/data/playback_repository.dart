@@ -1,41 +1,21 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/models/video_models.dart';
-import '../../../core/session/session_store.dart';
 import '../../settings/data/app_settings_repository.dart';
 
 final class PlaybackRepository {
-  PlaybackRepository(
-    this._database,
-    this._sessionStore,
-    this._settingsRepository,
-  );
+  PlaybackRepository(this._database, this._settingsRepository);
 
   static const _minimumResume = Duration(seconds: 5);
   static const _completionThreshold = Duration(seconds: 15);
 
   final AppDatabase _database;
-  final SessionStore _sessionStore;
   final AppSettingsRepository _settingsRepository;
 
   Future<Duration?> loadPosition(String videoId) async {
-    return loadPositionForAccount(
-      videoId: videoId,
-      userId: _sessionStore.currentUserId,
-    );
-  }
-
-  Future<Duration?> loadPositionForAccount({
-    required String videoId,
-    required String? userId,
-  }) async {
-    if (userId == null ||
-        !_settingsRepository.settings.rememberPlaybackProgress) {
+    if (!_settingsRepository.settings.rememberPlaybackProgress) {
       return null;
     }
-    final record = await _database.findPlaybackPosition(
-      userId: userId,
-      videoId: videoId,
-    );
+    final record = await _database.findPlaybackPosition(videoId: videoId);
     if (record == null) {
       return null;
     }
@@ -56,22 +36,7 @@ final class PlaybackRepository {
     required Duration position,
     required Duration duration,
   }) async {
-    return savePositionForAccount(
-      userId: _sessionStore.currentUserId,
-      video: video,
-      position: position,
-      duration: duration,
-    );
-  }
-
-  Future<void> savePositionForAccount({
-    required String? userId,
-    required VideoItem video,
-    required Duration position,
-    required Duration duration,
-  }) async {
-    if (userId == null ||
-        !_settingsRepository.settings.rememberPlaybackProgress ||
+    if (!_settingsRepository.settings.rememberPlaybackProgress ||
         duration <= Duration.zero) {
       return;
     }
@@ -79,7 +44,6 @@ final class PlaybackRepository {
         ? Duration.zero
         : position;
     await _database.savePlaybackPosition(
-      userId: userId,
       videoId: video.id,
       title: video.title,
       slug: video.slug,
@@ -91,16 +55,13 @@ final class PlaybackRepository {
   }
 
   Stream<List<PlaybackPosition>> watchContinueWatching() {
-    final userId = _sessionStore.currentUserId;
-    return userId == null
-        ? Stream.value(const <PlaybackPosition>[])
-        : _database.watchContinueWatching(userId);
+    if (!_settingsRepository.settings.rememberPlaybackProgress) {
+      return Stream.value(const <PlaybackPosition>[]);
+    }
+    return _database.watchContinueWatching();
   }
 
-  Future<void> clearCurrentAccount() async {
-    final userId = _sessionStore.currentUserId;
-    if (userId != null) {
-      await _database.deletePlaybackPositionsForUser(userId);
-    }
+  Future<void> clearAll() {
+    return _database.deleteAllPlaybackPositions();
   }
 }

@@ -1632,7 +1632,7 @@ class Rule34VideoApi {
       responseType: ResponseType.plain,
       followRedirects: false,
       headers: const {
-        'User-Agent': 'Flule34 Android/1.4.3',
+        'User-Agent': 'Flule34 Android/1.4.4',
         'Accept':
             'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       },

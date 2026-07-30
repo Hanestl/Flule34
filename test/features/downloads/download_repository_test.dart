@@ -44,6 +44,8 @@ void main() {
     final record = await harness.database.findDownloadRecord(id);
     expect(record?.thumbnailUrl, 'https://example.com/preview.jpg');
     expect(record?.fileName, '测试视频_4505897_720p.mp4');
+    expect(record?.taskId, platform.requests.single.id);
+    expect(record?.taskId, startsWith('${id}_'));
   });
 
   test('通知权限或公共目录权限被拒绝时不会入队', () async {
@@ -105,11 +107,12 @@ void main() {
       details: _details,
       source: _details.sources.single,
     );
+    final taskId = (await harness.database.findDownloadRecord(id))!.taskId!;
 
     expect(await repository.pause(id), isTrue);
     expect(await repository.resume(id), isTrue);
-    expect(platform.pausedTaskIds, [id]);
-    expect(platform.resumedTaskIds, [id]);
+    expect(platform.pausedTaskIds, [taskId]);
+    expect(platform.resumedTaskIds, [taskId]);
     expect(await repository.pause('missing-task'), isFalse);
   });
 
@@ -132,13 +135,18 @@ void main() {
       details: _details,
       source: _details.sources.single,
     );
+    final taskId = (await harness.database.findDownloadRecord(id))!.taskId!;
 
     platform.emit(
-      DownloadProgressEvent(taskId: id, bytesDownloaded: 512, totalBytes: 1024),
+      DownloadProgressEvent(
+        taskId: taskId,
+        bytesDownloaded: 512,
+        totalBytes: 1024,
+      ),
     );
     platform.emit(
       DownloadStatusEvent(
-        taskId: id,
+        taskId: taskId,
         state: DownloadTaskState.complete,
         filePath: _fileUri,
         actualBytes: 2048,
@@ -154,6 +162,107 @@ void main() {
     expect(record?.totalBytes, 2048);
     expect(record?.filePath, _fileUri);
     expect(record?.completedAt, isNotNull);
+  });
+
+  test('重试使用新的平台任务 ID 且忽略旧任务迟到回调', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    final repository = DownloadRepository(
+      harness.database,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    final original = (await harness.database.findDownloadRecord(id))!;
+    final originalTaskId = original.taskId!;
+
+    expect(await repository.retry(original), isTrue);
+    final retried = (await harness.database.findDownloadRecord(id))!;
+    final retriedTaskId = retried.taskId!;
+    expect(retriedTaskId, isNot(originalTaskId));
+    expect(platform.requests.last.id, retriedTaskId);
+    expect(platform.deletedUris, contains(originalTaskId));
+
+    platform.emit(
+      DownloadStatusEvent(
+        taskId: originalTaskId,
+        state: DownloadTaskState.failed,
+        errorMessage: '旧任务失败',
+      ),
+    );
+    platform.emit(
+      DownloadProgressEvent(
+        taskId: originalTaskId,
+        bytesDownloaded: 999,
+        totalBytes: 1000,
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    var current = (await harness.database.findDownloadRecord(id))!;
+    expect(current.state, DownloadTaskState.queued.storageValue);
+    expect(current.bytesDownloaded, 0);
+
+    platform.emit(
+      DownloadProgressEvent(
+        taskId: retriedTaskId,
+        bytesDownloaded: 500,
+        totalBytes: 1000,
+      ),
+    );
+    await _waitFor(() async {
+      return (await harness.database.findDownloadRecord(id))?.bytesDownloaded ==
+          500;
+    });
+    current = (await harness.database.findDownloadRecord(id))!;
+    expect(current.totalBytes, 1000);
+  });
+
+  test('系统或网络中断会使用新任务 ID 自动恢复一次', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    final repository = DownloadRepository(
+      harness.database,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
+    await repository.initialize();
+    final id = await repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    final originalTaskId = (await harness.database.findDownloadRecord(
+      id,
+    ))!.taskId!;
+
+    platform.emit(
+      DownloadStatusEvent(
+        taskId: originalTaskId,
+        state: DownloadTaskState.failed,
+        errorMessage: '下载任务被系统中断，请重试。',
+      ),
+    );
+    await _waitFor(() async => platform.requests.length == 2);
+
+    final retried = (await harness.database.findDownloadRecord(id))!;
+    expect(retried.taskId, platform.requests.last.id);
+    expect(retried.taskId, isNot(originalTaskId));
+    expect(retried.state, DownloadTaskState.queued.storageValue);
   });
 
   test('完成文件必须同时满足存在、可读、文件名和体积一致', () async {
@@ -211,7 +320,7 @@ void main() {
     expect(await context.repository.open(record), isFalse);
     expect(context.platform.openedUris, isEmpty);
     expect(await context.repository.delete(record), isTrue);
-    expect(context.platform.deleteExternalFlags[record.id], isFalse);
+    expect(context.platform.deleteExternalFlags[record.taskId], isFalse);
     expect(
       await context.harness.database.findDownloadRecord(record.id),
       isNull,
@@ -232,8 +341,8 @@ void main() {
     expect(await context.repository.open(record), isTrue);
     expect(context.platform.openedUris, [_fileUri]);
     expect(await context.repository.delete(record), isTrue);
-    expect(context.platform.deletedUris[record.id], _fileUri);
-    expect(context.platform.deleteExternalFlags[record.id], isTrue);
+    expect(context.platform.deletedUris[record.taskId], _fileUri);
+    expect(context.platform.deleteExternalFlags[record.taskId], isTrue);
   });
 
   test('批量仅删除记录会保留公共目录视频', () async {
@@ -247,7 +356,10 @@ void main() {
     expect(result.matched, 1);
     expect(result.deleted, 1);
     expect(result.failed, 0);
-    expect(context.platform.deleteExternalFlags[context.record.id], isFalse);
+    expect(
+      context.platform.deleteExternalFlags[context.record.taskId],
+      isFalse,
+    );
   });
 
   test('批量删除失效记录只匹配校验失败的完成任务', () async {
@@ -264,7 +376,10 @@ void main() {
 
     expect(result.matched, 1);
     expect(result.deleted, 1);
-    expect(context.platform.deleteExternalFlags[context.record.id], isFalse);
+    expect(
+      context.platform.deleteExternalFlags[context.record.taskId],
+      isFalse,
+    );
   });
 
   test('批量删除记录及视频会请求删除公共文件', () async {
@@ -276,8 +391,8 @@ void main() {
     );
 
     expect(result.deleted, 1);
-    expect(context.platform.deletedUris[context.record.id], _fileUri);
-    expect(context.platform.deleteExternalFlags[context.record.id], isTrue);
+    expect(context.platform.deletedUris[context.record.taskId], _fileUri);
+    expect(context.platform.deleteExternalFlags[context.record.taskId], isTrue);
   });
 }
 
@@ -319,9 +434,10 @@ Future<_CompletedDownloadContext> _completedDownload() async {
     details: _details,
     source: _details.sources.single,
   );
+  final taskId = (await harness.database.findDownloadRecord(id))!.taskId!;
   platform.emit(
     DownloadStatusEvent(
-      taskId: id,
+      taskId: taskId,
       state: DownloadTaskState.complete,
       filePath: _fileUri,
       actualBytes: 2048,
