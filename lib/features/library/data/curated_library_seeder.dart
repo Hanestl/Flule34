@@ -4,7 +4,6 @@ import 'package:drift/drift.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/database/app_database.dart';
-import '../../../core/logging/app_log_service.dart';
 
 abstract interface class CuratedLibraryManifestLoader {
   Future<String> load();
@@ -21,20 +20,13 @@ final class AssetCuratedLibraryManifestLoader
 }
 
 final class CuratedLibrarySeeder {
-  const CuratedLibrarySeeder(
-    this._database,
-    this._loader, {
-    AppLogService? logService,
-  }) : _logs = logService;
+  const CuratedLibrarySeeder(this._database, this._loader);
 
   final AppDatabase _database;
   final CuratedLibraryManifestLoader _loader;
-  final AppLogService? _logs;
 
   Future<void> seedIfNeeded() async {
     final manifest = _CuratedManifest.parse(await _loader.load());
-    var importedLibraries = 0;
-    var importedVideos = 0;
     await _database.transaction(() async {
       for (final preset in manifest.libraries) {
         final existingState = await (_database.select(
@@ -89,16 +81,8 @@ final class CuratedLibrarySeeder {
                 appliedAt: Value(now),
               ),
             );
-        importedLibraries += 1;
-        importedVideos += preset.videos.length;
       }
     });
-    if (importedLibraries > 0) {
-      await _logs?.info(
-        'local_library',
-        '已导入 $importedLibraries 个精选库、$importedVideos 个视频。',
-      );
-    }
   }
 
   Future<String> _availableLibraryName(String preferredName) async {

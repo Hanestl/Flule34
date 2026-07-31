@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/api/rule34video_api.dart';
-import '../../core/logging/app_log_service.dart';
 import '../../core/models/video_models.dart';
 import '../../core/security/error_redaction.dart';
 import '../../core/services/network_status_service.dart';
@@ -140,6 +139,22 @@ bool videoControlsAnimateOpacityAfterEvent(BetterPlayerEventType event) {
 
 enum PlayerGestureAxis { horizontal, vertical }
 
+enum SourceRefreshGate { proceed, waitForActiveRefresh, rejectFailedUrl }
+
+SourceRefreshGate sourceRefreshGate({
+  required bool refreshing,
+  required bool force,
+  required bool previouslyFailed,
+}) {
+  if (refreshing) {
+    return SourceRefreshGate.waitForActiveRefresh;
+  }
+  if (!force && previouslyFailed) {
+    return SourceRefreshGate.rejectFailedUrl;
+  }
+  return SourceRefreshGate.proceed;
+}
+
 PlayerGestureAxis? playerGestureAxisForDelta(
   Offset delta, {
   double threshold = 14,
@@ -266,14 +281,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     with WidgetsBindingObserver {
   static const _mediaHeaders = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.4.4',
+    'User-Agent': 'Flule34 Android/1.4.5',
   };
 
   BetterPlayerController? _controller;
   ValueNotifier<VideoPlayerValue>? _videoController;
   late final PlaybackRepository _playback;
   late final ScreenWakeLockService _wakeLock;
-  late final AppLogService _logs;
   late final ScrollToTopController _scrollToTopController;
   late List<VideoSource> _sources;
   late VideoSource _selectedSource;
@@ -288,12 +302,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   var _wakeLockEnabled = false;
   var _playbackSpeed = 1.0;
   var _hasPreparedSource = false;
-  var _startupLogged = false;
-  var _playbackStarted = false;
-  var _bufferingCount = 0;
-  var _bufferingTotal = Duration.zero;
-  DateTime? _bufferingStartedAt;
-  late Stopwatch _startupStopwatch;
   String? _error;
   var _finishedNotified = false;
   var _switchingVideo = false;
@@ -312,9 +320,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     WidgetsBinding.instance.addObserver(this);
     _playback = ref.read(playbackRepositoryProvider);
     _wakeLock = ref.read(screenWakeLockServiceProvider);
-    _logs = ref.read(appLogServiceProvider);
     _scrollToTopController = ref.read(scrollToTopControllerProvider);
-    _startupStopwatch = Stopwatch()..start();
     _sources = List.of(widget.sources);
     final settings = ref.read(appSettingsRepositoryProvider).settings;
     _selectedSource = selectVideoSource(_sources, settings.playbackQuality);
@@ -361,12 +367,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       _finishedNotified = false;
       _lastSavedSecond = -1;
       _historyCacheInvalidated = false;
-      _startupLogged = false;
-      _playbackStarted = false;
-      _bufferingCount = 0;
-      _bufferingTotal = Duration.zero;
-      _bufferingStartedAt = null;
-      _startupStopwatch = Stopwatch()..start();
       unawaited(_start());
     }
   }
@@ -382,13 +382,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
     final quality = _qualityForNetwork(settings, network);
     _selectedSource = selectVideoSource(_sources, quality);
-    unawaited(
-      _logs.info(
-        'playback',
-        '播放器开始准备：video=${widget.video.id}，网络=${network.name}，'
-            '清晰度=${_selectedSource.label}，恢复位置=${resumePosition.inSeconds}s。',
-      ),
-    );
     await _setSource(
       _selectedSource,
       resumeAt: resumePosition,
@@ -399,15 +392,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   Future<NetworkClass> _currentNetworkClass() async {
     try {
       return await ref.read(networkStatusServiceProvider).current();
-    } catch (error, stackTrace) {
-      unawaited(
-        _logs.warning(
-          'playback',
-          '读取当前网络类型失败，按其他网络处理。',
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
+    } catch (_) {
       return NetworkClass.other;
     }
   }
@@ -437,15 +422,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
     try {
       return await _playback.loadPosition(widget.video.id) ?? Duration.zero;
-    } catch (error, stackTrace) {
-      unawaited(
-        _logs.warning(
-          'playback',
-          '读取历史播放位置失败，从头播放：video=${widget.video.id}。',
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
+    } catch (_) {
       return Duration.zero;
     }
   }
@@ -467,18 +444,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (value != null) {
       unawaited(_persist(value));
     }
-    final activeBuffering = _bufferingStartedAt;
-    if (activeBuffering != null) {
-      _bufferingTotal += DateTime.now().difference(activeBuffering);
-    }
-    _startupStopwatch.stop();
-    unawaited(
-      _logs.info(
-        'playback',
-        '播放器结束：video=${widget.video.id}，缓冲次数=$_bufferingCount，'
-            '缓冲总时长=${_bufferingTotal.inMilliseconds}ms。',
-      ),
-    );
     _controller?.dispose(forceDispose: true);
     unawaited(_updateWakeLock(false));
     super.dispose();
@@ -646,15 +611,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (safeTarget > Duration.zero) {
         final result = await _seekVerified(safeTarget);
         actualStart = result.position;
-        if (!result.matched) {
-          unawaited(
-            _logs.warning(
-              'playback',
-              '恢复播放位置未生效，已回退到播放器真实位置：video=${widget.video.id}，'
-                  '目标=${safeTarget.inSeconds}s，实际=${actualStart.inSeconds}s。',
-            ),
-          );
-        }
       }
       if (continuePlaying) {
         await controller.play();
@@ -700,9 +656,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         const Duration(seconds: 5),
       );
     } on TimeoutException {
-      if (mounted && operation == _preCacheOperation) {
-        unawaited(_logs.warning('playback', '下一视频预缓存已取消：播放器控制器未及时就绪。'));
-      }
       return;
     }
     if (!mounted ||
@@ -762,26 +715,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _preCacheKey = key;
     try {
       await controller.preCache(dataSource);
-      if (mounted && operation == _preCacheOperation) {
-        unawaited(
-          _logs.info(
-            'playback',
-            '${aggressive ? '播放列表' : ''}下一视频预缓存完成：video=${details.video.id}，'
-                '清晰度=${source.label}，大小=${preCacheSize ~/ (1024 * 1024)}MB。',
-          ),
-        );
-      }
-    } catch (error, stackTrace) {
-      if (mounted && operation == _preCacheOperation) {
-        unawaited(
-          _logs.warning(
-            'playback',
-            '下一视频预缓存失败：video=${details.video.id}。',
-            error: error,
-            stackTrace: stackTrace,
-          ),
-        );
-      }
+    } on Object {
+      // 预缓存失败不影响当前视频，正式切换时仍会重新加载。
     }
   }
 
@@ -825,32 +760,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _bindVideoController();
       case BetterPlayerEventType.initialized:
         _bindVideoController();
-        if (!_startupLogged) {
-          _startupLogged = true;
-          _startupStopwatch.stop();
-          unawaited(
-            _logs.info(
-              'playback',
-              '播放器准备完成：video=${widget.video.id}，清晰度=${_selectedSource.label}，'
-                  '耗时=${_startupStopwatch.elapsedMilliseconds}ms。',
-            ),
-          );
-        }
-      case BetterPlayerEventType.play:
-        if (!_playbackStarted) {
-          _playbackStarted = true;
-          unawaited(
-            _logs.info(
-              'playback',
-              '播放器进入播放状态：video=${widget.video.id}，'
-                  '位置=${_videoController?.value.position.inSeconds ?? 0}s。',
-            ),
-          );
-        }
-      case BetterPlayerEventType.bufferingStart:
-        _onBufferingStart();
-      case BetterPlayerEventType.bufferingEnd:
-        _onBufferingEnd();
       case BetterPlayerEventType.exception:
         final value = _videoController?.value;
         if (!_refreshingSource && value != null) {
@@ -874,39 +783,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       default:
         break;
     }
-  }
-
-  void _onBufferingStart() {
-    if (_bufferingStartedAt != null) {
-      return;
-    }
-    _bufferingStartedAt = DateTime.now();
-    _bufferingCount += 1;
-    final position = _videoController?.value.position ?? Duration.zero;
-    unawaited(
-      _logs.debug(
-        'playback',
-        '${_playbackStarted ? '播放中' : '首播'}开始缓冲：video=${widget.video.id}，'
-            '位置=${position.inSeconds}s，次数=$_bufferingCount。',
-      ),
-    );
-  }
-
-  void _onBufferingEnd() {
-    final startedAt = _bufferingStartedAt;
-    if (startedAt == null) {
-      return;
-    }
-    _bufferingStartedAt = null;
-    final elapsed = DateTime.now().difference(startedAt);
-    _bufferingTotal += elapsed;
-    unawaited(
-      _logs.info(
-        'playback',
-        '${_playbackStarted ? '播放中' : '首播'}缓冲结束：video=${widget.video.id}，'
-            '本次=${elapsed.inMilliseconds}ms，累计=${_bufferingTotal.inMilliseconds}ms。',
-      ),
-    );
   }
 
   void _onVideoValueChanged() {
@@ -934,7 +810,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       _lastSavedSecond = second;
       unawaited(_persist(value));
     }
-    setState(() {});
   }
 
   Future<void> _updateWakeLock(bool enabled) async {
@@ -954,9 +829,24 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     required bool shouldPlay,
     bool force = false,
   }) async {
-    if (_refreshingSource ||
-        (!force && _failedUrls.contains(failedSource.url))) {
-      return false;
+    switch (sourceRefreshGate(
+      refreshing: _refreshingSource,
+      force: force,
+      previouslyFailed: _failedUrls.contains(failedSource.url),
+    )) {
+      case SourceRefreshGate.waitForActiveRefresh:
+        return false;
+      case SourceRefreshGate.rejectFailedUrl:
+        if (mounted) {
+          setState(() {
+            _initializing = false;
+            _switchingVideo = false;
+            _error = '此视频源仍不可用，请重试刷新视频地址。';
+          });
+        }
+        return false;
+      case SourceRefreshGate.proceed:
+        break;
     }
     _failedUrls.add(failedSource.url);
     _refreshingSource = true;

@@ -11,7 +11,7 @@ class SiteAvatar extends StatelessWidget {
 
   static const _headers = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.4.4',
+    'User-Agent': 'Flule34 Android/1.4.5',
   };
 
   final String? imageUrl;

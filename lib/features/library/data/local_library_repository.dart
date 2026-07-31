@@ -1,9 +1,6 @@
-import 'dart:async';
-
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
-import '../../../core/logging/app_log_service.dart';
 import '../../../core/models/video_models.dart';
 
 final class LocalLibraryException implements Exception {
@@ -43,11 +40,9 @@ abstract interface class LocalLibraryRepository {
 }
 
 final class DriftLocalLibraryRepository implements LocalLibraryRepository {
-  const DriftLocalLibraryRepository(this._database, {AppLogService? logService})
-    : _logs = logService;
+  const DriftLocalLibraryRepository(this._database);
 
   final AppDatabase _database;
-  final AppLogService? _logs;
 
   @override
   Stream<List<LocalLibrary>> watchLibraries() {
@@ -144,7 +139,6 @@ final class DriftLocalLibraryRepository implements LocalLibraryRepository {
             normalizedName: normalized,
           ),
         );
-    unawaited(_logs?.info('local_library', '已创建本地库，libraryId=$id。'));
     return id;
   }
 
@@ -174,7 +168,6 @@ final class DriftLocalLibraryRepository implements LocalLibraryRepository {
         updatedAt: Value(DateTime.now().toUtc()),
       ),
     );
-    unawaited(_logs?.info('local_library', '已重命名本地库，libraryId=$id。'));
   }
 
   @override
@@ -196,7 +189,6 @@ final class DriftLocalLibraryRepository implements LocalLibraryRepository {
         _database.localLibraries,
       )..where((item) => item.id.equals(id))).go();
     });
-    unawaited(_logs?.info('local_library', '已删除本地库，libraryId=$id。'));
   }
 
   @override
@@ -234,12 +226,6 @@ final class DriftLocalLibraryRepository implements LocalLibraryRepository {
             ..where((item) => item.id.equals(libraryId)))
           .write(LocalLibrariesCompanion(updatedAt: Value(now)));
     });
-    unawaited(
-      _logs?.info(
-        'local_library',
-        '视频已加入本地库，libraryId=$libraryId，videoId=${video.id}。',
-      ),
-    );
   }
 
   @override
@@ -252,12 +238,6 @@ final class DriftLocalLibraryRepository implements LocalLibraryRepository {
               item.libraryId.equals(libraryId) & item.videoId.equals(videoId),
         ))
         .go();
-    unawaited(
-      _logs?.info(
-        'local_library',
-        '视频已移出本地库，libraryId=$libraryId，videoId=$videoId。',
-      ),
-    );
   }
 
   String _normalizeName(String value) => value.trim().toLowerCase();

@@ -39,6 +39,10 @@ final class RequestCancelledException extends ApiException {
 class Rule34VideoApi {
   static const _videoDetailsCacheTtl = Duration(minutes: 5);
   static const _videoPageCacheTtl = Duration(minutes: 5);
+  static const _videoDetailsCacheLimit = 100;
+  static const _videoPageCacheLimit = 60;
+  static const _accountPaginationLimit = 50;
+  static const _accountPaginationNoProgressLimit = 3;
 
   Rule34VideoApi({
     required this.sessionStore,
@@ -335,6 +339,7 @@ class Rule34VideoApi {
     VideoItem video, {
     CancelToken? cancelToken,
   }) {
+    _pruneVideoDetailsCache();
     final key = _videoDetailsCacheKey(video.id);
     final cached = _videoDetailsCache[key];
     if (cached != null &&
@@ -353,6 +358,7 @@ class Rule34VideoApi {
               details: details,
               createdAt: DateTime.now(),
             );
+            _pruneVideoDetailsCache();
           }
           return details;
         })
@@ -701,7 +707,8 @@ class Rule34VideoApi {
     request =
         () async {
           final result = <String, PlaylistItem>{};
-          for (var page = 1; page <= 50; page += 1) {
+          var noProgressPages = 0;
+          for (var page = 1; page <= _accountPaginationLimit; page += 1) {
             _throwIfCancelled(cancelToken);
             final items = await _loadMyPlaylistsPage(
               page,
@@ -715,7 +722,12 @@ class Rule34VideoApi {
               result[item.id] = item;
             }
             if (result.length == before) {
-              break;
+              noProgressPages += 1;
+              if (noProgressPages >= _accountPaginationNoProgressLimit) {
+                break;
+              }
+            } else {
+              noProgressPages = 0;
             }
           }
           final value = result.values.toList(growable: false);
@@ -856,7 +868,8 @@ class Rule34VideoApi {
         () async {
           Future<List<SubscriptionItem>> fetchAll() async {
             final result = <String, SubscriptionItem>{};
-            for (var page = 1; page <= 50; page += 1) {
+            var noProgressPages = 0;
+            for (var page = 1; page <= _accountPaginationLimit; page += 1) {
               _throwIfCancelled(cancelToken);
               final items = await _loadSubscriptionsPage(
                 page,
@@ -866,8 +879,17 @@ class Rule34VideoApi {
               if (items.isEmpty) {
                 break;
               }
+              final before = result.length;
               for (final item in items) {
                 result[item.path] = item;
+              }
+              if (result.length == before) {
+                noProgressPages += 1;
+                if (noProgressPages >= _accountPaginationNoProgressLimit) {
+                  break;
+                }
+              } else {
+                noProgressPages = 0;
               }
             }
             return result.values.toList(growable: false);
@@ -1311,6 +1333,7 @@ class Rule34VideoApi {
     required bool force,
     required Future<List<VideoItem>> Function() loader,
   }) {
+    _pruneVideoPageCache();
     if (force) {
       _videoPageCache.remove(key);
       _videoPageRequests.remove(key);
@@ -1333,6 +1356,7 @@ class Rule34VideoApi {
               items: items,
               createdAt: DateTime.now(),
             );
+            _pruneVideoPageCache();
           }
           return items;
         })
@@ -1353,6 +1377,26 @@ class Rule34VideoApi {
     final marker = ':$scope:';
     _videoPageCache.removeWhere((key, _) => key.contains(marker));
     _videoPageRequests.removeWhere((key, _) => key.contains(marker));
+  }
+
+  void _pruneVideoDetailsCache() {
+    final now = DateTime.now();
+    _videoDetailsCache.removeWhere(
+      (_, entry) => now.difference(entry.createdAt) >= _videoDetailsCacheTtl,
+    );
+    while (_videoDetailsCache.length > _videoDetailsCacheLimit) {
+      _videoDetailsCache.remove(_videoDetailsCache.keys.first);
+    }
+  }
+
+  void _pruneVideoPageCache() {
+    final now = DateTime.now();
+    _videoPageCache.removeWhere(
+      (_, entry) => now.difference(entry.createdAt) >= _videoPageCacheTtl,
+    );
+    while (_videoPageCache.length > _videoPageCacheLimit) {
+      _videoPageCache.remove(_videoPageCache.keys.first);
+    }
   }
 
   void _throwIfCancelled(CancelToken? cancelToken) {
@@ -1632,7 +1676,7 @@ class Rule34VideoApi {
       responseType: ResponseType.plain,
       followRedirects: false,
       headers: const {
-        'User-Agent': 'Flule34 Android/1.4.4',
+        'User-Agent': 'Flule34 Android/1.4.5',
         'Accept':
             'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       },

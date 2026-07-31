@@ -1,11 +1,8 @@
-import 'dart:async';
-
 import 'package:dio/dio.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/config/app_build_config.dart';
-import '../../../core/logging/app_log_service.dart';
 import '../domain/app_settings.dart';
 
 enum AppUpdateStatus { unconfigured, upToDate, updateAvailable, failed }
@@ -54,7 +51,6 @@ final class AppUpdateService {
     AbiLoader? abiLoader,
     Uri? updateApiUri,
     Uri? releaseFeedUri,
-    AppLogService? logService,
   }) : _client =
            client ??
            Dio(
@@ -71,8 +67,7 @@ final class AppUpdateService {
        _packageInfoLoader = packageInfoLoader ?? PackageInfo.fromPlatform,
        _abiLoader = abiLoader ?? _loadSupportedAbis,
        _updateApiUri = updateApiUri ?? AppBuildConfig.updateApiUri,
-       _releaseFeedUri = releaseFeedUri ?? _defaultReleaseFeedUri(),
-       _logs = logService;
+       _releaseFeedUri = releaseFeedUri ?? _defaultReleaseFeedUri();
 
   final Dio _client;
   final bool _ownsClient;
@@ -80,7 +75,6 @@ final class AppUpdateService {
   final AbiLoader _abiLoader;
   final Uri? _updateApiUri;
   final Uri? _releaseFeedUri;
-  final AppLogService? _logs;
 
   Uri? get configuredSource => _updateApiUri;
 
@@ -133,7 +127,7 @@ final class AppUpdateService {
         release: release,
         message: available ? '发现新版本 ${release.version}。' : '当前已是最新版本。',
       );
-    } catch (error, stackTrace) {
+    } catch (error) {
       final feed = _releaseFeedUri;
       if (feed != null) {
         try {
@@ -141,14 +135,6 @@ final class AppUpdateService {
           if (release != null) {
             final available =
                 compareVersions(release.version, currentVersion) > 0;
-            unawaited(
-              _logs?.warning(
-                'update',
-                'GitHub API 检查失败，已通过 Releases Feed 完成检查。',
-                error: error,
-                stackTrace: stackTrace,
-              ),
-            );
             return AppUpdateResult(
               status: available
                   ? AppUpdateStatus.updateAvailable
@@ -158,15 +144,8 @@ final class AppUpdateService {
               message: available ? '发现新版本 ${release.version}。' : '当前已是最新版本。',
             );
           }
-        } catch (feedError, feedStackTrace) {
-          unawaited(
-            _logs?.warning(
-              'update',
-              'GitHub API 与 Releases Feed 均检查失败。',
-              error: feedError,
-              stackTrace: feedStackTrace,
-            ),
-          );
+        } catch (_) {
+          // GitHub API 与 Releases Feed 都失败时统一返回原始检查错误。
         }
       }
       return AppUpdateResult(

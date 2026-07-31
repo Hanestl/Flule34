@@ -185,7 +185,18 @@ class _PlaylistPlaybackPageState extends State<PlaylistPlaybackPage> {
   }
 
   Future<void> _next({bool automatic = false}) async {
-    if (await _ensureNextLoaded()) {
+    bool nextLoaded;
+    try {
+      nextLoaded = await _ensureNextLoaded();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('加载下一视频失败：$error')));
+      }
+      return;
+    }
+    if (nextLoaded) {
       await _setIndex(_index + 1);
       return;
     }

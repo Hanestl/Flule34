@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api/rule34video_api.dart';
 import '../core/database/app_database.dart';
-import '../core/logging/app_log_service.dart';
 import '../core/session/secret_store.dart';
 import '../core/session/secure_cookie_storage.dart';
 import '../core/session/session_store.dart';
@@ -29,10 +28,6 @@ import '../features/settings/data/app_settings_store.dart';
 
 final appSettingsStoreProvider = Provider<AppSettingsStore>((ref) {
   return SharedPreferencesAppSettingsStore();
-});
-
-final appLogServiceProvider = Provider<AppLogService>((ref) {
-  return sharedAppLogService;
 });
 
 final appSettingsRepositoryProvider = Provider<AppSettingsRepository>((ref) {
@@ -131,7 +126,6 @@ final downloadPlatformServiceProvider = Provider<DownloadPlatformService>((
         .watch(appSettingsRepositoryProvider)
         .settings
         .downloadConcurrentTasks,
-    logService: ref.watch(appLogServiceProvider),
   );
 });
 
@@ -141,7 +135,6 @@ final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
     ref.watch(rule34VideoApiProvider),
     ref.watch(downloadPlatformServiceProvider),
     ref.watch(appSettingsRepositoryProvider),
-    logService: ref.watch(appLogServiceProvider),
   );
   ref.onDispose(repository.dispose);
   return repository;
@@ -155,10 +148,7 @@ final playbackRepositoryProvider = Provider<PlaybackRepository>((ref) {
 });
 
 final localLibraryRepositoryProvider = Provider<LocalLibraryRepository>((ref) {
-  return DriftLocalLibraryRepository(
-    ref.watch(appDatabaseProvider),
-    logService: ref.watch(appLogServiceProvider),
-  );
+  return DriftLocalLibraryRepository(ref.watch(appDatabaseProvider));
 });
 
 final videoPreviewResolverProvider = Provider<VideoPreviewResolver>((ref) {
@@ -184,7 +174,6 @@ final curatedLibrarySeederProvider = Provider<CuratedLibrarySeeder>((ref) {
   return CuratedLibrarySeeder(
     ref.watch(appDatabaseProvider),
     const AssetCuratedLibraryManifestLoader(),
-    logService: ref.watch(appLogServiceProvider),
   );
 });
 
@@ -199,26 +188,14 @@ final searchHistoryRepositoryProvider = Provider<SearchHistoryRepository>((
 });
 
 final appInitializationProvider = FutureProvider<void>((ref) async {
-  final logs = ref.read(appLogServiceProvider);
-  try {
-    await ref.read(appSettingsRepositoryProvider).load();
-    await ref.read(curatedLibrarySeederProvider).seedIfNeeded();
-    final sessionStore = ref.read(sessionStoreProvider);
-    await sessionStore.load();
-    await ref.read(rule34VideoApiProvider).restoreSession();
-    await ref.read(rule34VideoApiProvider).subscriptionActivity.loadStored();
-    ref.read(predictivePrefetchServiceProvider).scheduleStartup();
-    await ref.read(downloadRepositoryProvider).initialize();
-    unawaited(logs.info('bootstrap', 'App 初始化完成。'));
-  } catch (error, stackTrace) {
-    await logs.error(
-      'bootstrap',
-      'App 初始化失败。',
-      error: error,
-      stackTrace: stackTrace,
-    );
-    rethrow;
-  }
+  await ref.read(appSettingsRepositoryProvider).load();
+  await ref.read(curatedLibrarySeederProvider).seedIfNeeded();
+  final sessionStore = ref.read(sessionStoreProvider);
+  await sessionStore.load();
+  await ref.read(rule34VideoApiProvider).restoreSession();
+  await ref.read(rule34VideoApiProvider).subscriptionActivity.loadStored();
+  ref.read(predictivePrefetchServiceProvider).scheduleStartup();
+  await ref.read(downloadRepositoryProvider).initialize();
 });
 
 final class _SettingsBackedSubscriptionActivityStore
@@ -241,6 +218,6 @@ final class _SettingsBackedSubscriptionActivityStore
 
   @override
   Future<void> remove(String userId) {
-    return _store.writeString('$_keyPrefix$userId', '');
+    return _store.remove('$_keyPrefix$userId');
   }
 }

@@ -246,6 +246,11 @@ final class _MemorySettingsStore implements AppSettingsStore {
   Future<void> writeString(String key, String value) async {
     _values[key] = value;
   }
+
+  @override
+  Future<void> remove(String key) async {
+    _values.remove(key);
+  }
 }
 
 class _FakeSearchApi extends Rule34VideoApi {

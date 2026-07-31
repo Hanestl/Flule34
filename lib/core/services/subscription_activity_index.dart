@@ -46,12 +46,14 @@ abstract interface class SubscriptionActivityStore {
 final class MemorySubscriptionActivityStore
     implements SubscriptionActivityStore {
   final Map<String, String> _values = {};
+  int writeCount = 0;
 
   @override
   Future<String?> read(String userId) async => _values[userId];
 
   @override
   Future<void> write(String userId, String value) async {
+    writeCount += 1;
     _values[userId] = value;
   }
 
@@ -187,6 +189,7 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
       await refresh(force: true, cancelToken: cancelToken);
     }
     final targetCount = page * pageSize;
+    final userId = _userId;
     var attempts = 0;
     while (_videos.length < targetCount &&
         _sources.values.any((source) => !source.exhausted) &&
@@ -196,6 +199,9 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
       if (added == 0 && _lastError != null) {
         throw const SubscriptionActivityException('部分订阅暂时无法读取，请稍后重试。');
       }
+    }
+    if (attempts > 0 && userId != null) {
+      await _persist(userId);
     }
     final start = (page - 1) * pageSize;
     if (start >= _videos.length) {
@@ -433,7 +439,6 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
         ? SubscriptionActivityException('有 $failures 个订阅暂时无法继续读取。')
         : null;
     _revision += 1;
-    await _persist(userId);
     _notify();
     return added;
   }

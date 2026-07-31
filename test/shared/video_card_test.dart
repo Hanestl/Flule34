@@ -249,6 +249,9 @@ final class _MemorySettingsStore implements AppSettingsStore {
 
   @override
   Future<void> writeString(String key, String value) async {}
+
+  @override
+  Future<void> remove(String key) async {}
 }
 
 final class _DelayedRule34VideoApi extends Rule34VideoApi {

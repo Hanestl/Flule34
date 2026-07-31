@@ -177,6 +177,26 @@ void main() {
       '720p',
     );
   });
+
+  test('清晰度规则从宽高标签中读取高度而不是宽度', () {
+    const sources = [
+      VideoSource(
+        label: '1920×1080',
+        url: 'https://example.com/video-a.mp4',
+        isHd: true,
+      ),
+      VideoSource(
+        label: '1280x720',
+        url: 'https://example.com/video-b.mp4',
+        isHd: true,
+      ),
+    ];
+
+    expect(
+      selectVideoSource(sources, VideoQualityPreference.p1080).label,
+      '1920×1080',
+    );
+  });
 }
 
 final class _MemorySettingsStore implements AppSettingsStore {
@@ -198,5 +218,10 @@ final class _MemorySettingsStore implements AppSettingsStore {
   @override
   Future<void> writeString(String key, String value) async {
     _values[key] = value;
+  }
+
+  @override
+  Future<void> remove(String key) async {
+    _values.remove(key);
   }
 }

@@ -5,18 +5,16 @@ import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/logging/app_log_service.dart';
 import '../../../core/security/error_redaction.dart';
 import '../domain/download_models.dart';
 
 final class BackgroundDownloadPlatformService
     implements DownloadPlatformService {
-  BackgroundDownloadPlatformService({
-    int maxConcurrent = 2,
-    AppLogService? logService,
-  }) : this._(maxConcurrent, logService);
+  factory BackgroundDownloadPlatformService({int maxConcurrent = 2}) {
+    return BackgroundDownloadPlatformService._(maxConcurrent);
+  }
 
-  BackgroundDownloadPlatformService._(this._maxConcurrent, this._logs);
+  BackgroundDownloadPlatformService._(this._maxConcurrent);
 
   static const _group = 'flule34-downloads';
   static const notificationGroupId = 'flule34-background-tasks';
@@ -38,7 +36,6 @@ final class BackgroundDownloadPlatformService
   final StreamController<DownloadPlatformEvent> _events =
       StreamController<DownloadPlatformEvent>.broadcast();
   final Set<String> _finalizing = {};
-  final AppLogService? _logs;
   int _maxConcurrent;
   bool _initialized = false;
 
@@ -129,12 +126,6 @@ final class BackgroundDownloadPlatformService
         displayName: request.displayName,
       ),
     );
-    unawaited(
-      _logs?.info(
-        'downloads',
-        '后台任务 ${request.id} ${accepted ? '已加入队列' : '被系统拒绝'}。',
-      ),
-    );
     return accepted;
   }
 
@@ -186,15 +177,7 @@ final class BackgroundDownloadPlatformService
           _ => null,
         },
       );
-    } on PlatformException catch (error, stackTrace) {
-      unawaited(
-        _logs?.warning(
-          'downloads',
-          '无法读取下载文件元数据。',
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
+    } on PlatformException {
       return const DownloadFileInspection(exists: false, readable: false);
     }
   }
@@ -236,15 +219,7 @@ final class BackgroundDownloadPlatformService
             'uri': fileUri,
           }) ??
           false;
-    } on PlatformException catch (error, stackTrace) {
-      unawaited(
-        _logs?.warning(
-          'downloads',
-          '无法删除公共目录中的下载文件。',
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
+    } on PlatformException {
       return false;
     }
   }
@@ -273,13 +248,6 @@ final class BackgroundDownloadPlatformService
         taskId: taskId,
         state: state,
         errorMessage: exception == null ? null : displayErrorFor(exception),
-      ),
-    );
-    unawaited(
-      _logs?.info(
-        'downloads',
-        '任务 $taskId 状态变为 ${state.storageValue}'
-            '${update.exception == null ? '' : '，发生异常'}。',
       ),
     );
   }
@@ -312,11 +280,6 @@ final class BackgroundDownloadPlatformService
         throw StateError('无法将视频保存到 Download/Flule34。');
       }
       final inspection = await _inspectFinalizedFile(finalUri);
-      if (!inspection.exists || !inspection.readable) {
-        unawaited(
-          _logs?.warning('downloads', '任务 $taskId 已写入公共目录，但系统暂未返回可读的文件元数据。'),
-        );
-      }
       await _downloader.database.deleteRecordWithId(taskId);
       _events.add(
         DownloadStatusEvent(
@@ -326,21 +289,12 @@ final class BackgroundDownloadPlatformService
           actualBytes: inspection.size ?? sourceBytes,
         ),
       );
-      unawaited(_logs?.info('downloads', '任务 $taskId 已保存到 Download/Flule34。'));
-    } catch (error, stackTrace) {
+    } catch (error) {
       _events.add(
         DownloadStatusEvent(
           taskId: taskId,
           state: DownloadTaskState.failed,
           errorMessage: redactSensitiveText(error),
-        ),
-      );
-      unawaited(
-        _logs?.error(
-          'downloads',
-          '任务 $taskId 完成后的公共目录保存失败。',
-          error: error,
-          stackTrace: stackTrace,
         ),
       );
     }

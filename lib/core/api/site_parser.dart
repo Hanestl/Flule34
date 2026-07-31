@@ -5,6 +5,7 @@ import 'package:html/parser.dart' as html_parser;
 
 import '../models/account_models.dart';
 import '../models/video_models.dart';
+import '../media/video_source_quality.dart';
 
 class SiteParser {
   static const _baseUri = 'https://rule34video.com/';
@@ -588,7 +589,7 @@ class SiteParser {
             caseSensitive: false,
           ).firstMatch(url)?.group(1) ??
           'MP4';
-      final height = _sourceHeight(rawLabel, url);
+      final height = parseVideoSourceHeight(rawLabel, url: url);
       final label = switch (height) {
         2160 when rawLabel.toLowerCase().contains('4k') => '2160p (4K)',
         4320 when rawLabel.toLowerCase().contains('8k') => '4320p (8K)',
@@ -609,30 +610,6 @@ class SiteParser {
     }
     final suffix = RegExp(r'(\d+)$').firstMatch(field)?.group(1);
     return int.tryParse(suffix ?? '') ?? 1;
-  }
-
-  static int? _sourceHeight(String label, String url) {
-    final normalized = label.toLowerCase();
-    if (normalized.contains('8k')) {
-      return 4320;
-    }
-    if (normalized.contains('4k')) {
-      return 2160;
-    }
-    final labelHeight = RegExp(
-      r'(\d{3,4})\s*p?',
-      caseSensitive: false,
-    ).firstMatch(label)?.group(1);
-    if (labelHeight != null) {
-      return int.tryParse(labelHeight);
-    }
-    return int.tryParse(
-      RegExp(
-            r'_(\d{3,4})p?\.mp4',
-            caseSensitive: false,
-          ).firstMatch(url)?.group(1) ??
-          '',
-    );
   }
 
   static Map<String, dynamic>? _videoSchema(dom.Document document) {

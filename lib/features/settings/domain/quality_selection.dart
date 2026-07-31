@@ -1,4 +1,5 @@
 import '../../../core/models/video_models.dart';
+import '../../../core/media/video_source_quality.dart';
 import 'app_settings.dart';
 
 VideoSource selectVideoSource(
@@ -10,7 +11,12 @@ VideoSource selectVideoSource(
   }
 
   final ranked = sources
-      .map((source) => (source: source, height: _height(source.label)))
+      .map(
+        (source) => (
+          source: source,
+          height: parseVideoSourceHeight(source.label, url: source.url),
+        ),
+      )
       .toList(growable: false);
   final withHeight = ranked.where((item) => item.height != null).toList();
   if (withHeight.isEmpty) {
@@ -28,19 +34,4 @@ VideoSource selectVideoSource(
   }
   // 如果网站只提供高于目标的源，最低可用档仍比直接失败更合理。
   return withHeight.first.source;
-}
-
-int? _height(String label) {
-  final normalized = label.toLowerCase();
-  if (normalized.contains('8k')) {
-    return 4320;
-  }
-  if (normalized.contains('4k')) {
-    return 2160;
-  }
-  final match = RegExp(
-    r'(\d{3,4})\s*p?',
-    caseSensitive: false,
-  ).firstMatch(label);
-  return match == null ? null : int.tryParse(match.group(1)!);
 }

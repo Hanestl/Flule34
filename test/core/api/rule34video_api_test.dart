@@ -200,6 +200,43 @@ void main() {
     expect(refreshed.sources.single.url, endsWith('video-2.mp4'));
   });
 
+  test('视频详情缓存超过上限后淘汰最早条目', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    var requests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        requests += 1;
+        final id = options.uri.pathSegments.length > 1
+            ? options.uri.pathSegments[1]
+            : '0';
+        return _htmlResponse('''
+          <link rel="canonical" href="/video/$id/video-$id/">
+          <script>
+            flashvars = {
+              video_url: 'https://cdn.example.com/video-$id.mp4',
+              video_url_text: '720p'
+            };
+          </script>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+
+    for (var index = 0; index <= 100; index += 1) {
+      await api.loadVideoDetails(
+        VideoItem(id: '$index', title: 'Video $index', slug: 'video-$index'),
+      );
+    }
+    await api.loadVideoDetails(
+      const VideoItem(id: '0', title: 'Video 0', slug: 'video-0'),
+    );
+
+    expect(requests, 102);
+  });
+
   test('当前账号资料优先读取数据库缓存且网络刷新在进程内去重', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);

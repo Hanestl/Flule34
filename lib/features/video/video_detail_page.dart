@@ -87,7 +87,6 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage>
   }
 
   Future<VideoDetails> _loadDetails({bool force = false}) async {
-    final stopwatch = Stopwatch()..start();
     try {
       final details = await ref
           .read(predictivePrefetchServiceProvider)
@@ -98,30 +97,8 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage>
                 : widget.api.loadVideoDetails(widget.video),
             resumeDelay: const Duration(seconds: 3),
           );
-      stopwatch.stop();
-      unawaited(
-        ref
-            .read(appLogServiceProvider)
-            .info(
-              'playback',
-              '视频详情加载完成：video=${widget.video.id}，耗时=${stopwatch.elapsedMilliseconds}ms，'
-                  '清晰度数量=${details.sources.length}，强制刷新=$force。',
-            ),
-      );
       return details;
     } catch (error, stackTrace) {
-      stopwatch.stop();
-      unawaited(
-        ref
-            .read(appLogServiceProvider)
-            .warning(
-              'playback',
-              '视频详情加载失败：video=${widget.video.id}，耗时=${stopwatch.elapsedMilliseconds}ms，'
-                  '强制刷新=$force。',
-              error: error,
-              stackTrace: stackTrace,
-            ),
-      );
       Error.throwWithStackTrace(error, stackTrace);
     }
   }
@@ -162,7 +139,7 @@ class _DetailLoading extends StatelessWidget {
 
   static const _headers = <String, String>{
     'Referer': 'https://rule34video.com/',
-    'User-Agent': 'Flule34 Android/1.4.4',
+    'User-Agent': 'Flule34 Android/1.4.5',
   };
 
   final VideoItem video;

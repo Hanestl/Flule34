@@ -356,22 +356,6 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                   onTap: _clearing ? null : _clearImageCache,
                 ),
               ),
-              Card(
-                child: ListTile(
-                  leading: _clearing
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.delete_sweep_outlined),
-                  title: const Text('清理当前账号搜索历史'),
-                  enabled: widget.api.sessionStore.isLoggedIn && !_clearing,
-                  onTap: widget.api.sessionStore.isLoggedIn && !_clearing
-                      ? () => _clearAccountData(searchHistory)
-                      : null,
-                ),
-              ),
               if (widget.api.sessionStore.isLoggedIn) ...[
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
@@ -449,50 +433,6 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('清除搜索历史失败：$error')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _clearing = false);
-      }
-    }
-  }
-
-  Future<void> _clearAccountData(SearchHistoryRepository searchHistory) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('清理本地数据？'),
-        content: const Text('这会删除当前账号在本机保存的搜索历史。此操作无法撤销。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('确认清理'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    setState(() => _clearing = true);
-    try {
-      await searchHistory.clear();
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('当前账号的搜索历史已清理。')));
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     } finally {
       if (mounted) {

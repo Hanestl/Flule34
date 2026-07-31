@@ -182,6 +182,27 @@ void main() {
     expect(details.sources.last.isHd, isTrue);
   });
 
+  test('视频源宽高标签使用第二个数字作为高度', () {
+    const source = '''
+      <link rel="canonical" href="/video/123/example/">
+      <script>
+        flashvars = {
+          video_url: 'https://cdn.example.com/example-a.mp4',
+          video_url_text: '1280x540',
+          video_alt_url1: 'https://cdn.example.com/example-b.mp4',
+          video_alt_url1_text: '1920×1080'
+        };
+      </script>
+    ''';
+
+    final details = SiteParser.videoDetails(
+      source: source,
+      fallback: const VideoItem(id: '123', title: 'Example', slug: 'example'),
+    );
+
+    expect(details.sources.map((item) => item.isHd), [isFalse, isTrue]);
+  });
+
   test('收藏状态只读取当前视频主操作区', () {
     const unrelated = '''
       <a class="delete button_fav">Delete from Favorites</a>

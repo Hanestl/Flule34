@@ -5,7 +5,6 @@ import 'package:drift/drift.dart';
 
 import '../../../core/api/rule34video_api.dart';
 import '../../../core/database/app_database.dart';
-import '../../../core/logging/app_log_service.dart';
 import '../../../core/models/video_models.dart';
 import '../../../core/security/error_redaction.dart';
 import '../../settings/data/app_settings_repository.dart';
@@ -25,9 +24,8 @@ final class DownloadRepository {
     this._database,
     this._api,
     this._platformService,
-    this._settingsRepository, {
-    AppLogService? logService,
-  }) : _logs = logService;
+    this._settingsRepository,
+  );
 
   static const _deviceOwnerId = '__flule34_device__';
 
@@ -35,7 +33,6 @@ final class DownloadRepository {
   final Rule34VideoApi _api;
   final DownloadPlatformService _platformService;
   final AppSettingsRepository _settingsRepository;
-  final AppLogService? _logs;
 
   StreamSubscription<DownloadPlatformEvent>? _eventSubscription;
   final Set<String> _automaticRefreshAttempts = {};
@@ -133,19 +130,11 @@ final class DownloadRepository {
           requiresWiFi: _settingsRepository.settings.wifiOnlyDownloads,
         ),
       );
-    } catch (error, stackTrace) {
+    } catch (error) {
       await _database.updateDownloadStatus(
         id: id,
         state: DownloadTaskState.failed.storageValue,
         errorMessage: redactSensitiveText(error),
-      );
-      unawaited(
-        _logs?.error(
-          'downloads',
-          '提交后台下载任务失败。',
-          error: error,
-          stackTrace: stackTrace,
-        ),
       );
       throw DownloadException('提交后台下载任务失败：${redactSensitiveText(error)}');
     }
@@ -406,7 +395,7 @@ final class DownloadRepository {
   Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Referer': 'https://rule34video.com/',
-      'User-Agent': 'Flule34 Android/1.4.4',
+      'User-Agent': 'Flule34 Android/1.4.5',
     };
     final cookie = await _api.sessionCookieHeader();
     if (cookie != null) {

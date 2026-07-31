@@ -118,6 +118,25 @@ void main() {
     expect(playerProgressStrokeWidth(true), 5);
   });
 
+  test('视频源刷新守卫区分活跃刷新和无人收尾的失败源', () {
+    expect(
+      sourceRefreshGate(refreshing: true, force: false, previouslyFailed: true),
+      SourceRefreshGate.waitForActiveRefresh,
+    );
+    expect(
+      sourceRefreshGate(
+        refreshing: false,
+        force: false,
+        previouslyFailed: true,
+      ),
+      SourceRefreshGate.rejectFailedUrl,
+    );
+    expect(
+      sourceRefreshGate(refreshing: false, force: true, previouslyFailed: true),
+      SourceRefreshGate.proceed,
+    );
+  });
+
   test('竖屏保持当前方向时使用真实屏幕比例', () {
     const portrait = Size(1080, 2400);
 
@@ -477,5 +496,10 @@ final class _MemorySettingsStore implements AppSettingsStore {
   @override
   Future<void> writeString(String key, String value) async {
     _values[key] = value;
+  }
+
+  @override
+  Future<void> remove(String key) async {
+    _values.remove(key);
   }
 }

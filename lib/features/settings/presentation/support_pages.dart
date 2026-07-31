@@ -257,7 +257,7 @@ class _AppUpdatePageState extends ConsumerState<AppUpdatePage> {
   @override
   void initState() {
     super.initState();
-    _service = AppUpdateService(logService: ref.read(appLogServiceProvider));
+    _service = AppUpdateService();
     _check();
   }
 

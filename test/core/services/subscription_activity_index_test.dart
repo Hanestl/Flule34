@@ -162,4 +162,40 @@ void main() {
     expect(restored.cachedVideos.single.title, '缓存视频');
     expect(restored.updatedAgeByPath['/models/artist/'], isNotNull);
   });
+
+  test('同一次关注流翻页的多轮来源扫描只持久化一次', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('1001');
+    final store = MemorySubscriptionActivityStore();
+    final index = SubscriptionActivityIndex(
+      sessionStore: harness.sessionStore,
+      store: store,
+      pageSize: 3,
+      loadSubscriptions: ({force = false, cancelToken}) async => const [
+        SubscriptionItem(
+          title: '作者',
+          path: '/models/artist/',
+          kind: SubscriptionKind.model,
+        ),
+      ],
+      loadSubscriptionVideos: (subscription, page, {cancelToken}) async => [
+        VideoItem(
+          id: '$page',
+          title: '视频 $page',
+          slug: 'video-$page',
+          publishedLabel: '$page days ago',
+        ),
+      ],
+    );
+    addTearDown(index.dispose);
+
+    await index.refresh(force: true);
+    expect(store.writeCount, 1);
+
+    await index.loadFollowingPage(2);
+
+    expect(store.writeCount, 2);
+  });
 }

@@ -8,6 +8,8 @@ abstract interface class AppSettingsStore {
   Future<void> writeString(String key, String value);
 
   Future<void> writeBool(String key, bool value);
+
+  Future<void> remove(String key);
 }
 
 final class SharedPreferencesAppSettingsStore implements AppSettingsStore {
@@ -31,4 +33,7 @@ final class SharedPreferencesAppSettingsStore implements AppSettingsStore {
   Future<void> writeBool(String key, bool value) {
     return _preferences.setBool(key, value);
   }
+
+  @override
+  Future<void> remove(String key) => _preferences.remove(key);
 }
