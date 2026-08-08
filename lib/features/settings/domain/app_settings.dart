@@ -1,4 +1,5 @@
 import '../../../core/models/video_models.dart';
+import '../../../core/models/translation_models.dart';
 
 enum AppThemePreference {
   system('跟随系统'),
@@ -92,6 +93,10 @@ final class AppSettings {
     required this.updateChannel,
     required this.videoLayout,
     required this.subscriptionLayout,
+    required this.titleTranslationDisplayMode,
+    required this.categoryTranslationDisplayMode,
+    required this.tagTranslationDisplayMode,
+    required this.automaticTranslationTargets,
   });
 
   static const defaults = AppSettings(
@@ -115,6 +120,10 @@ final class AppSettings {
     updateChannel: UpdateChannel.stable,
     videoLayout: ContentLayout.singleColumn,
     subscriptionLayout: ContentLayout.doubleColumn,
+    titleTranslationDisplayMode: TranslationDisplayMode.bilingual,
+    categoryTranslationDisplayMode: TranslationDisplayMode.bilingual,
+    tagTranslationDisplayMode: TranslationDisplayMode.bilingual,
+    automaticTranslationTargets: <AutomaticTranslationTarget>{},
   );
 
   final AppThemePreference theme;
@@ -137,6 +146,17 @@ final class AppSettings {
   final UpdateChannel updateChannel;
   final ContentLayout videoLayout;
   final ContentLayout subscriptionLayout;
+  final TranslationDisplayMode titleTranslationDisplayMode;
+  final TranslationDisplayMode categoryTranslationDisplayMode;
+  final TranslationDisplayMode tagTranslationDisplayMode;
+
+  /// 兼容旧代码：当三类内容模式不一致时返回双语。
+  TranslationDisplayMode get translationDisplayMode =>
+      titleTranslationDisplayMode == categoryTranslationDisplayMode &&
+          categoryTranslationDisplayMode == tagTranslationDisplayMode
+      ? titleTranslationDisplayMode
+      : TranslationDisplayMode.bilingual;
+  final Set<AutomaticTranslationTarget> automaticTranslationTargets;
 
   AppSettings copyWith({
     AppThemePreference? theme,
@@ -159,6 +179,10 @@ final class AppSettings {
     UpdateChannel? updateChannel,
     ContentLayout? videoLayout,
     ContentLayout? subscriptionLayout,
+    TranslationDisplayMode? titleTranslationDisplayMode,
+    TranslationDisplayMode? categoryTranslationDisplayMode,
+    TranslationDisplayMode? tagTranslationDisplayMode,
+    Set<AutomaticTranslationTarget>? automaticTranslationTargets,
   }) {
     return AppSettings(
       theme: theme ?? this.theme,
@@ -185,6 +209,15 @@ final class AppSettings {
       updateChannel: updateChannel ?? this.updateChannel,
       videoLayout: videoLayout ?? this.videoLayout,
       subscriptionLayout: subscriptionLayout ?? this.subscriptionLayout,
+      titleTranslationDisplayMode:
+          titleTranslationDisplayMode ?? this.titleTranslationDisplayMode,
+      categoryTranslationDisplayMode:
+          categoryTranslationDisplayMode ?? this.categoryTranslationDisplayMode,
+      tagTranslationDisplayMode:
+          tagTranslationDisplayMode ?? this.tagTranslationDisplayMode,
+      automaticTranslationTargets: Set.unmodifiable(
+        automaticTranslationTargets ?? this.automaticTranslationTargets,
+      ),
     );
   }
 }

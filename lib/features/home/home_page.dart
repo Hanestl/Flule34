@@ -9,6 +9,7 @@ import '../../core/models/video_models.dart';
 import '../../core/services/predictive_prefetch_service.dart';
 import '../../shared/video_feed.dart';
 import '../auth/login_sheet.dart';
+import '../settings/data/app_settings_repository.dart';
 
 enum _HomeChannel {
   newest('最新', FeedKind.newest),
@@ -33,6 +34,7 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   var _channel = _HomeChannel.newest;
+  late final AppSettingsRepository _settingsRepository;
   late ContentOrientation _orientation;
   var _duration = VideoDurationPreset.any;
   var _uploadPeriod = UploadPeriod.anytime;
@@ -40,10 +42,22 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   void initState() {
     super.initState();
-    _orientation = ref
-        .read(appSettingsRepositoryProvider)
-        .settings
-        .defaultOrientation;
+    _settingsRepository = ref.read(appSettingsRepositoryProvider)
+      ..addListener(_onSettingsChanged);
+    _orientation = _settingsRepository.settings.defaultOrientation;
+  }
+
+  @override
+  void dispose() {
+    _settingsRepository.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    final next = _settingsRepository.settings.defaultOrientation;
+    if (mounted && next != _orientation) {
+      setState(() => _orientation = next);
+    }
   }
 
   SearchFilters get _filters => SearchFilters(

@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/api/rule34video_api.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/logging/app_log_service.dart';
 import '../../../core/models/video_models.dart';
 import '../../../core/security/error_redaction.dart';
 import '../../settings/data/app_settings_repository.dart';
@@ -36,24 +37,41 @@ final class DownloadRepository {
 
   StreamSubscription<DownloadPlatformEvent>? _eventSubscription;
   final Set<String> _automaticRefreshAttempts = {};
+  final Set<String> _enqueueing = {};
   final Set<String> _retrying = {};
+  Future<void>? _initializeRequest;
+  Future<void> _eventChain = Future<void>.value();
   bool _initialized = false;
 
-  Future<void> initialize() async {
+  Future<void> initialize() {
     if (_initialized) {
-      return;
+      return Future.value();
     }
+    return _initializeRequest ??= _doInitialize().whenComplete(() {
+      _initializeRequest = null;
+    });
+  }
+
+  Future<void> _doInitialize() async {
     await _database.recordAuthenticatedAccount(
       _deviceOwnerId,
       displayName: '本机下载',
     );
     _settingsRepository.addListener(_onSettingsChanged);
     _eventSubscription = _platformService.events.listen(_onPlatformEvent);
-    await _platformService.setMaxConcurrent(
-      _settingsRepository.settings.downloadConcurrentTasks,
-    );
-    await _platformService.initialize();
-    _initialized = true;
+    try {
+      await _platformService.setMaxConcurrent(
+        _settingsRepository.settings.downloadConcurrentTasks,
+      );
+      await _platformService.initialize();
+      await _reconcileActiveDownloads();
+      _initialized = true;
+    } on Object {
+      _settingsRepository.removeListener(_onSettingsChanged);
+      await _eventSubscription?.cancel();
+      _eventSubscription = null;
+      rethrow;
+    }
   }
 
   Stream<List<DownloadRecord>> watchCurrentUserDownloads() {
@@ -63,8 +81,24 @@ final class DownloadRepository {
   Future<String> enqueueVideo({
     required VideoDetails details,
     required VideoSource source,
-  }) async {
+  }) {
     final quality = source.label.trim();
+    final id = _taskId(details.video.id, quality);
+    if (!_enqueueing.add(id)) {
+      return Future.error(DownloadException('$quality 正在加入下载队列。'));
+    }
+    return _enqueueVideo(
+      details: details,
+      quality: quality,
+      id: id,
+    ).whenComplete(() => _enqueueing.remove(id));
+  }
+
+  Future<String> _enqueueVideo({
+    required VideoDetails details,
+    required String quality,
+    required String id,
+  }) async {
     final existing = await _database.findVideoDownload(
       userId: _deviceOwnerId,
       videoId: details.video.id,
@@ -90,7 +124,6 @@ final class DownloadRepository {
     if (refreshedSource == null) {
       throw DownloadException('刷新后已找不到 $quality 下载源，请重新选择清晰度。');
     }
-    final id = _taskId(details.video.id, quality);
     final platformTaskId = _newPlatformTaskId(id);
     final filename = _filename(details.video, quality);
     final headers = await _headers();
@@ -404,8 +437,33 @@ final class DownloadRepository {
     return headers;
   }
 
+  Future<void> _reconcileActiveDownloads() async {
+    final records = await _database.activeDownloads(_deviceOwnerId);
+    for (final record in records) {
+      final taskId = record.taskId ?? record.id;
+      if (await _platformService.taskExists(taskId)) {
+        continue;
+      }
+      await _database.updateDownloadStatus(
+        id: record.id,
+        state: DownloadTaskState.failed.storageValue,
+        errorMessage: '下载任务已被系统中断，请重试。',
+      );
+    }
+  }
+
   void _onPlatformEvent(DownloadPlatformEvent event) {
-    unawaited(_persistEvent(event));
+    _eventChain = _eventChain.then((_) async {
+      try {
+        await _persistEvent(event);
+      } on Object catch (error, stackTrace) {
+        await AppLogService.instance.error(
+          error,
+          stackTrace,
+          component: 'download_event',
+        );
+      }
+    });
   }
 
   Future<void> _persistEvent(DownloadPlatformEvent event) async {
@@ -439,9 +497,12 @@ final class DownloadRepository {
         } else if (event.state == DownloadTaskState.failed &&
             _shouldAutomaticallyRetry(event.errorMessage) &&
             _automaticRefreshAttempts.add(recordId)) {
-          unawaited(retry(record));
+          await retry(record);
         }
       case DownloadProgressEvent():
+        if (event.totalBytes == null) {
+          return;
+        }
         await _database.updateDownloadProgress(
           id: recordId,
           bytesDownloaded: event.bytesDownloaded,
@@ -451,11 +512,21 @@ final class DownloadRepository {
   }
 
   void _onSettingsChanged() {
-    unawaited(
-      _platformService.setMaxConcurrent(
+    unawaited(_updateConcurrency());
+  }
+
+  Future<void> _updateConcurrency() async {
+    try {
+      await _platformService.setMaxConcurrent(
         _settingsRepository.settings.downloadConcurrentTasks,
-      ),
-    );
+      );
+    } on Object catch (error, stackTrace) {
+      await AppLogService.instance.error(
+        error,
+        stackTrace,
+        component: 'download_settings',
+      );
+    }
   }
 
   bool _isExpiredSourceError(String? message) {

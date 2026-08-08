@@ -122,6 +122,82 @@ void main() {
     expect(find.text('此视频未提供可直接播放的 MP4 源。'), findsOneWidget);
     expect(api.detailLoads, 2);
   });
+
+  testWidgets('超长分类标签卡片会自动换行而不是截断', (tester) async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final api = _LongMetadataApi(harness.sessionStore);
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(harness.database),
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        downloadPlatformServiceProvider.overrideWithValue(
+          _FakeDownloadPlatformService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: VideoDetailPage(api: api, video: _video),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final label = 'very-long-bilingual-tag-that-must-wrap-on-a-phone-screen';
+    final labelFinder = find.text(label);
+    expect(labelFinder, findsOneWidget);
+    expect(tester.getSize(labelFinder).height, greaterThan(20));
+  });
+
+  testWidgets('长按详情页标题行的文字外空白处也可打开标题编辑', (tester) async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final api = _FakeVideoApi(harness.sessionStore);
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(harness.database),
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        downloadPlatformServiceProvider.overrideWithValue(
+          _FakeDownloadPlatformService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: VideoDetailPage(api: api, video: _video),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final region = find.byKey(
+      const ValueKey('video-detail-title-translation-region'),
+    );
+    final rect = tester.getRect(region);
+    expect(rect.width, greaterThan(tester.getSize(find.text('测试视频')).width));
+
+    final gesture = await tester.startGesture(
+      Offset(rect.right - 8, rect.center.dy),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('编辑中文翻译'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+  });
 }
 
 final class _FakeNetworkStatusService implements NetworkStatusService {
@@ -201,6 +277,35 @@ class _RetryVideoApi extends Rule34VideoApi {
       isFavorite: false,
     );
   }
+
+  @override
+  void close() {}
+}
+
+class _LongMetadataApi extends Rule34VideoApi {
+  _LongMetadataApi(SessionStore sessionStore)
+    : super(sessionStore: sessionStore);
+
+  @override
+  Future<VideoDetails> loadVideoDetails(VideoItem video) async =>
+      const VideoDetails(
+        video: _video,
+        sources: [],
+        categories: [],
+        tags: [],
+        models: [],
+        metadataItems: [
+          VideoMetadataItem(
+            id: 'long-tag',
+            title: 'very-long-bilingual-tag-that-must-wrap-on-a-phone-screen',
+            path: '/tags/long-tag/',
+            kind: DiscoveryKind.tag,
+            upScore: 0,
+            downScore: 0,
+          ),
+        ],
+        isFavorite: false,
+      );
 
   @override
   void close() {}
@@ -327,6 +432,9 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
 
   @override
   void dispose() {}
+
+  @override
+  Future<bool> taskExists(String taskId) async => false;
 
   @override
   Future<bool> enqueue(DownloadRequest request) async => true;

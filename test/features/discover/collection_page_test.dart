@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/models/video_models.dart';
+import 'package:flule34/core/services/translation_service.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/features/discover/collection_page.dart';
 import 'package:flule34/features/settings/data/app_settings_repository.dart';
@@ -27,6 +28,11 @@ void main() {
       overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
     );
     addTearDown(container.dispose);
+    final translationService = TranslationService.fromDictionary(
+      settingsRepository: settings,
+      dictionary: const {},
+    );
+    addTearDown(translationService.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -34,6 +40,7 @@ void main() {
         child: MaterialApp(
           home: CollectionPage(
             api: api,
+            translationService: translationService,
             collection: const ContentCollectionItem(
               id: 'hydrafxx',
               filterId: '87',

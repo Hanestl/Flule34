@@ -7,9 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/models/video_models.dart';
+import 'package:flule34/core/services/translation_service.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
 import 'package:flule34/shared/video_card.dart';
+import 'package:flule34/shared/localized_translation_text.dart';
 
 import '../helpers/test_session_harness.dart';
 
@@ -18,6 +20,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
       ],
     );
     addTearDown(container.dispose);
@@ -67,6 +70,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
       ],
     );
     addTearDown(container.dispose);
@@ -117,6 +121,7 @@ void main() {
       overrides: [
         rule34VideoApiProvider.overrideWithValue(api),
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
       ],
     );
     addTearDown(container.dispose);
@@ -148,11 +153,150 @@ void main() {
     expect(find.text('移出此库'), findsOneWidget);
   });
 
-  testWidgets('长按卡片文字一秒后创建预览并继承原点击行为', (tester) async {
+  testWidgets('标题显示用户译文且长按进入翻译编辑', (tester) async {
+    late TranslationService translationService;
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith((ref) {
+          translationService = TranslationService.fromDictionary(
+            settingsRepository: ref.watch(appSettingsRepositoryProvider),
+            dictionary: const {},
+          );
+          ref.onDispose(translationService.dispose);
+          return translationService;
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container
+        .read(translationServiceProvider)
+        .setTitleOverride('translated-1', '母亲终结者');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: VideoCard(
+              video: VideoItem(
+                id: 'translated-1',
+                title: 'MOM BREAKER',
+                slug: 'mom-breaker',
+              ),
+              onTap: _noop,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(LocalizedTranslationText), findsOneWidget);
+    await tester.longPress(find.byType(LocalizedTranslationText));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑中文翻译'), findsOneWidget);
+    expect(find.text('MOM BREAKER'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('没有本地译文或翻译服务时，长按原文标题仍可打开编辑', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: VideoCard(
+              video: VideoItem(
+                id: 'original-only-1',
+                title: 'ORIGINAL ONLY TITLE',
+                slug: 'original-only-title',
+              ),
+              onTap: _noop,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.longPress(find.byType(LocalizedTranslationText));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑中文翻译'), findsOneWidget);
+    expect(find.byType(SelectableText), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('使用翻译服务'), findsNothing);
+  });
+
+  testWidgets('标题编辑区域完整覆盖封面底边至卡片底边', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SizedBox(
+                width: 360,
+                child: VideoCard(
+                  video: VideoItem(
+                    id: 'footer-long-press-1',
+                    title: 'SHORT',
+                    slug: 'short',
+                    publishedLabel: '刚刚发布',
+                    rating: 95,
+                    views: 1234,
+                  ),
+                  onTap: _noop,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final region = find.byKey(
+      const ValueKey('video-card-title-translation-region'),
+    );
+    final regionRect = tester.getRect(region);
+    final cardRect = tester.getRect(find.byType(InkWell).first);
+    final previewRect = tester.getRect(find.byType(AspectRatio).first);
+    expect(regionRect.left, closeTo(cardRect.left, 0.01));
+    expect(regionRect.right, closeTo(cardRect.right, 0.01));
+    expect(regionRect.top, closeTo(previewRect.bottom, 0.01));
+    expect(regionRect.bottom, closeTo(cardRect.bottom, 0.01));
+
+    final gesture = await tester.startGesture(
+      Offset(regionRect.center.dx, regionRect.bottom - 2),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('编辑中文翻译'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('长按卡片非标题区域一秒后创建预览并继承原点击行为', (tester) async {
     var tapped = false;
     final container = ProviderContainer(
       overrides: [
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
       ],
     );
     addTearDown(container.dispose);
@@ -165,9 +309,10 @@ void main() {
             body: VideoCard(
               video: const VideoItem(
                 id: 'preview-1',
-                title: '长按预览',
+                title: '长按标题进入翻译',
                 slug: 'long-press-preview',
                 previewUrl: 'https://example.com/preview.mp4',
+                publishedLabel: '刚刚发布',
               ),
               onTap: () => tapped = true,
             ),
@@ -177,7 +322,7 @@ void main() {
     );
 
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('长按预览')),
+      tester.getCenter(find.byType(AspectRatio).first),
     );
     await tester.pump(const Duration(milliseconds: 900));
     expect(container.read(videoPreviewControllerProvider).request, isNull);
@@ -198,6 +343,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         appSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
       ],
     );
     addTearDown(container.dispose);
@@ -236,6 +382,15 @@ void main() {
 void _noop() {}
 
 Future<void> _contextAction() async {}
+
+TranslationService _memoryTranslationService(Ref ref) {
+  final service = TranslationService.fromDictionary(
+    settingsRepository: ref.watch(appSettingsRepositoryProvider),
+    dictionary: const {},
+  );
+  ref.onDispose(service.dispose);
+  return service;
+}
 
 final class _MemorySettingsStore implements AppSettingsStore {
   @override

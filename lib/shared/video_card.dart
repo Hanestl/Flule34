@@ -14,6 +14,8 @@ import '../features/auth/login_sheet.dart';
 import '../features/library/local_library_picker.dart';
 import '../features/library/playlist_picker.dart';
 import '../features/settings/domain/quality_selection.dart';
+import 'editable_translation.dart';
+import 'localized_translation_text.dart';
 
 class VideoCard extends ConsumerWidget {
   const VideoCard({
@@ -282,16 +284,32 @@ class VideoCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsRepository = ref.watch(appSettingsRepositoryProvider);
+    final translationService = ref.watch(translationServiceProvider);
     return ListenableBuilder(
-      listenable: settingsRepository,
+      listenable: Listenable.merge([settingsRepository, translationService]),
       builder: (context, _) {
         final settings = settingsRepository.settings;
         final blurThumbnail = settings.blurThumbnails;
+        if (translationService.shouldAutoTranslateTitle(
+          video.id,
+          video.title,
+        )) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            unawaited(
+              translationService.requestAutomaticTitle(
+                videoId: video.id,
+                raw: video.title,
+                videoSlug: video.slug,
+              ),
+            );
+          });
+        }
         final card = Card(
           clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           margin: compact
-              ? const EdgeInsets.all(5)
-              : const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ? const EdgeInsets.all(2)
+              : const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           child: InkWell(
             onTap: () {
               ref.read(videoPreviewControllerProvider).hide();
@@ -300,174 +318,204 @@ class VideoCard extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (video.thumbnailUrl != null)
-                        blurThumbnail
-                            ? ImageFiltered(
-                                imageFilter: ImageFilter.blur(
-                                  sigmaX: 18,
-                                  sigmaY: 18,
-                                ),
-                                child: _Thumbnail(
-                                  url: video.highResolutionThumbnailUrl!,
+                _PreviewRegion(
+                  enabled: settings.videoPreviewEnabled,
+                  onLongPress: () {
+                    ref
+                        .read(videoPreviewControllerProvider)
+                        .show(video, onOpen: onTap);
+                  },
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (video.thumbnailUrl != null)
+                          blurThumbnail
+                              ? ImageFiltered(
+                                  imageFilter: ImageFilter.blur(
+                                    sigmaX: 18,
+                                    sigmaY: 18,
+                                  ),
+                                  child: _Thumbnail(
+                                    url:
+                                        video.highResolutionThumbnailUrl ??
+                                        video.thumbnailUrl!,
+                                    fallbackUrl: video.thumbnailUrl,
+                                  ),
+                                )
+                              : _Thumbnail(
+                                  url:
+                                      video.highResolutionThumbnailUrl ??
+                                      video.thumbnailUrl!,
                                   fallbackUrl: video.thumbnailUrl,
-                                ),
-                              )
-                            : _Thumbnail(
-                                url: video.highResolutionThumbnailUrl!,
-                                fallbackUrl: video.thumbnailUrl,
-                              )
-                      else
-                        const ColoredBox(
-                          color: Color(0xff25252d),
-                          child: Center(
-                            child: Icon(Icons.movie_outlined, size: 42),
-                          ),
-                        ),
-                      if (blurThumbnail)
-                        const Positioned(
-                          left: 8,
-                          top: 8,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.black87,
-                              shape: BoxShape.circle,
+                                )
+                        else
+                          const ColoredBox(
+                            color: Color(0xff25252d),
+                            child: Center(
+                              child: Icon(Icons.movie_outlined, size: 42),
                             ),
-                            child: Padding(
-                              padding: EdgeInsets.all(6),
-                              child: Icon(
-                                Icons.visibility_off_outlined,
-                                size: 16,
-                                color: Colors.white,
+                          ),
+                        if (blurThumbnail)
+                          const Positioned(
+                            left: 8,
+                            top: 8,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black87,
+                                shape: BoxShape.circle,
                               ),
-                            ),
-                          ),
-                        ),
-                      Positioned(
-                        right: 4,
-                        top: 4,
-                        child: GestureDetector(
-                          onLongPress: () {},
-                          child: IconButton.filledTonal(
-                            tooltip: '视频操作',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () =>
-                                unawaited(_showActions(context, ref)),
-                            icon: const Icon(Icons.more_vert),
-                          ),
-                        ),
-                      ),
-                      if (video.duration != null)
-                        Positioned(
-                          left: 8,
-                          bottom: 8,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.black87,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 3,
-                              ),
-                              child: Text(
-                                video.duration!,
-                                style: const TextStyle(
+                              child: Padding(
+                                padding: EdgeInsets.all(6),
+                                child: Icon(
+                                  Icons.visibility_off_outlined,
+                                  size: 16,
                                   color: Colors.white,
-                                  fontSize: 12,
                                 ),
                               ),
                             ),
                           ),
+                        Positioned(
+                          right: 4,
+                          top: 4,
+                          child: GestureDetector(
+                            onLongPress: () {},
+                            child: IconButton.filledTonal(
+                              tooltip: '视频操作',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () =>
+                                  unawaited(_showActions(context, ref)),
+                              icon: const Icon(Icons.more_vert),
+                            ),
+                          ),
                         ),
-                    ],
+                        if (video.duration != null)
+                          Positioned(
+                            left: 8,
+                            bottom: 8,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black87,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                child: Text(
+                                  video.duration!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-                if (progress != null)
-                  LinearProgressIndicator(
-                    value: progress!.clamp(0.0, 1.0),
-                    minHeight: 3,
+                GestureDetector(
+                  key: const ValueKey('video-card-title-translation-region'),
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: () => showTitleTranslationEditDialog(
+                    context,
+                    translationService: translationService,
+                    videoId: video.id,
+                    english: video.title,
+                    videoSlug: video.slug,
                   ),
-                Padding(
-                  padding: compact
-                      ? const EdgeInsets.fromLTRB(9, 8, 9, 9)
-                      : const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        video.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 6),
-                      if (compact) ...[
-                        _MetaText(
-                          text: video.publishedLabel ?? '',
-                          alignment: TextAlign.left,
+                      if (progress != null)
+                        LinearProgressIndicator(
+                          value: progress!.clamp(0.0, 1.0),
+                          minHeight: 3,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
+                      Padding(
+                        padding: compact
+                            ? const EdgeInsets.fromLTRB(7, 6, 7, 7)
+                            : const EdgeInsets.fromLTRB(9, 7, 9, 9),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: _MetaText(
-                                icon: Icons.thumb_up_alt_outlined,
-                                text: video.rating == null
-                                    ? ''
-                                    : video.ratingVotes == null
-                                    ? '${video.rating}%'
-                                    : '${video.rating}% (${formatCount(video.ratingVotes!)})',
-                                alignment: TextAlign.left,
+                            LocalizedTranslationText(
+                              value: translationService.resolveTitle(
+                                video.id,
+                                video.title,
                               ),
+                              style: Theme.of(context).textTheme.titleSmall,
                             ),
-                            Expanded(
-                              child: _MetaText(
-                                icon: Icons.visibility_outlined,
-                                text: video.views == null
-                                    ? ''
-                                    : formatCount(video.views!),
-                                alignment: TextAlign.right,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ] else
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _MetaText(
+                            const SizedBox(height: 6),
+                            if (compact) ...[
+                              _MetaText(
                                 text: video.publishedLabel ?? '',
                                 alignment: TextAlign.left,
                               ),
-                            ),
-                            Expanded(
-                              child: _MetaText(
-                                icon: Icons.thumb_up_alt_outlined,
-                                text: video.rating == null
-                                    ? ''
-                                    : video.ratingVotes == null
-                                    ? '${video.rating}%'
-                                    : '${video.rating}% (${formatCount(video.ratingVotes!)})',
-                                alignment: TextAlign.center,
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _MetaText(
+                                      icon: Icons.thumb_up_alt_outlined,
+                                      text: video.rating == null
+                                          ? ''
+                                          : video.ratingVotes == null
+                                          ? '${video.rating}%'
+                                          : '${video.rating}% (${formatCount(video.ratingVotes!)})',
+                                      alignment: TextAlign.left,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _MetaText(
+                                      icon: Icons.visibility_outlined,
+                                      text: video.views == null
+                                          ? ''
+                                          : formatCount(video.views!),
+                                      alignment: TextAlign.right,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            Expanded(
-                              child: _MetaText(
-                                icon: Icons.visibility_outlined,
-                                text: video.views == null
-                                    ? ''
-                                    : formatCount(video.views!),
-                                alignment: TextAlign.right,
+                            ] else
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _MetaText(
+                                      text: video.publishedLabel ?? '',
+                                      alignment: TextAlign.left,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _MetaText(
+                                      icon: Icons.thumb_up_alt_outlined,
+                                      text: video.rating == null
+                                          ? ''
+                                          : video.ratingVotes == null
+                                          ? '${video.rating}%'
+                                          : '${video.rating}% (${formatCount(video.ratingVotes!)})',
+                                      alignment: TextAlign.center,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _MetaText(
+                                      icon: Icons.visibility_outlined,
+                                      text: video.views == null
+                                          ? ''
+                                          : formatCount(video.views!),
+                                      alignment: TextAlign.right,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
                           ],
                         ),
+                      ),
                     ],
                   ),
                 ),
@@ -475,32 +523,43 @@ class VideoCard extends ConsumerWidget {
             ),
           ),
         );
-        if (!settings.videoPreviewEnabled) {
-          return card;
-        }
-        return RawGestureDetector(
-          behavior: HitTestBehavior.opaque,
-          gestures: <Type, GestureRecognizerFactory>{
-            LongPressGestureRecognizer:
-                GestureRecognizerFactoryWithHandlers<
-                  LongPressGestureRecognizer
-                >(
-                  () => LongPressGestureRecognizer(
-                    duration: const Duration(seconds: 1),
-                  ),
-                  (recognizer) {
-                    recognizer.onLongPress = () {
-                      HapticFeedback.selectionClick();
-                      ref
-                          .read(videoPreviewControllerProvider)
-                          .show(video, onOpen: onTap);
-                    };
-                  },
-                ),
-          },
-          child: card,
-        );
+        return card;
       },
+    );
+  }
+}
+
+class _PreviewRegion extends StatelessWidget {
+  const _PreviewRegion({
+    required this.enabled,
+    required this.onLongPress,
+    required this.child,
+  });
+
+  final bool enabled;
+  final VoidCallback onLongPress;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return RawGestureDetector(
+      behavior: HitTestBehavior.opaque,
+      gestures: <Type, GestureRecognizerFactory>{
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(
+                duration: const Duration(seconds: 1),
+              ),
+              (recognizer) {
+                recognizer.onLongPress = () {
+                  HapticFeedback.selectionClick();
+                  onLongPress();
+                };
+              },
+            ),
+      },
+      child: child,
     );
   }
 }

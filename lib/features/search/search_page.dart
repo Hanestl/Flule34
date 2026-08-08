@@ -6,8 +6,12 @@ import 'package:go_router/go_router.dart';
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/database/app_database.dart';
+import '../../core/models/translation_models.dart';
 import '../../core/models/video_models.dart';
 import '../../core/services/predictive_prefetch_service.dart';
+import '../../core/services/translation_service.dart';
+import '../../shared/editable_translation.dart';
+import '../../shared/localized_translation_text.dart';
 import '../../shared/video_card.dart' show formatCount;
 import '../../shared/video_feed.dart';
 import 'data/search_history_repository.dart';
@@ -19,11 +23,13 @@ class SearchPage extends StatefulWidget {
     required this.api,
     required this.historyRepository,
     required this.prefetchService,
+    required this.translationService,
   });
 
   final Rule34VideoApi api;
   final SearchHistoryRepository historyRepository;
   final PredictivePrefetchService prefetchService;
+  final TranslationService translationService;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -38,6 +44,8 @@ class _SearchPageState extends State<SearchPage> {
   String? _historyUserId;
 
   Map<SearchSuggestionKind, List<SearchSuggestion>> _suggestions = const {};
+  List<TranslatedTagSuggestion> _localTagSuggestions = const [];
+  List<TranslatedTitleSuggestion> _localTitleSuggestions = const [];
   SearchFilters _filters = const SearchFilters();
   SearchResultScope _scope = SearchResultScope.overview;
   String _activeQuery = '';
@@ -54,7 +62,17 @@ class _SearchPageState extends State<SearchPage> {
     _syncHistoryStream();
     _popularTags = _loadPopularTags();
     widget.api.sessionStore.addListener(_onSessionChanged);
+    widget.translationService.addListener(_onTranslationChanged);
     _focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.translationService != widget.translationService) {
+      oldWidget.translationService.removeListener(_onTranslationChanged);
+      widget.translationService.addListener(_onTranslationChanged);
+    }
   }
 
   Future<List<ContentCollectionItem>> _loadPopularTags() {
@@ -89,11 +107,27 @@ class _SearchPageState extends State<SearchPage> {
   void dispose() {
     _debounce?.cancel();
     widget.api.sessionStore.removeListener(_onSessionChanged);
+    widget.translationService.removeListener(_onTranslationChanged);
     _focusNode
       ..removeListener(_onFocusChanged)
       ..dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onTranslationChanged() {
+    if (mounted) {
+      final query = _controller.text.trim();
+      setState(() {
+        if (_containsCjk(query)) {
+          _localTagSuggestions = widget.translationService.searchTagAliases(
+            query,
+          );
+          _localTitleSuggestions = widget.translationService
+              .searchTitleTranslations(query);
+        }
+      });
+    }
   }
 
   void _onFocusChanged() {
@@ -106,9 +140,25 @@ class _SearchPageState extends State<SearchPage> {
   void _onChanged(String value) {
     _debounce?.cancel();
     final query = value.trim();
+    if (_containsCjk(query)) {
+      _suggestionGeneration += 1;
+      setState(() {
+        _localTagSuggestions = widget.translationService.searchTagAliases(
+          query,
+        );
+        _localTitleSuggestions = widget.translationService
+            .searchTitleTranslations(query);
+        _suggestions = const {};
+        _suggestionError = null;
+        _suggestionLoading = false;
+      });
+      return;
+    }
     if (query.length < 2) {
       _suggestionGeneration += 1;
       setState(() {
+        _localTagSuggestions = const [];
+        _localTitleSuggestions = const [];
         _suggestions = const {};
         _suggestionError = null;
         _suggestionLoading = false;
@@ -125,6 +175,8 @@ class _SearchPageState extends State<SearchPage> {
     final generation = ++_suggestionGeneration;
     if (mounted) {
       setState(() {
+        _localTagSuggestions = const [];
+        _localTitleSuggestions = const [];
         _suggestionLoading = true;
         _suggestionError = null;
       });
@@ -161,6 +213,18 @@ class _SearchPageState extends State<SearchPage> {
     if (text.isEmpty && _filters.isEmpty) {
       return;
     }
+    if (_containsCjk(text)) {
+      setState(() {
+        _localTagSuggestions = widget.translationService.searchTagAliases(
+          text,
+          limit: 20,
+        );
+        _localTitleSuggestions = widget.translationService
+            .searchTitleTranslations(text, limit: 20);
+        _suggestions = const {};
+        _suggestionError = null;
+      });
+    }
     _controller.value = TextEditingValue(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
@@ -174,7 +238,7 @@ class _SearchPageState extends State<SearchPage> {
     });
     if (text.isNotEmpty) {
       unawaited(_recordHistory(text));
-      unawaited(_loadSuggestions(text));
+      if (!_containsCjk(text)) unawaited(_loadSuggestions(text));
     }
   }
 
@@ -217,7 +281,8 @@ class _SearchPageState extends State<SearchPage> {
       body: Column(
         children: [
           _buildSearchField(),
-          if (_showAutocomplete && _controller.text.trim().length >= 2)
+          if (_showAutocomplete &&
+              _minimumSuggestionLengthMet(_controller.text.trim()))
             _buildAutocomplete(),
           if (_showResults) ...[_buildFilterChips(), _buildScopeSelector()],
           Expanded(child: _showResults ? _buildResults() : _buildLanding()),
@@ -267,15 +332,27 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildAutocomplete() {
-    if (_suggestionLoading && _suggestions.isEmpty) {
+    if (_suggestionLoading &&
+        _suggestions.isEmpty &&
+        _localTagSuggestions.isEmpty &&
+        _localTitleSuggestions.isEmpty) {
       return const LinearProgressIndicator();
     }
-    final hasItems = _suggestions.values.any((items) => items.isNotEmpty);
+    final hasItems =
+        _localTagSuggestions.isNotEmpty ||
+        _localTitleSuggestions.isNotEmpty ||
+        _suggestions.values.any((items) => items.isNotEmpty);
     if (!hasItems && _suggestionError == null) {
+      if (_containsCjk(_controller.text)) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text('没有找到对应的中文标签或已学习标题。'),
+        );
+      }
       return const SizedBox.shrink();
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 196),
+      constraints: const BoxConstraints(maxHeight: 280),
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         child: ListView(
@@ -290,11 +367,22 @@ class _SearchPageState extends State<SearchPage> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
+            if (_localTagSuggestions.isNotEmpty)
+              _LocalTagSuggestionList(
+                suggestions: _localTagSuggestions,
+                onSelected: _openLocalTagSuggestion,
+              ),
+            if (_localTitleSuggestions.isNotEmpty)
+              _LocalTitleSuggestionList(
+                suggestions: _localTitleSuggestions,
+                onSelected: _openLocalTitleSuggestion,
+              ),
             for (final kind in SearchSuggestionKind.values)
               if ((_suggestions[kind] ?? const []).isNotEmpty)
                 _SuggestionRow(
                   kind: kind,
                   suggestions: _suggestions[kind]!.take(6).toList(),
+                  translationService: widget.translationService,
                   onSelected: _openSuggestionCollection,
                 ),
           ],
@@ -359,10 +447,20 @@ class _SearchPageState extends State<SearchPage> {
       ..._filters.models,
     ]) {
       chips.add(
-        InputChip(
-          avatar: Icon(_suggestionIcon(suggestion.kind), size: 18),
-          label: Text(suggestion.title),
-          onDeleted: () => _removeSuggestion(suggestion),
+        EditableTranslationRegion(
+          translationService: widget.translationService,
+          kind: suggestion.kind.discoveryKind,
+          english: suggestion.title,
+          child: InputChip(
+            avatar: Icon(_suggestionIcon(suggestion.kind), size: 18),
+            label: TranslatedMetadataText(
+              translationService: widget.translationService,
+              kind: suggestion.kind.discoveryKind,
+              original: suggestion.title,
+              constrainToScreen: true,
+            ),
+            onDeleted: () => _removeSuggestion(suggestion),
+          ),
         ),
       );
     }
@@ -372,10 +470,21 @@ class _SearchPageState extends State<SearchPage> {
       ..._filters.excludedModels,
     ]) {
       chips.add(
-        InputChip(
-          avatar: Icon(_suggestionIcon(suggestion.kind), size: 18),
-          label: Text('排除：${suggestion.title}'),
-          onDeleted: () => _removeSuggestion(suggestion, excluded: true),
+        EditableTranslationRegion(
+          translationService: widget.translationService,
+          kind: suggestion.kind.discoveryKind,
+          english: suggestion.title,
+          child: InputChip(
+            avatar: Icon(_suggestionIcon(suggestion.kind), size: 18),
+            label: TranslatedMetadataText(
+              translationService: widget.translationService,
+              kind: suggestion.kind.discoveryKind,
+              original: suggestion.title,
+              prefix: '排除：',
+              constrainToScreen: true,
+            ),
+            onDeleted: () => _removeSuggestion(suggestion, excluded: true),
+          ),
         ),
       );
     }
@@ -472,9 +581,19 @@ class _SearchPageState extends State<SearchPage> {
               runSpacing: 8,
               children: snapshot.requireData
                   .map(
-                    (item) => ActionChip(
-                      label: Text(item.title),
-                      onPressed: () => _openCollectionItem(item),
+                    (item) => EditableTranslationRegion(
+                      translationService: widget.translationService,
+                      kind: item.kind,
+                      english: item.title,
+                      child: ActionChip(
+                        label: TranslatedMetadataText(
+                          translationService: widget.translationService,
+                          kind: item.kind,
+                          original: item.title,
+                          constrainToScreen: true,
+                        ),
+                        onPressed: () => _openCollectionItem(item),
+                      ),
                     ),
                   )
                   .toList(growable: false),
@@ -550,6 +669,7 @@ class _SearchPageState extends State<SearchPage> {
                       _SuggestionRow(
                         kind: kind,
                         suggestions: _suggestions[kind]!.take(5).toList(),
+                        translationService: widget.translationService,
                         onSelected: _openSuggestionCollection,
                       ),
                 ],
@@ -576,12 +696,75 @@ class _SearchPageState extends State<SearchPage> {
       key: ValueKey('$_searchRevision:$_activeQuery'),
       loadPage: (page) => widget.prefetchService.runForeground(
         PredictivePrefetchKey.feed('search:$_searchRevision', page),
-        () => widget.api.searchVideos(_activeQuery, page, filters: _filters),
+        () => _loadVideoSearchPage(page),
       ),
       prefetchService: widget.prefetchService,
       itemFilter: _filters.hasQualityFilters ? _filters.matchesQuality : null,
       emptyMessage: '没有找到符合条件的视频。',
     );
+  }
+
+  Future<List<VideoItem>> _loadVideoSearchPage(int page) async {
+    if (!_containsCjk(_activeQuery)) {
+      return widget.api.searchVideos(_activeQuery, page, filters: _filters);
+    }
+
+    final titleMatches = widget.translationService.searchTitleTranslations(
+      _activeQuery,
+      limit: 6,
+    );
+    List<VideoItem> direct = const [];
+    try {
+      direct = await widget.api.searchVideos(
+        _activeQuery,
+        page,
+        filters: _filters,
+      );
+    } on Object {
+      if (page > 1 || titleMatches.isEmpty) rethrow;
+    }
+    if (page > 1 || titleMatches.isEmpty) return direct;
+
+    final reverseResults = await Future.wait(
+      titleMatches.map((match) async {
+        try {
+          final items = await widget.api.searchVideos(
+            match.english,
+            1,
+            filters: _filters,
+          );
+          return MapEntry(match.videoId, items);
+        } on Object {
+          return MapEntry(match.videoId, const <VideoItem>[]);
+        }
+      }),
+    );
+
+    final remoteById = <String, VideoItem>{
+      for (final item in direct) item.id: item,
+    };
+    for (final entry in reverseResults) {
+      for (final item in entry.value) {
+        if (item.id == entry.key) {
+          remoteById[entry.key] = item;
+          break;
+        }
+      }
+    }
+
+    final merged = <VideoItem>[];
+    for (final match in titleMatches) {
+      final remote = remoteById.remove(match.videoId);
+      if (remote != null) {
+        merged.add(remote);
+      } else if (_filters.isEmpty) {
+        merged.add(
+          VideoItem(id: match.videoId, title: match.english, slug: match.slug),
+        );
+      }
+    }
+    merged.addAll(remoteById.values);
+    return merged;
   }
 
   Widget _buildSuggestionResults(SearchSuggestionKind kind) {
@@ -602,13 +785,22 @@ class _SearchPageState extends State<SearchPage> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        return Card(
-          child: ListTile(
-            leading: Icon(_suggestionIcon(kind)),
-            title: Text(item.title),
-            subtitle: Text('${formatCount(item.total)} 个视频'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openSuggestionCollection(item),
+        return EditableTranslationRegion(
+          translationService: widget.translationService,
+          kind: kind.discoveryKind,
+          english: item.title,
+          child: Card(
+            child: ListTile(
+              leading: Icon(_suggestionIcon(kind)),
+              title: TranslatedMetadataText(
+                translationService: widget.translationService,
+                kind: kind.discoveryKind,
+                original: item.title,
+              ),
+              subtitle: Text('${formatCount(item.total)} 个视频'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openSuggestionCollection(item),
+            ),
           ),
         );
       },
@@ -620,6 +812,7 @@ class _SearchPageState extends State<SearchPage> {
       context: context,
       api: widget.api,
       initialFilters: _filters,
+      translationService: widget.translationService,
     );
     if (selected != null) {
       _applyFilters(selected);
@@ -708,6 +901,44 @@ class _SearchPageState extends State<SearchPage> {
     _openCollectionItem(suggestion.collection);
   }
 
+  Future<void> _openLocalTagSuggestion(
+    TranslatedTagSuggestion suggestion,
+  ) async {
+    _focusNode.unfocus();
+    try {
+      final remote = await widget.api.searchSuggestions(
+        suggestion.english,
+        SearchSuggestionKind.tag,
+      );
+      final canonical = _canonicalEnglish(suggestion.english);
+      final exact = remote.where(
+        (item) => _canonicalEnglish(item.title) == canonical,
+      );
+      if (exact.isNotEmpty) {
+        _openSuggestionCollection(exact.first);
+        return;
+      }
+    } on Object {
+      // 标签端点暂时不可用时退化为英文自由文本搜索。
+    }
+    if (mounted) {
+      await _search(suggestion.english);
+    }
+  }
+
+  void _openLocalTitleSuggestion(TranslatedTitleSuggestion suggestion) {
+    _focusNode.unfocus();
+    context.pushNamed(
+      AppRouteNames.video,
+      pathParameters: {'id': suggestion.videoId, 'slug': suggestion.slug},
+      extra: VideoItem(
+        id: suggestion.videoId,
+        title: suggestion.english,
+        slug: suggestion.slug,
+      ),
+    );
+  }
+
   void _openCollectionItem(ContentCollectionItem collection) {
     context.pushNamed(
       AppRouteNames.collection,
@@ -723,15 +954,77 @@ class _SearchPageState extends State<SearchPage> {
   };
 }
 
+class _LocalTagSuggestionList extends StatelessWidget {
+  const _LocalTagSuggestionList({
+    required this.suggestions,
+    required this.onSelected,
+  });
+
+  final List<TranslatedTagSuggestion> suggestions;
+  final ValueChanged<TranslatedTagSuggestion> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: suggestions
+          .take(8)
+          .map(
+            (item) => ListTile(
+              dense: true,
+              leading: const Icon(Icons.tag),
+              title: Text('${item.displayChinese} · ${item.english}'),
+              subtitle: item.matchedAlternateAlias
+                  ? Text('匹配译名：${item.matchedAlias}')
+                  : null,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => onSelected(item),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+class _LocalTitleSuggestionList extends StatelessWidget {
+  const _LocalTitleSuggestionList({
+    required this.suggestions,
+    required this.onSelected,
+  });
+
+  final List<TranslatedTitleSuggestion> suggestions;
+  final ValueChanged<TranslatedTitleSuggestion> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: suggestions
+          .take(8)
+          .map(
+            (item) => ListTile(
+              dense: true,
+              leading: const Icon(Icons.movie_outlined),
+              title: Text(item.displayChinese),
+              subtitle: Text('已学习标题 · ${item.english}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => onSelected(item),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
 class _SuggestionRow extends StatelessWidget {
   const _SuggestionRow({
     required this.kind,
     required this.suggestions,
+    required this.translationService,
     required this.onSelected,
   });
 
   final SearchSuggestionKind kind;
   final List<SearchSuggestion> suggestions;
+  final TranslationService translationService;
   final ValueChanged<SearchSuggestion> onSelected;
 
   @override
@@ -755,11 +1048,20 @@ class _SuggestionRow extends StatelessWidget {
                     .map(
                       (item) => Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: ActionChip(
-                          label: Text(
-                            '${item.title} · ${formatCount(item.total)}',
+                        child: EditableTranslationRegion(
+                          translationService: translationService,
+                          kind: kind.discoveryKind,
+                          english: item.title,
+                          child: ActionChip(
+                            label: TranslatedMetadataText(
+                              translationService: translationService,
+                              kind: kind.discoveryKind,
+                              original: item.title,
+                              suffix: ' · ${formatCount(item.total)}',
+                              constrainToScreen: true,
+                            ),
+                            onPressed: () => onSelected(item),
                           ),
-                          onPressed: () => onSelected(item),
                         ),
                       ),
                     )
@@ -771,4 +1073,20 @@ class _SuggestionRow extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _containsCjk(String value) {
+  return RegExp(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]').hasMatch(value);
+}
+
+bool _minimumSuggestionLengthMet(String query) {
+  return _containsCjk(query) ? query.isNotEmpty : query.length >= 2;
+}
+
+String _canonicalEnglish(String value) {
+  return value
+      .trim()
+      .toLowerCase()
+      .replaceAll('_', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ');
 }

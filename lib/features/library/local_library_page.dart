@@ -248,7 +248,13 @@ class _LocalLibraryOverviewState extends State<LocalLibraryOverview> {
       ),
     );
     if (confirmed == true) {
-      await widget.repository.deleteLibrary(library.id);
+      try {
+        await widget.repository.deleteLibrary(library.id);
+      } catch (error) {
+        if (context.mounted) {
+          _message(context, error.toString());
+        }
+      }
     }
   }
 }

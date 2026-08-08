@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../core/services/translation_service.dart';
+import '../../shared/editable_translation.dart';
+import '../../shared/localized_translation_text.dart';
 
 Future<SearchFilters?> showVideoFilterSheet({
   required BuildContext context,
   required Rule34VideoApi api,
   required SearchFilters initialFilters,
+  required TranslationService translationService,
 }) {
   return showModalBottomSheet<SearchFilters>(
     context: context,
@@ -15,16 +21,24 @@ Future<SearchFilters?> showVideoFilterSheet({
     constraints: BoxConstraints(
       maxHeight: MediaQuery.sizeOf(context).height * 0.94,
     ),
-    builder: (context) =>
-        _VideoFilterSheet(api: api, initialFilters: initialFilters),
+    builder: (context) => _VideoFilterSheet(
+      api: api,
+      initialFilters: initialFilters,
+      translationService: translationService,
+    ),
   );
 }
 
 class _VideoFilterSheet extends StatefulWidget {
-  const _VideoFilterSheet({required this.api, required this.initialFilters});
+  const _VideoFilterSheet({
+    required this.api,
+    required this.initialFilters,
+    required this.translationService,
+  });
 
   final Rule34VideoApi api;
   final SearchFilters initialFilters;
+  final TranslationService translationService;
 
   @override
   State<_VideoFilterSheet> createState() => _VideoFilterSheetState();
@@ -217,10 +231,21 @@ class _VideoFilterSheetState extends State<_VideoFilterSheet> {
               runSpacing: 6,
               children: items
                   .map(
-                    (item) => InputChip(
-                      avatar: Icon(_kindIcon(kind), size: 18),
-                      label: Text(item.title),
-                      onDeleted: () => _removeEntity(item, excluded: excluded),
+                    (item) => EditableTranslationRegion(
+                      translationService: widget.translationService,
+                      kind: kind.discoveryKind,
+                      english: item.title,
+                      child: InputChip(
+                        avatar: Icon(_kindIcon(kind), size: 18),
+                        label: TranslatedMetadataText(
+                          translationService: widget.translationService,
+                          kind: kind.discoveryKind,
+                          original: item.title,
+                          constrainToScreen: true,
+                        ),
+                        onDeleted: () =>
+                            _removeEntity(item, excluded: excluded),
+                      ),
                     ),
                   )
                   .toList(growable: false),
@@ -302,7 +327,11 @@ class _VideoFilterSheetState extends State<_VideoFilterSheet> {
   }) async {
     final selected = await showSearch<SearchSuggestion?>(
       context: context,
-      delegate: _SuggestionSearchDelegate(api: widget.api, kind: kind),
+      delegate: _SuggestionSearchDelegate(
+        api: widget.api,
+        kind: kind,
+        translationService: widget.translationService,
+      ),
     );
     if (selected == null || !mounted) {
       return;
@@ -359,10 +388,15 @@ class _VideoFilterSheetState extends State<_VideoFilterSheet> {
 }
 
 class _SuggestionSearchDelegate extends SearchDelegate<SearchSuggestion?> {
-  _SuggestionSearchDelegate({required this.api, required this.kind});
+  _SuggestionSearchDelegate({
+    required this.api,
+    required this.kind,
+    required this.translationService,
+  });
 
   final Rule34VideoApi api;
   final SearchSuggestionKind kind;
+  final TranslationService translationService;
 
   @override
   String get searchFieldLabel => '搜索${kind.label}';
@@ -401,8 +435,90 @@ class _SuggestionSearchDelegate extends SearchDelegate<SearchSuggestion?> {
     if (normalized.length < 2) {
       return const Center(child: Text('请至少输入 2 个字符。'));
     }
+    return _DebouncedSuggestionResults(
+      api: api,
+      kind: kind,
+      query: normalized,
+      translationService: translationService,
+      onSelected: (item) => close(context, item),
+    );
+  }
+}
+
+class _DebouncedSuggestionResults extends StatefulWidget {
+  const _DebouncedSuggestionResults({
+    required this.api,
+    required this.kind,
+    required this.query,
+    required this.translationService,
+    required this.onSelected,
+  });
+
+  final Rule34VideoApi api;
+  final SearchSuggestionKind kind;
+  final String query;
+  final TranslationService translationService;
+  final ValueChanged<SearchSuggestion> onSelected;
+
+  @override
+  State<_DebouncedSuggestionResults> createState() =>
+      _DebouncedSuggestionResultsState();
+}
+
+class _DebouncedSuggestionResultsState
+    extends State<_DebouncedSuggestionResults> {
+  Timer? _debounce;
+  Future<List<SearchSuggestion>>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DebouncedSuggestionResults oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.query != widget.query || oldWidget.kind != widget.kind) {
+      _schedule();
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _schedule() {
+    _debounce?.cancel();
+    setStateIfMounted(() => _future = null);
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(
+          () =>
+              _future = widget.api.searchSuggestions(widget.query, widget.kind),
+        );
+      }
+    });
+  }
+
+  void setStateIfMounted(VoidCallback action) {
+    if (mounted) {
+      setState(action);
+    } else {
+      action();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final future = _future;
+    if (future == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return FutureBuilder<List<SearchSuggestion>>(
-      future: api.searchSuggestions(normalized, kind),
+      future: future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
@@ -412,16 +528,25 @@ class _SuggestionSearchDelegate extends SearchDelegate<SearchSuggestion?> {
         }
         final items = snapshot.data ?? const <SearchSuggestion>[];
         if (items.isEmpty) {
-          return Center(child: Text('没有找到匹配的${kind.label}。'));
+          return Center(child: Text('没有找到匹配的${widget.kind.label}。'));
         }
         return ListView.builder(
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
-            return ListTile(
-              title: Text(item.title),
-              subtitle: Text('${item.total} 个视频'),
-              onTap: () => close(context, item),
+            return EditableTranslationRegion(
+              translationService: widget.translationService,
+              kind: widget.kind.discoveryKind,
+              english: item.title,
+              child: ListTile(
+                title: TranslatedMetadataText(
+                  translationService: widget.translationService,
+                  kind: widget.kind.discoveryKind,
+                  original: item.title,
+                ),
+                subtitle: Text('${item.total} 个视频'),
+                onTap: () => widget.onSelected(item),
+              ),
             );
           },
         );

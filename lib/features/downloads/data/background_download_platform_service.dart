@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/security/error_redaction.dart';
+import '../../../core/logging/app_log_service.dart';
 import '../domain/download_models.dart';
 
 final class BackgroundDownloadPlatformService
@@ -36,6 +37,7 @@ final class BackgroundDownloadPlatformService
   final StreamController<DownloadPlatformEvent> _events =
       StreamController<DownloadPlatformEvent>.broadcast();
   final Set<String> _finalizing = {};
+  Timer? _rescheduleTimer;
   int _maxConcurrent;
   bool _initialized = false;
 
@@ -65,9 +67,11 @@ final class BackgroundDownloadPlatformService
           tapOpensFile: false,
           groupNotificationId: notificationGroupId,
         );
-    await _downloader.start(autoCleanDatabase: false);
     await _downloader.trackTasksInGroup(_group);
-    await _downloader.rescheduleKilledTasks();
+    await _downloader.resumeFromBackground();
+    _rescheduleTimer = Timer(const Duration(seconds: 5), () {
+      unawaited(_rescheduleKilledTasks());
+    });
     _initialized = true;
   }
 
@@ -127,6 +131,26 @@ final class BackgroundDownloadPlatformService
       ),
     );
     return accepted;
+  }
+
+  @override
+  Future<bool> taskExists(String taskId) async {
+    if (await _downloader.taskForId(taskId) != null) {
+      return true;
+    }
+    return await _downloader.database.recordForId(taskId) != null;
+  }
+
+  Future<void> _rescheduleKilledTasks() async {
+    try {
+      await _downloader.rescheduleKilledTasks();
+    } on Object catch (error, stackTrace) {
+      await AppLogService.instance.error(
+        error,
+        stackTrace,
+        component: 'download_reschedule',
+      );
+    }
   }
 
   @override
@@ -332,13 +356,14 @@ final class BackgroundDownloadPlatformService
       return null;
     }
     final hasTotal = update.hasExpectedFileSize && update.expectedFileSize > 0;
+    if (!hasTotal) {
+      return null;
+    }
     final progress = update.progress.clamp(0.0, 1.0);
     return DownloadProgressEvent(
       taskId: update.task.taskId,
-      bytesDownloaded: hasTotal
-          ? (update.expectedFileSize * progress).round()
-          : 0,
-      totalBytes: hasTotal ? update.expectedFileSize : null,
+      bytesDownloaded: (update.expectedFileSize * progress).round(),
+      totalBytes: update.expectedFileSize,
     );
   }
 
@@ -373,6 +398,7 @@ final class BackgroundDownloadPlatformService
 
   @override
   void dispose() {
+    _rescheduleTimer?.cancel();
     _downloader.unregisterCallbacks(group: _group);
     unawaited(_events.close());
   }

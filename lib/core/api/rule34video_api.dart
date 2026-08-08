@@ -41,6 +41,7 @@ class Rule34VideoApi {
   static const _videoPageCacheTtl = Duration(minutes: 5);
   static const _videoDetailsCacheLimit = 100;
   static const _videoPageCacheLimit = 60;
+  static const _entityAvatarCacheLimit = 500;
   static const _accountPaginationLimit = 50;
   static const _accountPaginationNoProgressLimit = 3;
 
@@ -91,6 +92,7 @@ class Rule34VideoApi {
   bool _currentUserProfileRefreshed = false;
   Future<List<PlaylistItem>>? _playlistRequest;
   Future<List<SubscriptionItem>>? _subscriptionRequest;
+  Future<bool>? _restoreRequest;
   var _subscriptionGeneration = 0;
 
   void close() {
@@ -420,16 +422,26 @@ class Rule34VideoApi {
       throw const ApiException('视频详情响应异常，请稍后重试。');
     }
     _syncFavoriteCache();
+    final knownFavorite =
+        video.isFavorite ?? _favoriteStatusByVideoId[video.id];
+    final resolvedFavorite = knownFavorite ?? details.isFavorite;
+    if (resolvedFavorite != details.isFavorite ||
+        details.video.isFavorite != resolvedFavorite) {
+      details = details.copyWith(
+        video: details.video.copyWith(isFavorite: resolvedFavorite),
+        isFavorite: resolvedFavorite,
+      );
+    }
     _favoriteStatusByVideoId[video.id] = details.isFavorite;
     for (final item in details.metadataItems) {
       final avatarUrl = item.thumbnailUrl;
       if (avatarUrl != null && avatarUrl.isNotEmpty) {
-        _entityAvatarByPath[item.path] = avatarUrl;
+        _cacheEntityAvatar(item.path, avatarUrl);
       }
     }
     final uploader = details.uploader;
     if (uploader?.avatarUrl?.isNotEmpty == true) {
-      _entityAvatarByPath[uploader!.profilePath] = uploader.avatarUrl!;
+      _cacheEntityAvatar(uploader!.profilePath, uploader.avatarUrl!);
     }
     return details;
   }
@@ -589,6 +601,7 @@ class Rule34VideoApi {
           'email_link': 'https://rule34video.com/email/',
         },
         followRedirects: true,
+        retryExpiredSession: false,
       );
       final userId = SiteParser.userId(body);
       if (userId == null) {
@@ -612,7 +625,7 @@ class Rule34VideoApi {
 
   Future<void> logout() async {
     try {
-      await _get('/logout/');
+      await _get('/logout/', retryExpiredSession: false);
     } finally {
       _resetSubscriptionCache();
       _clearPlaylistCache();
@@ -998,32 +1011,51 @@ class Rule34VideoApi {
     if (knownAvatar != null && knownAvatar.isNotEmpty) {
       return Future.value(subscription.copyWith(thumbnailUrl: knownAvatar));
     }
-    return _subscriptionResolutionRequests.putIfAbsent(
-      subscription.path,
-      () => _resolveSubscription(subscription),
+    final cachedRequest = _subscriptionResolutionRequests[subscription.path];
+    if (cachedRequest != null) {
+      return cachedRequest;
+    }
+    late final Future<SubscriptionItem> request;
+    request = _resolveSubscription(subscription).then(
+      (result) => result,
+      onError: (Object _, StackTrace stackTrace) {
+        if (identical(
+          _subscriptionResolutionRequests[subscription.path],
+          request,
+        )) {
+          _subscriptionResolutionRequests.remove(subscription.path);
+        }
+        return subscription;
+      },
     );
+    _subscriptionResolutionRequests[subscription.path] = request;
+    return request;
   }
 
   Future<SubscriptionItem> _resolveSubscription(
     SubscriptionItem subscription,
   ) async {
-    try {
-      final thumbnailUrl = switch (subscription.kind) {
-        SubscriptionKind.model => SiteParser.collectionAvatar(
-          await _get(subscription.path),
-        ),
-        SubscriptionKind.member => await _memberSubscriptionAvatar(
-          subscription.path,
-        ),
-        _ => null,
-      };
-      if (thumbnailUrl == null || thumbnailUrl.isEmpty) {
-        return subscription;
-      }
-      _entityAvatarByPath[subscription.path] = thumbnailUrl;
-      return subscription.copyWith(thumbnailUrl: thumbnailUrl);
-    } on Object {
+    final thumbnailUrl = switch (subscription.kind) {
+      SubscriptionKind.model => SiteParser.collectionAvatar(
+        await _get(subscription.path),
+      ),
+      SubscriptionKind.member => await _memberSubscriptionAvatar(
+        subscription.path,
+      ),
+      _ => null,
+    };
+    if (thumbnailUrl == null || thumbnailUrl.isEmpty) {
       return subscription;
+    }
+    _cacheEntityAvatar(subscription.path, thumbnailUrl);
+    return subscription.copyWith(thumbnailUrl: thumbnailUrl);
+  }
+
+  void _cacheEntityAvatar(String path, String url) {
+    _entityAvatarByPath.remove(path);
+    _entityAvatarByPath[path] = url;
+    while (_entityAvatarByPath.length > _entityAvatarCacheLimit) {
+      _entityAvatarByPath.remove(_entityAvatarByPath.keys.first);
     }
   }
 
@@ -1597,10 +1629,29 @@ class Rule34VideoApi {
   Future<void> _clearExpiredSession() async {
     _resetSubscriptionCache();
     _clearPlaylistCache();
-    await sessionStore.clear();
+    try {
+      await sessionStore.clear();
+    } on Object {
+      // 清理失败不能覆盖原本的会话过期异常。
+    }
   }
 
-  Future<bool> _tryRestoreWithCredentials() async {
+  Future<bool> _tryRestoreWithCredentials() {
+    final pending = _restoreRequest;
+    if (pending != null) {
+      return pending;
+    }
+    late final Future<bool> request;
+    request = _restoreWithCredentials().whenComplete(() {
+      if (identical(_restoreRequest, request)) {
+        _restoreRequest = null;
+      }
+    });
+    _restoreRequest = request;
+    return request;
+  }
+
+  Future<bool> _restoreWithCredentials() async {
     try {
       final credentials = await sessionStore.loadCredentials();
       if (credentials == null) {

@@ -11,6 +11,8 @@ abstract final class AppRouteNames {
   static const appearanceSettings = 'appearance-settings';
   static const playbackSettings = 'playback-settings';
   static const contentSettings = 'content-settings';
+  static const translationSettings = 'translation-settings';
+  static const translationCatalog = 'translation-catalog';
   static const downloadSettings = 'download-settings';
   static const downloadManagement = 'download-management';
   static const privacySettings = 'privacy-settings';

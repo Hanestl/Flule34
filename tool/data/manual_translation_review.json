@@ -1,0 +1,2506 @@
+{
+  "generatedAt": "2026-08-07T02:32:54.502234Z",
+  "reviewedCount": 312,
+  "approvedCount": 7,
+  "keepEnglishCount": 305,
+  "approved": [
+    {
+      "kind": "category",
+      "name": "Astria Ascending",
+      "action": "translate",
+      "chinese": "星位继承者",
+      "confidence": 1.0,
+      "note": "人工核验通过：有明确通行中文译名。"
+    },
+    {
+      "kind": "category",
+      "name": "Hi-Fi Rush",
+      "action": "translate",
+      "chinese": "完美音浪",
+      "confidence": 1.0,
+      "note": "人工核验通过：有明确通行中文译名。"
+    },
+    {
+      "kind": "category",
+      "name": "Hifi Rush",
+      "action": "translate",
+      "chinese": "完美音浪",
+      "confidence": 1.0,
+      "note": "人工核验通过：有明确通行中文译名。"
+    },
+    {
+      "kind": "category",
+      "name": "the catillac cats",
+      "action": "translate",
+      "chinese": "卡提拉克猫",
+      "confidence": 1.0,
+      "note": "人工核验通过：有明确通行中文译名。"
+    },
+    {
+      "kind": "category",
+      "name": "the oblongs",
+      "action": "translate",
+      "chinese": "奥布隆一家",
+      "confidence": 1.0,
+      "note": "人工核验通过：有明确通行中文译名。"
+    },
+    {
+      "kind": "tag",
+      "name": "02 (darling in the franxx)",
+      "action": "translate",
+      "chinese": "02（DARLING in the FRANXX）",
+      "confidence": 1.0,
+      "note": "人工核验通过：有明确通行中文译名。"
+    },
+    {
+      "kind": "tag",
+      "name": "zero two (darling in the franxx)",
+      "action": "translate",
+      "chinese": "02（DARLING in the FRANXX）",
+      "confidence": 1.0,
+      "note": "人工核验通过：有明确通行中文译名。"
+    }
+  ],
+  "keepEnglish": [
+    {
+      "kind": "category",
+      "name": "22d",
+      "action": "keep",
+      "chinese": "22d",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "A different world that feels too good with my loving sister",
+      "action": "keep",
+      "chinese": "A different world that feels too good with my loving sister",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "AH.GHOST!",
+      "action": "keep",
+      "chinese": "AH.GHOST!",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Adulterous Ninja - Chapter of the Nipple",
+      "action": "keep",
+      "chinese": "Adulterous Ninja - Chapter of the Nipple",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Amazing Redspike",
+      "action": "keep",
+      "chinese": "Amazing Redspike",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Amazoen Kara",
+      "action": "keep",
+      "chinese": "Amazoen Kara",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Apocalust",
+      "action": "keep",
+      "chinese": "Apocalust",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Ardor for Depravity",
+      "action": "keep",
+      "chinese": "Ardor for Depravity",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Aria Secuse",
+      "action": "keep",
+      "chinese": "Aria Secuse",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Arms (Game)",
+      "action": "keep",
+      "chinese": "Arms (Game)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Ashe's Rodeo",
+      "action": "keep",
+      "chinese": "Ashe's Rodeo",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Bad Dream Sundyz",
+      "action": "keep",
+      "chinese": "Bad Dream Sundyz",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Bioasshard",
+      "action": "keep",
+      "chinese": "Bioasshard",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Blow-Baa",
+      "action": "keep",
+      "chinese": "Blow-Baa",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Blue Seven Meat Pot",
+      "action": "keep",
+      "chinese": "Blue Seven Meat Pot",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Bounce and Ride",
+      "action": "keep",
+      "chinese": "Bounce and Ride",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Captive Als-to-Romeria",
+      "action": "keep",
+      "chinese": "Captive Als-to-Romeria",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Castle of Vania",
+      "action": "keep",
+      "chinese": "Castle of Vania",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Chrala Can't Escape",
+      "action": "keep",
+      "chinese": "Chrala Can't Escape",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Churn vector",
+      "action": "keep",
+      "chinese": "Churn vector",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Colbalt Star",
+      "action": "keep",
+      "chinese": "Colbalt Star",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Condemned",
+      "action": "keep",
+      "chinese": "Condemned",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Cumdy",
+      "action": "keep",
+      "chinese": "Cumdy",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "DDM7",
+      "action": "keep",
+      "chinese": "DDM7",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Doskoinpo imp",
+      "action": "keep",
+      "chinese": "Doskoinpo imp",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Drain Mansion",
+      "action": "keep",
+      "chinese": "Drain Mansion",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Easy Dot",
+      "action": "keep",
+      "chinese": "Easy Dot",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Ero elrctric dream",
+      "action": "keep",
+      "chinese": "Ero elrctric dream",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Erokin",
+      "action": "keep",
+      "chinese": "Erokin",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Everlustinglife",
+      "action": "keep",
+      "chinese": "Everlustinglife",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Final Orginity",
+      "action": "keep",
+      "chinese": "Final Orginity",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Flappy Petnis",
+      "action": "keep",
+      "chinese": "Flappy Petnis",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Fuck man Deluge",
+      "action": "keep",
+      "chinese": "Fuck man Deluge",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Fuckerman",
+      "action": "keep",
+      "chinese": "Fuckerman",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Furry Shades of Gay",
+      "action": "keep",
+      "chinese": "Furry Shades of Gay",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Futa Concoction",
+      "action": "keep",
+      "chinese": "Futa Concoction",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Futa Prision",
+      "action": "keep",
+      "chinese": "Futa Prision",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Futagenesis Unveiled",
+      "action": "keep",
+      "chinese": "Futagenesis Unveiled",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Futanari Ballbusting Edition",
+      "action": "keep",
+      "chinese": "Futanari Ballbusting Edition",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Gacha Cummy",
+      "action": "keep",
+      "chinese": "Gacha Cummy",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Game House Chorus",
+      "action": "keep",
+      "chinese": "Game House Chorus",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Ghost Girl Ghussy",
+      "action": "keep",
+      "chinese": "Ghost Girl Ghussy",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Glory & Miserable Survivors DX",
+      "action": "keep",
+      "chinese": "Glory & Miserable Survivors DX",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Gnarled Hag",
+      "action": "keep",
+      "chinese": "Gnarled Hag",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "God complex vore",
+      "action": "keep",
+      "chinese": "God complex vore",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Goddess PoJun in Slutty Journey",
+      "action": "keep",
+      "chinese": "Goddess PoJun in Slutty Journey",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Godson Remake",
+      "action": "keep",
+      "chinese": "Godson Remake",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Gooey Ghoulies",
+      "action": "keep",
+      "chinese": "Gooey Ghoulies",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Gungslinger Girl Survivor",
+      "action": "keep",
+      "chinese": "Gungslinger Girl Survivor",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Hagokoro",
+      "action": "keep",
+      "chinese": "Hagokoro",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Hawk Tuah",
+      "action": "keep",
+      "chinese": "Hawk Tuah",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Hearstrings",
+      "action": "keep",
+      "chinese": "Hearstrings",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Heaven Huang Ji Lapis Philia",
+      "action": "keep",
+      "chinese": "Heaven Huang Ji Lapis Philia",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Hero Fanon",
+      "action": "keep",
+      "chinese": "Hero Fanon",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "High tail hall",
+      "action": "keep",
+      "chinese": "High tail hall",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Holy Avatar: The Ancient Rituals and the Twin Worlds",
+      "action": "keep",
+      "chinese": "Holy Avatar: The Ancient Rituals and the Twin Worlds",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Huniepop",
+      "action": "keep",
+      "chinese": "Huniepop",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Huniepop 2",
+      "action": "keep",
+      "chinese": "Huniepop 2",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Idol no Nama",
+      "action": "keep",
+      "chinese": "Idol no Nama",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Love Love Ochiken Baito Seikatsu",
+      "action": "keep",
+      "chinese": "Love Love Ochiken Baito Seikatsu",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Maniac Circle Hakusho",
+      "action": "keep",
+      "chinese": "Maniac Circle Hakusho",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Maze City Assailam",
+      "action": "keep",
+      "chinese": "Maze City Assailam",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Melty Brave Kittens",
+      "action": "keep",
+      "chinese": "Melty Brave Kittens",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Menasphere of Inverted Dreams",
+      "action": "keep",
+      "chinese": "Menasphere of Inverted Dreams",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Midori in a Pinch: Pixel Art Uncharted Territory",
+      "action": "keep",
+      "chinese": "Midori in a Pinch: Pixel Art Uncharted Territory",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Milfy Cummy: Gloria Returns",
+      "action": "keep",
+      "chinese": "Milfy Cummy: Gloria Returns",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Mom's Junior Care for Old Virgin Lady",
+      "action": "keep",
+      "chinese": "Mom's Junior Care for Old Virgin Lady",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Mono Quest",
+      "action": "keep",
+      "chinese": "Mono Quest",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Muchimuchi Dakara Mukumuku Shita ~Osananajimi to no Sugoshikata~",
+      "action": "keep",
+      "chinese": "Muchimuchi Dakara Mukumuku Shita ~Osananajimi to no Sugoshikata~",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Multiny",
+      "action": "keep",
+      "chinese": "Multiny",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "My Girlfriend Advanced to the Dancer Class. Town I.",
+      "action": "keep",
+      "chinese": "My Girlfriend Advanced to the Dancer Class. Town I.",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Mystas myst adventure by vore",
+      "action": "keep",
+      "chinese": "Mystas myst adventure by vore",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "New Game!",
+      "action": "keep",
+      "chinese": "New Game!",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Notmare!",
+      "action": "keep",
+      "chinese": "Notmare!",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "NugiTap",
+      "action": "keep",
+      "chinese": "NugiTap",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Nurtale Nersche",
+      "action": "keep",
+      "chinese": "Nurtale Nersche",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Nympomainia Priestess",
+      "action": "keep",
+      "chinese": "Nympomainia Priestess",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "OK K.O.!",
+      "action": "keep",
+      "chinese": "OK K.O.!",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "One Winged Sinope",
+      "action": "keep",
+      "chinese": "One Winged Sinope",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Onigotchi",
+      "action": "keep",
+      "chinese": "Onigotchi",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Oozehazard",
+      "action": "keep",
+      "chinese": "Oozehazard",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Orika",
+      "action": "keep",
+      "chinese": "Orika",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Otaku Fantasty",
+      "action": "keep",
+      "chinese": "Otaku Fantasty",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Otaku Fantasty 2",
+      "action": "keep",
+      "chinese": "Otaku Fantasty 2",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Overlewd",
+      "action": "keep",
+      "chinese": "Overlewd",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "PASEC",
+      "action": "keep",
+      "chinese": "PASEC",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "PUBPET",
+      "action": "keep",
+      "chinese": "PUBPET",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Princess Heart Link",
+      "action": "keep",
+      "chinese": "Princess Heart Link",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Princess Reconquista",
+      "action": "keep",
+      "chinese": "Princess Reconquista",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Problematic Subjects",
+      "action": "keep",
+      "chinese": "Problematic Subjects",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Project Engage",
+      "action": "keep",
+      "chinese": "Project Engage",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Project Herald",
+      "action": "keep",
+      "chinese": "Project Herald",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Project Sena",
+      "action": "keep",
+      "chinese": "Project Sena",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "ProjectWill",
+      "action": "keep",
+      "chinese": "ProjectWill",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Projekt Melody A Nut Between Worlds",
+      "action": "keep",
+      "chinese": "Projekt Melody A Nut Between Worlds",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Projekt X Love Potion Disater",
+      "action": "keep",
+      "chinese": "Projekt X Love Potion Disater",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Pure Pure Pero Pero Princess",
+      "action": "keep",
+      "chinese": "Pure Pure Pero Pero Princess",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Putt Paladin",
+      "action": "keep",
+      "chinese": "Putt Paladin",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "REsolution",
+      "action": "keep",
+      "chinese": "REsolution",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Resort Boin",
+      "action": "keep",
+      "chinese": "Resort Boin",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Role player: Tororo Shimai no Nenmaku Portrait - Gurigucha LIVE!",
+      "action": "keep",
+      "chinese": "Role player: Tororo Shimai no Nenmaku Portrait - Gurigucha LIVE!",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Ryona Trap Dungeon",
+      "action": "keep",
+      "chinese": "Ryona Trap Dungeon",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Shi ill Server",
+      "action": "keep",
+      "chinese": "Shi ill Server",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Shipwrecked Spaceship Todoroki",
+      "action": "keep",
+      "chinese": "Shipwrecked Spaceship Todoroki",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "SoD:SH",
+      "action": "keep",
+      "chinese": "SoD:SH",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Soulcoom",
+      "action": "keep",
+      "chinese": "Soulcoom",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Space Paws",
+      "action": "keep",
+      "chinese": "Space Paws",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Spectacular Spectrophilia",
+      "action": "keep",
+      "chinese": "Spectacular Spectrophilia",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Spellbound Beauties",
+      "action": "keep",
+      "chinese": "Spellbound Beauties",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Splatter School",
+      "action": "keep",
+      "chinese": "Splatter School",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Spooky Milk Life",
+      "action": "keep",
+      "chinese": "Spooky Milk Life",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Spunk Stock",
+      "action": "keep",
+      "chinese": "Spunk Stock",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "SpunkStock: Music Festival",
+      "action": "keep",
+      "chinese": "SpunkStock: Music Festival",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Steamy Sextet",
+      "action": "keep",
+      "chinese": "Steamy Sextet",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Sticky Dinner!",
+      "action": "keep",
+      "chinese": "Sticky Dinner!",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Stoked",
+      "action": "keep",
+      "chinese": "Stoked",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Stray Incubus",
+      "action": "keep",
+      "chinese": "Stray Incubus",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Sugestion Curse And Desire",
+      "action": "keep",
+      "chinese": "Sugestion Curse And Desire",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Summer Sakarai",
+      "action": "keep",
+      "chinese": "Summer Sakarai",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Syahata's bad day",
+      "action": "keep",
+      "chinese": "Syahata's bad day",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Tanshin Furin -Netoraretara Netorikaesu Baigaeshi",
+      "action": "keep",
+      "chinese": "Tanshin Furin -Netoraretara Netorikaesu Baigaeshi",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Tanuki Silveras Quest",
+      "action": "keep",
+      "chinese": "Tanuki Silveras Quest",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Tanunda Silves Quest",
+      "action": "keep",
+      "chinese": "Tanunda Silves Quest",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Terqu and her H lab",
+      "action": "keep",
+      "chinese": "Terqu and her H lab",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "The Agnietta",
+      "action": "keep",
+      "chinese": "The Agnietta",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "The Crazy Elf Swordsman and the Sensory Derpivation Pitfall",
+      "action": "keep",
+      "chinese": "The Crazy Elf Swordsman and the Sensory Derpivation Pitfall",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "The Menasphere of Inverted Dreams",
+      "action": "keep",
+      "chinese": "The Menasphere of Inverted Dreams",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "The Three Charms",
+      "action": "keep",
+      "chinese": "The Three Charms",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "The savior of impregnation",
+      "action": "keep",
+      "chinese": "The savior of impregnation",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Tyr'ma",
+      "action": "keep",
+      "chinese": "Tyr'ma",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "XXL Woofia",
+      "action": "keep",
+      "chinese": "XXL Woofia",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "XXLove",
+      "action": "keep",
+      "chinese": "XXLove",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Xenotake",
+      "action": "keep",
+      "chinese": "Xenotake",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Xianxinglu of the Scarlet Moon",
+      "action": "keep",
+      "chinese": "Xianxinglu of the Scarlet Moon",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Yiffalicious",
+      "action": "keep",
+      "chinese": "Yiffalicious",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Yokoshima Salon",
+      "action": "keep",
+      "chinese": "Yokoshima Salon",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Yuri & Claire Equal NTR with Likeability!",
+      "action": "keep",
+      "chinese": "Yuri & Claire Equal NTR with Likeability!",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "Zetria Breeding Specimens",
+      "action": "keep",
+      "chinese": "Zetria Breeding Specimens",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "batmabn",
+      "action": "keep",
+      "chinese": "batmabn",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "cry for dawn",
+      "action": "keep",
+      "chinese": "cry for dawn",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "darling in the franxx",
+      "action": "keep",
+      "chinese": "darling in the franxx",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "deepest sword",
+      "action": "keep",
+      "chinese": "deepest sword",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "demon boxing Ji! The Devil Meliger",
+      "action": "keep",
+      "chinese": "demon boxing Ji! The Devil Meliger",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "dig delight direct drive dj",
+      "action": "keep",
+      "chinese": "dig delight direct drive dj",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "iara",
+      "action": "keep",
+      "chinese": "iara",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "iawea",
+      "action": "keep",
+      "chinese": "iawea",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "iawra",
+      "action": "keep",
+      "chinese": "iawra",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "iwaar",
+      "action": "keep",
+      "chinese": "iwaar",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "jucika",
+      "action": "keep",
+      "chinese": "jucika",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "klaroro abyss of the Souls",
+      "action": "keep",
+      "chinese": "klaroro abyss of the Souls",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "love live",
+      "action": "keep",
+      "chinese": "love live",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "love live sunshine",
+      "action": "keep",
+      "chinese": "love live sunshine",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "love live superstar",
+      "action": "keep",
+      "chinese": "love live superstar",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "mao mao heroes of pure heart",
+      "action": "keep",
+      "chinese": "mao mao heroes of pure heart",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "mm",
+      "action": "keep",
+      "chinese": "mm",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "mtp",
+      "action": "keep",
+      "chinese": "mtp",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "muldae",
+      "action": "keep",
+      "chinese": "muldae",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "muv-luv",
+      "action": "keep",
+      "chinese": "muv-luv",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "nomalous coffee machine",
+      "action": "keep",
+      "chinese": "nomalous coffee machine",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "omori",
+      "action": "keep",
+      "chinese": "omori",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "oneshot",
+      "action": "keep",
+      "chinese": "oneshot",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "ovewrat",
+      "action": "keep",
+      "chinese": "ovewrat",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "re creators",
+      "action": "keep",
+      "chinese": "re creators",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "satina",
+      "action": "keep",
+      "chinese": "satina",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "sins",
+      "action": "keep",
+      "chinese": "sins",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "ssss.gridman",
+      "action": "keep",
+      "chinese": "ssss.gridman",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "tmp",
+      "action": "keep",
+      "chinese": "tmp",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "wiara",
+      "action": "keep",
+      "chinese": "wiara",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "category",
+      "name": "zombie retreats 2",
+      "action": "keep",
+      "chinese": "zombie retreats 2",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "asmr",
+      "action": "keep",
+      "chinese": "asmr",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "bdsm",
+      "action": "keep",
+      "chinese": "bdsm",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "beastsnthings",
+      "action": "keep",
+      "chinese": "beastsnthings",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "bonde",
+      "action": "keep",
+      "chinese": "bonde",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "cbt",
+      "action": "keep",
+      "chinese": "cbt",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "exprational",
+      "action": "keep",
+      "chinese": "exprational",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "ezria",
+      "action": "keep",
+      "chinese": "ezria",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fakesunucular",
+      "action": "keep",
+      "chinese": "fakesunucular",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fenale",
+      "action": "keep",
+      "chinese": "fenale",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "feng",
+      "action": "keep",
+      "chinese": "feng",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fennochik",
+      "action": "keep",
+      "chinese": "fennochik",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fiavoidwolf",
+      "action": "keep",
+      "chinese": "fiavoidwolf",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fiishdude",
+      "action": "keep",
+      "chinese": "fiishdude",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "firebyrd",
+      "action": "keep",
+      "chinese": "firebyrd",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fjaye",
+      "action": "keep",
+      "chinese": "fjaye",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "flou",
+      "action": "keep",
+      "chinese": "flou",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "forceballfx",
+      "action": "keep",
+      "chinese": "forceballfx",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "foretst",
+      "action": "keep",
+      "chinese": "foretst",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "freakling",
+      "action": "keep",
+      "chinese": "freakling",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "freakorama",
+      "action": "keep",
+      "chinese": "freakorama",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fringe",
+      "action": "keep",
+      "chinese": "fringe",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fritzhq",
+      "action": "keep",
+      "chinese": "fritzhq",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fruitysquish",
+      "action": "keep",
+      "chinese": "fruitysquish",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "fullmetaldude",
+      "action": "keep",
+      "chinese": "fullmetaldude",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gamingarzia",
+      "action": "keep",
+      "chinese": "gamingarzia",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gamir",
+      "action": "keep",
+      "chinese": "gamir",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gaspr",
+      "action": "keep",
+      "chinese": "gaspr",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gcraw",
+      "action": "keep",
+      "chinese": "gcraw",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "geckoscave",
+      "action": "keep",
+      "chinese": "geckoscave",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "genossestahl",
+      "action": "keep",
+      "chinese": "genossestahl",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "ghoulishxxx",
+      "action": "keep",
+      "chinese": "ghoulishxxx",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gifdoozer",
+      "action": "keep",
+      "chinese": "gifdoozer",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "ginagaloreva",
+      "action": "keep",
+      "chinese": "ginagaloreva",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gldnknee",
+      "action": "keep",
+      "chinese": "gldnknee",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gnomfist",
+      "action": "keep",
+      "chinese": "gnomfist",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gobanire",
+      "action": "keep",
+      "chinese": "gobanire",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "goddessbynight",
+      "action": "keep",
+      "chinese": "goddessbynight",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "greatb8",
+      "action": "keep",
+      "chinese": "greatb8",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "guiltyk",
+      "action": "keep",
+      "chinese": "guiltyk",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "gurobase",
+      "action": "keep",
+      "chinese": "gurobase",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "h0rs3",
+      "action": "keep",
+      "chinese": "h0rs3",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "hagisher",
+      "action": "keep",
+      "chinese": "hagisher",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "hammytoy",
+      "action": "keep",
+      "chinese": "hammytoy",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "insignious",
+      "action": "keep",
+      "chinese": "insignious",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "kanna",
+      "action": "keep",
+      "chinese": "kanna",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "kiara",
+      "action": "keep",
+      "chinese": "kiara",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "m16a1 (girls frotnline)",
+      "action": "keep",
+      "chinese": "m16a1 (girls frotnline)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "m4a1 (girls frontline)",
+      "action": "keep",
+      "chinese": "m4a1 (girls frontline)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "masex",
+      "action": "keep",
+      "chinese": "masex",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "megpoid gumi (vocaloid)",
+      "action": "keep",
+      "chinese": "megpoid gumi (vocaloid)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "monign",
+      "action": "keep",
+      "chinese": "monign",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "monter",
+      "action": "keep",
+      "chinese": "monter",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "mosning",
+      "action": "keep",
+      "chinese": "mosning",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "muchin",
+      "action": "keep",
+      "chinese": "muchin",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "n2",
+      "action": "keep",
+      "chinese": "n2",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "naifu",
+      "action": "keep",
+      "chinese": "naifu",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nebby",
+      "action": "keep",
+      "chinese": "nebby",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "neiyri (avatar)",
+      "action": "keep",
+      "chinese": "neiyri (avatar)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nekomia (enarane)",
+      "action": "keep",
+      "chinese": "nekomia (enarane)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "neonsin",
+      "action": "keep",
+      "chinese": "neonsin",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nevarky",
+      "action": "keep",
+      "chinese": "nevarky",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nexus763",
+      "action": "keep",
+      "chinese": "nexus763",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "niamewsl",
+      "action": "keep",
+      "chinese": "niamewsl",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nicefield",
+      "action": "keep",
+      "chinese": "nicefield",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nicobay",
+      "action": "keep",
+      "chinese": "nicobay",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "niisath",
+      "action": "keep",
+      "chinese": "niisath",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nikisupostat",
+      "action": "keep",
+      "chinese": "nikisupostat",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nim3h",
+      "action": "keep",
+      "chinese": "nim3h",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "niodreth",
+      "action": "keep",
+      "chinese": "niodreth",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "nodetek",
+      "action": "keep",
+      "chinese": "nodetek",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "p90 (girls frontline)",
+      "action": "keep",
+      "chinese": "p90 (girls frontline)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "paipan",
+      "action": "keep",
+      "chinese": "paipan",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pangxxx",
+      "action": "keep",
+      "chinese": "pangxxx",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "panini",
+      "action": "keep",
+      "chinese": "panini",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pantsushi",
+      "action": "keep",
+      "chinese": "pantsushi",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "paragon",
+      "action": "keep",
+      "chinese": "paragon",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "payday",
+      "action": "keep",
+      "chinese": "payday",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pellenor",
+      "action": "keep",
+      "chinese": "pellenor",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "petruz",
+      "action": "keep",
+      "chinese": "petruz",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "phonicbot",
+      "action": "keep",
+      "chinese": "phonicbot",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pinklagoon",
+      "action": "keep",
+      "chinese": "pinklagoon",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "plant doland",
+      "action": "keep",
+      "chinese": "plant doland",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pneuma",
+      "action": "keep",
+      "chinese": "pneuma",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "po",
+      "action": "keep",
+      "chinese": "po",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pockyin",
+      "action": "keep",
+      "chinese": "pockyin",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "ponmi (digital circus)",
+      "action": "keep",
+      "chinese": "ponmi (digital circus)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "porsha (sing)",
+      "action": "keep",
+      "chinese": "porsha (sing)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "powergene",
+      "action": "keep",
+      "chinese": "powergene",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "prevence",
+      "action": "keep",
+      "chinese": "prevence",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pricefield",
+      "action": "keep",
+      "chinese": "pricefield",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "princess bustilda (starbarians)",
+      "action": "keep",
+      "chinese": "princess bustilda (starbarians)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "prippyteeva",
+      "action": "keep",
+      "chinese": "prippyteeva",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "privaty (nikke goddess of victory)",
+      "action": "keep",
+      "chinese": "privaty (nikke goddess of victory)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "professor zedwin (oc)",
+      "action": "keep",
+      "chinese": "professor zedwin (oc)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "project herald",
+      "action": "keep",
+      "chinese": "project herald",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "projecthelius",
+      "action": "keep",
+      "chinese": "projecthelius",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "puuguy",
+      "action": "keep",
+      "chinese": "puuguy",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "pyrista",
+      "action": "keep",
+      "chinese": "pyrista",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "queen nualia (fallen throne)",
+      "action": "keep",
+      "chinese": "queen nualia (fallen throne)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "queen vexus (mlaatr)",
+      "action": "keep",
+      "chinese": "queen vexus (mlaatr)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "radeong3d",
+      "action": "keep",
+      "chinese": "radeong3d",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "radroachhd",
+      "action": "keep",
+      "chinese": "radroachhd",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rae",
+      "action": "keep",
+      "chinese": "rae",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "raeza",
+      "action": "keep",
+      "chinese": "raeza",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rapetacular",
+      "action": "keep",
+      "chinese": "rapetacular",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rapi (nikke: goddess of victory)",
+      "action": "keep",
+      "chinese": "rapi (nikke: goddess of victory)",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rapid banana",
+      "action": "keep",
+      "chinese": "rapid banana",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "raxastake",
+      "action": "keep",
+      "chinese": "raxastake",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rayhuma",
+      "action": "keep",
+      "chinese": "rayhuma",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "reesim",
+      "action": "keep",
+      "chinese": "reesim",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rentegra",
+      "action": "keep",
+      "chinese": "rentegra",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rescraft",
+      "action": "keep",
+      "chinese": "rescraft",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rieklig",
+      "action": "keep",
+      "chinese": "rieklig",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "riversizd",
+      "action": "keep",
+      "chinese": "riversizd",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rochestedorm",
+      "action": "keep",
+      "chinese": "rochestedorm",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "rokhan",
+      "action": "keep",
+      "chinese": "rokhan",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "spike",
+      "action": "keep",
+      "chinese": "spike",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "stall",
+      "action": "keep",
+      "chinese": "stall",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "subjectxxx",
+      "action": "keep",
+      "chinese": "subjectxxx",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "swurst erotic",
+      "action": "keep",
+      "chinese": "swurst erotic",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "swursterotic",
+      "action": "keep",
+      "chinese": "swursterotic",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "tail-blazer",
+      "action": "keep",
+      "chinese": "tail-blazer",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "tailband",
+      "action": "keep",
+      "chinese": "tailband",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "technophillia",
+      "action": "keep",
+      "chinese": "technophillia",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "teet",
+      "action": "keep",
+      "chinese": "teet",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "tentai",
+      "action": "keep",
+      "chinese": "tentai",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "test",
+      "action": "keep",
+      "chinese": "test",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "tinos",
+      "action": "keep",
+      "chinese": "tinos",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "trahao",
+      "action": "keep",
+      "chinese": "trahao",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "tsoni",
+      "action": "keep",
+      "chinese": "tsoni",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "tyurru",
+      "action": "keep",
+      "chinese": "tyurru",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "tyviania",
+      "action": "keep",
+      "chinese": "tyviania",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "unifrom",
+      "action": "keep",
+      "chinese": "unifrom",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "wwe 2k20",
+      "action": "keep",
+      "chinese": "wwe 2k20",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "yiffalicious",
+      "action": "keep",
+      "chinese": "yiffalicious",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    },
+    {
+      "kind": "tag",
+      "name": "yuuki",
+      "action": "keep",
+      "chinese": "yuuki",
+      "confidence": 1.0,
+      "note": "人工核验：未确认有可靠中文译名，保留英文原文。"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ class UserAccounts extends Table {
   Set<Column<Object>> get primaryKey => {userId};
 }
 
+@TableIndex(name: 'idx_playback_positions_updated_at', columns: {#updatedAt})
 class PlaybackPositions extends Table {
   TextColumn get videoId => text()();
   TextColumn get title => text().nullable()();
@@ -32,6 +33,8 @@ class PlaybackPositions extends Table {
   Set<Column<Object>> get primaryKey => {videoId};
 }
 
+@TableIndex(name: 'idx_download_records_task_id', columns: {#taskId})
+@TableIndex(name: 'idx_download_records_user_state', columns: {#userId, #state})
 class DownloadRecords extends Table {
   TextColumn get id => text()();
   TextColumn get userId =>
@@ -60,6 +63,10 @@ class DownloadRecords extends Table {
   ];
 }
 
+@TableIndex(
+  name: 'idx_search_histories_user_last_searched',
+  columns: {#userId, #lastSearchedAt},
+)
 class SearchHistories extends Table {
   TextColumn get userId =>
       text().references(UserAccounts, #userId, onDelete: KeyAction.cascade)();
@@ -115,6 +122,54 @@ class LocalLibraryVideos extends Table {
   Set<Column<Object>> get primaryKey => {libraryId, videoId};
 }
 
+class TranslationOverrides extends Table {
+  TextColumn get kind => text()();
+  TextColumn get canonicalName => text()();
+  TextColumn get sourceText => text().nullable()();
+  TextColumn get videoSlug => text().nullable()();
+  TextColumn get translation => text()();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {kind, canonicalName};
+}
+
+class LearnedTranslations extends Table {
+  TextColumn get kind => text()();
+  TextColumn get canonicalName => text()();
+  TextColumn get sourceText => text()();
+  TextColumn get translation => text()();
+  TextColumn get providerId => text().nullable()();
+  TextColumn get providerName => text().nullable()();
+  TextColumn get videoSlug => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {kind, canonicalName};
+}
+
+class BuiltInTranslationStates extends Table {
+  TextColumn get kind => text()();
+  TextColumn get canonicalName => text()();
+  IntColumn get introducedPackVersion => integer()();
+  BoolColumn get protectExistingLearned =>
+      boolean().withDefault(const Constant(false))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {kind, canonicalName};
+}
+
+class TranslationCatalogPacks extends Table {
+  TextColumn get packKey => text()();
+  IntColumn get packVersion => integer()();
+  DateTimeColumn get appliedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {packKey};
+}
+
 @DriftDatabase(
   tables: [
     UserAccounts,
@@ -124,6 +179,10 @@ class LocalLibraryVideos extends Table {
     LocalLibraries,
     CuratedLibrarySeeds,
     LocalLibraryVideos,
+    TranslationOverrides,
+    LearnedTranslations,
+    BuiltInTranslationStates,
+    TranslationCatalogPacks,
   ],
 )
 final class AppDatabase extends _$AppDatabase {
@@ -141,7 +200,7 @@ final class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -232,6 +291,42 @@ final class AppDatabase extends _$AppDatabase {
         ''');
         await customStatement('DROP TABLE playback_positions_v7');
       },
+      from8To9: (migrator, schema) async {
+        await migrator.createTable(schema.translationOverrides);
+      },
+      from9To10: (migrator, schema) async {
+        await migrator.addColumn(
+          schema.translationOverrides,
+          schema.translationOverrides.sourceText,
+        );
+        await migrator.addColumn(
+          schema.translationOverrides,
+          schema.translationOverrides.videoSlug,
+        );
+        await migrator.createTable(schema.learnedTranslations);
+      },
+      from10To11: (migrator, schema) async {
+        await migrator.createTable(schema.builtInTranslationStates);
+        await migrator.createTable(schema.translationCatalogPacks);
+      },
+      from11To12: (migrator, schema) async {
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_playback_positions_updated_at '
+          'ON playback_positions (updated_at)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_download_records_task_id '
+          'ON download_records (task_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_download_records_user_state '
+          'ON download_records (user_id, state)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_search_histories_user_last_searched '
+          'ON search_histories (user_id, last_searched_at)',
+        );
+      },
     ),
     beforeOpen: (_) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -245,6 +340,210 @@ final class AppDatabase extends _$AppDatabase {
     return (update(localLibraryVideos)
           ..where((item) => item.videoId.equals(videoId)))
         .write(LocalLibraryVideosCompanion(previewUrl: Value(previewUrl)));
+  }
+
+  Future<List<TranslationOverride>> loadTranslationOverrides() {
+    return (select(translationOverrides)..orderBy([
+          (row) => OrderingTerm.asc(row.kind),
+          (row) => OrderingTerm.asc(row.canonicalName),
+        ]))
+        .get();
+  }
+
+  Future<void> upsertTranslationOverride({
+    required String kind,
+    required String canonicalName,
+    String? sourceText,
+    String? videoSlug,
+    required String translation,
+    DateTime? updatedAt,
+  }) {
+    return into(translationOverrides).insertOnConflictUpdate(
+      TranslationOverridesCompanion.insert(
+        kind: kind,
+        canonicalName: canonicalName,
+        sourceText: Value(sourceText),
+        videoSlug: Value(videoSlug),
+        translation: translation,
+        updatedAt: Value(updatedAt ?? DateTime.now().toUtc()),
+      ),
+    );
+  }
+
+  Future<List<LearnedTranslation>> loadLearnedTranslations() {
+    return (select(learnedTranslations)..orderBy([
+          (row) => OrderingTerm.asc(row.kind),
+          (row) => OrderingTerm.asc(row.canonicalName),
+        ]))
+        .get();
+  }
+
+  Future<void> upsertLearnedTranslation({
+    required String kind,
+    required String canonicalName,
+    required String sourceText,
+    required String translation,
+    String? providerId,
+    String? providerName,
+    String? videoSlug,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) async {
+    final now = updatedAt ?? DateTime.now().toUtc();
+    final existing =
+        await (select(learnedTranslations)..where(
+              (row) =>
+                  row.kind.equals(kind) &
+                  row.canonicalName.equals(canonicalName),
+            ))
+            .getSingleOrNull();
+    await into(learnedTranslations).insertOnConflictUpdate(
+      LearnedTranslationsCompanion.insert(
+        kind: kind,
+        canonicalName: canonicalName,
+        sourceText: sourceText,
+        translation: translation,
+        providerId: Value(providerId),
+        providerName: Value(providerName),
+        videoSlug: Value(videoSlug),
+        createdAt: Value(existing?.createdAt ?? createdAt ?? now),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  Future<void> deleteLearnedTranslation({
+    required String kind,
+    required String canonicalName,
+  }) {
+    return (delete(learnedTranslations)..where(
+          (row) =>
+              row.kind.equals(kind) & row.canonicalName.equals(canonicalName),
+        ))
+        .go();
+  }
+
+  Future<void> deleteLearnedTranslations(
+    Iterable<({String kind, String canonicalName})> entries,
+  ) async {
+    final grouped = <String, Set<String>>{};
+    for (final entry in entries) {
+      final kind = entry.kind.trim();
+      final canonicalName = entry.canonicalName.trim();
+      if (kind.isEmpty || canonicalName.isEmpty) continue;
+      grouped.putIfAbsent(kind, () => <String>{}).add(canonicalName);
+    }
+    if (grouped.isEmpty) return;
+
+    await transaction(() async {
+      for (final entry in grouped.entries) {
+        await (delete(learnedTranslations)..where(
+              (row) =>
+                  row.kind.equals(entry.key) &
+                  row.canonicalName.isIn(entry.value.toList(growable: false)),
+            ))
+            .go();
+      }
+    });
+  }
+
+  Future<void> clearLearnedTranslations() {
+    return delete(learnedTranslations).go();
+  }
+
+  Future<void> setBuiltInLearnedProtection({
+    required String kind,
+    required String canonicalName,
+    required bool protect,
+  }) {
+    return (update(builtInTranslationStates)..where(
+          (row) =>
+              row.kind.equals(kind) & row.canonicalName.equals(canonicalName),
+        ))
+        .write(
+          BuiltInTranslationStatesCompanion(
+            protectExistingLearned: Value(protect),
+            updatedAt: Value(DateTime.now().toUtc()),
+          ),
+        );
+  }
+
+  Future<TranslationCatalogPack?> loadTranslationCatalogPack(String packKey) {
+    return (select(
+      translationCatalogPacks,
+    )..where((row) => row.packKey.equals(packKey))).getSingleOrNull();
+  }
+
+  Future<List<BuiltInTranslationState>> loadBuiltInTranslationStates() {
+    return select(builtInTranslationStates).get();
+  }
+
+  Future<void> applyBuiltInTranslationPack({
+    required String packKey,
+    required int packVersion,
+    required Iterable<({String kind, String canonicalName})> entries,
+  }) async {
+    await transaction(() async {
+      final previous = await loadTranslationCatalogPack(packKey);
+      if (previous != null && previous.packVersion >= packVersion) return;
+      final baseline = previous == null;
+      final now = DateTime.now().toUtc();
+      final existingStates = await loadBuiltInTranslationStates();
+      final existingKeys = {
+        for (final state in existingStates)
+          '${state.kind}:${state.canonicalName}',
+      };
+      final learnedRows = baseline
+          ? const <LearnedTranslation>[]
+          : await loadLearnedTranslations();
+      final learnedKeys = {
+        for (final learned in learnedRows)
+          '${learned.kind}:${learned.canonicalName}',
+      };
+      final additions = <BuiltInTranslationStatesCompanion>[];
+      for (final entry in entries) {
+        final key = '${entry.kind}:${entry.canonicalName}';
+        if (!existingKeys.add(key)) continue;
+        additions.add(
+          BuiltInTranslationStatesCompanion.insert(
+            kind: entry.kind,
+            canonicalName: entry.canonicalName,
+            introducedPackVersion: packVersion,
+            protectExistingLearned: Value(
+              !baseline && learnedKeys.contains(key),
+            ),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+      if (additions.isNotEmpty) {
+        await batch((batch) {
+          batch.insertAll(
+            builtInTranslationStates,
+            additions,
+            mode: InsertMode.insertOrIgnore,
+          );
+        });
+      }
+      await into(translationCatalogPacks).insertOnConflictUpdate(
+        TranslationCatalogPacksCompanion.insert(
+          packKey: packKey,
+          packVersion: packVersion,
+          appliedAt: Value(now),
+        ),
+      );
+    });
+  }
+
+  Future<void> deleteTranslationOverride({
+    required String kind,
+    required String canonicalName,
+  }) {
+    return (delete(translationOverrides)..where(
+          (row) =>
+              row.kind.equals(kind) & row.canonicalName.equals(canonicalName),
+        ))
+        .go();
   }
 
   Future<void> recordAuthenticatedAccount(
@@ -493,11 +792,11 @@ final class AppDatabase extends _$AppDatabase {
                 ..where((item) => item.userId.equals(userId))
                 ..orderBy([(item) => OrderingTerm.desc(item.lastSearchedAt)]))
               .get();
-      for (final item in all.skip(20)) {
+      if (all.length > 20) {
+        final keep = all.take(20).map((item) => item.normalizedQuery).toSet();
         await (delete(searchHistories)..where(
               (row) =>
-                  row.userId.equals(item.userId) &
-                  row.normalizedQuery.equals(item.normalizedQuery),
+                  row.userId.equals(userId) & row.normalizedQuery.isNotIn(keep),
             ))
             .go();
       }

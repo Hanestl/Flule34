@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import '../core/security/error_redaction.dart';
 import 'providers.dart';
 import 'theme/app_theme.dart';
 
@@ -15,10 +16,12 @@ class AppBootstrap extends ConsumerWidget {
     return initialization.when(
       data: (_) => const Flule34App(),
       loading: () => const _BootstrapScreen(),
-      error: (error, _) => _BootstrapScreen(
-        error: error.toString(),
-        onRetry: () => ref.invalidate(appInitializationProvider),
-      ),
+      error: (error, stackTrace) {
+        return _BootstrapScreen(
+          error: redactSensitiveText(error),
+          onRetry: () => ref.invalidate(appInitializationProvider),
+        );
+      },
     );
   }
 }

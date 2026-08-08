@@ -98,6 +98,40 @@ void main() {
             .single;
     expect(state.dismissed, isTrue);
   });
+
+  test('精选清单升级只把新增视频放入增量库，不修改原库', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    final seederV1 = CuratedLibrarySeeder(
+      harness.database,
+      const _StringManifestLoader(_manifest),
+    );
+    await seederV1.seedIfNeeded();
+
+    final original =
+        (await harness.database.select(harness.database.localLibraries).get())
+            .single;
+    final seederV2 = CuratedLibrarySeeder(
+      harness.database,
+      const _StringManifestLoader(_manifestV2),
+    );
+    await seederV2.seedIfNeeded();
+
+    final libraries = await harness.database
+        .select(harness.database.localLibraries)
+        .get();
+    expect(libraries, hasLength(2));
+    expect(
+      libraries.firstWhere((item) => item.id == original.id).name,
+      original.name,
+    );
+    final delta = libraries.firstWhere((item) => item.id != original.id);
+    expect(delta.name, contains('内置新增 v2'));
+    final deltaVideos = await (harness.database.select(
+      harness.database.localLibraryVideos,
+    )..where((item) => item.libraryId.equals(delta.id))).get();
+    expect(deltaVideos.map((item) => item.videoId), ['new-video']);
+  });
 }
 
 final class _StringManifestLoader implements CuratedLibraryManifestLoader {
@@ -147,6 +181,35 @@ const _manifest = '''
           "views": null,
           "rating": 98,
           "ratingVotes": 165
+        }
+      ]
+    }
+  ]
+}
+''';
+
+const _manifestV2 = '''
+{
+  "version": 2,
+  "libraries": [
+    {
+      "key": "author_hydrafxx",
+      "name": "作者：hydrafxx",
+      "videos": [
+        {
+          "id": "3160398",
+          "title": "Ingrid Hunnigan [HydraFXX][NO WM]",
+          "slug": "4k-ingrid-hunnigan-hydrafxx-no-wm"
+        },
+        {
+          "id": "3116871",
+          "title": "D.va Vibrator",
+          "slug": "d-va-vibrator"
+        },
+        {
+          "id": "new-video",
+          "title": "New Video",
+          "slug": "new-video"
         }
       ]
     }

@@ -13,7 +13,7 @@ String redactSensitiveText(Object? value, {int maxLength = 600}) {
   );
   text = text.replaceAllMapped(
     RegExp(
-      r'(Authorization\s*[:=]\s*(?:Bearer\s+)?)[^\s,;]+',
+      r'((?:Authorization|X-Api-Key)\s*[:=]\s*(?:Bearer\s+)?)[^\s,;]+',
       caseSensitive: false,
     ),
     (match) => '${match.group(1)}<redacted>',
@@ -24,7 +24,7 @@ String redactSensitiveText(Object? value, {int maxLength = 600}) {
   );
   text = text.replaceAllMapped(
     RegExp(
-      r'''((?:"?(?:password|passwd|email)"?\s*[:=]\s*)["']?)[^"',;\s&}\]]+''',
+      r'''((?:"?(?:password|passwd|pass|email|api[_-]?key|auth[_-]?key|access[_-]?token|token|secret|signature)"?\s*[:=]\s*)["']?)[^"',;\s&}\]]+''',
       caseSensitive: false,
     ),
     (match) => '${match.group(1)}<redacted>',

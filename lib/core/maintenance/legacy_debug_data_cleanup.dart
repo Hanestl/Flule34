@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> clearLegacyDebugLoggingData({
@@ -8,13 +7,7 @@ Future<void> clearLegacyDebugLoggingData({
   Future<void> Function()? clearPreferences,
 }) async {
   try {
-    final root = await (supportDirectory ?? getApplicationSupportDirectory)();
-    final directory = Directory(
-      '${root.path}${Platform.pathSeparator}flule34_logs',
-    );
-    if (await directory.exists()) {
-      await directory.delete(recursive: true);
-    }
+    // 旧版本的调试日志配置可以清理，但不能再删除新日志目录。
     await (clearPreferences ?? _clearLegacyPreferences)();
   } on Object {
     // 旧版本调试数据清理失败不能阻止 App 启动。

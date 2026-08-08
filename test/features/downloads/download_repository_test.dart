@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flule34/core/api/rule34video_api.dart';
@@ -46,6 +47,80 @@ void main() {
     expect(record?.fileName, '测试视频_4505897_720p.mp4');
     expect(record?.taskId, platform.requests.single.id);
     expect(record?.taskId, startsWith('${id}_'));
+  });
+
+  test('同一视频和清晰度并发提交时只会建立一个平台任务', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    final repository = DownloadRepository(
+      harness.database,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
+    await repository.initialize();
+
+    final first = repository.enqueueVideo(
+      details: _details,
+      source: _details.sources.single,
+    );
+    await expectLater(
+      repository.enqueueVideo(
+        details: _details,
+        source: _details.sources.single,
+      ),
+      throwsA(isA<DownloadException>()),
+    );
+    await first;
+
+    expect(platform.requests, hasLength(1));
+  });
+
+  test('启动时将平台中已不存在的活动任务恢复为可重试失败状态', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.database.recordAuthenticatedAccount(
+      '__flule34_device__',
+      displayName: '本机下载',
+    );
+    final now = DateTime.now().toUtc();
+    await harness.database.saveDownloadRecord(
+      DownloadRecordsCompanion.insert(
+        id: 'orphaned-download',
+        userId: '__flule34_device__',
+        videoId: '1',
+        title: '中断任务',
+        quality: '720p',
+        state: DownloadTaskState.running.storageValue,
+        taskId: const Value('missing-platform-task'),
+        createdAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+    final platform = _FakeDownloadPlatformService();
+    final settings = await _createSettings();
+    final repository = DownloadRepository(
+      harness.database,
+      _FakeRule34VideoApi(harness.sessionStore),
+      platform,
+      settings,
+    );
+    addTearDown(repository.dispose);
+    addTearDown(settings.dispose);
+
+    await repository.initialize();
+
+    final record = await harness.database.findDownloadRecord(
+      'orphaned-download',
+    );
+    expect(record?.state, DownloadTaskState.failed.storageValue);
+    expect(record?.errorMessage, contains('系统中断'));
   });
 
   test('通知权限或公共目录权限被拒绝时不会入队', () async {
@@ -567,6 +642,7 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
   final List<int> maxConcurrentValues = [];
   final List<String> pausedTaskIds = [];
   final List<String> resumedTaskIds = [];
+  final Set<String> existingTaskIds = {};
   var notificationPermissionGranted = true;
   var sharedStoragePermissionGranted = true;
   var sharedStoragePermissionChecks = 0;
@@ -593,6 +669,10 @@ final class _FakeDownloadPlatformService implements DownloadPlatformService {
     sharedStoragePermissionChecks += 1;
     return sharedStoragePermissionGranted;
   }
+
+  @override
+  Future<bool> taskExists(String taskId) async =>
+      existingTaskIds.contains(taskId);
 
   @override
   Future<bool> enqueue(DownloadRequest request) async {

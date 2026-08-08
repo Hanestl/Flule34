@@ -37,6 +37,15 @@ void main() {
     expect(event?.totalBytes, 800);
   });
 
+  test('缺少总大小时不再把已下载字节写回零', () {
+    expect(
+      BackgroundDownloadPlatformService.progressEventForUpdate(
+        TaskProgressUpdate(task, 0.625, -1),
+      ),
+      isNull,
+    );
+  });
+
   test('下载配置使用较短连接超时和不含内容信息的合并通知', () {
     expect(
       BackgroundDownloadPlatformService.requestTimeout,

@@ -13,6 +13,8 @@ import 'generated/schema_v5.dart' as v5;
 import 'generated/schema_v6.dart' as v6;
 import 'generated/schema_v7.dart' as v7;
 import 'generated/schema_v8.dart' as v8;
+import 'generated/schema_v9.dart' as v9;
+import 'generated/schema_v10.dart' as v10;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -428,4 +430,74 @@ void main() {
       );
     },
   );
+
+  test('migration from v8 to v9 preserves device data', () async {
+    const updatedAt = 1700000120;
+    const oldPosition = v8.PlaybackPositionsData(
+      videoId: 'same-video',
+      title: '原有标题',
+      slug: 'same-video',
+      positionMs: 70000,
+      durationMs: 120000,
+      updatedAt: updatedAt,
+    );
+    const newPosition = v9.PlaybackPositionsData(
+      videoId: 'same-video',
+      title: '原有标题',
+      slug: 'same-video',
+      positionMs: 70000,
+      durationMs: 120000,
+      updatedAt: updatedAt,
+    );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 8,
+      newVersion: 9,
+      createOld: v8.DatabaseAtV8.new,
+      createNew: v9.DatabaseAtV9.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insert(oldDb.playbackPositions, oldPosition);
+      },
+      validateItems: (newDb) async {
+        expect(await newDb.select(newDb.playbackPositions).get(), [
+          newPosition,
+        ]);
+        expect(await newDb.select(newDb.translationOverrides).get(), isEmpty);
+      },
+    );
+  });
+
+  test('migration from v9 to v10 preserves user translations', () async {
+    const updatedAt = 1700000120;
+    const oldOverride = v9.TranslationOverridesData(
+      kind: 'title',
+      canonicalName: 'video-1',
+      translation: '用户标题',
+      updatedAt: updatedAt,
+    );
+    const newOverride = v10.TranslationOverridesData(
+      kind: 'title',
+      canonicalName: 'video-1',
+      translation: '用户标题',
+      updatedAt: updatedAt,
+    );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 9,
+      newVersion: 10,
+      createOld: v9.DatabaseAtV9.new,
+      createNew: v10.DatabaseAtV10.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insert(oldDb.translationOverrides, oldOverride);
+      },
+      validateItems: (newDb) async {
+        expect(await newDb.select(newDb.translationOverrides).get(), [
+          newOverride,
+        ]);
+        expect(await newDb.select(newDb.learnedTranslations).get(), isEmpty);
+      },
+    );
+  });
 }

@@ -59,7 +59,11 @@ class _PlaylistsListState extends State<PlaylistsList>
   Future<void> _reload() async {
     final future = widget.api.loadMyPlaylists(force: true);
     setState(() => _future = future);
-    await future;
+    try {
+      await future;
+    } on Object {
+      // FutureBuilder 会展示错误状态，避免下拉刷新再产生未捕获异常。
+    }
   }
 
   List<PlaylistItem> _visiblePlaylists(List<PlaylistItem> source) {

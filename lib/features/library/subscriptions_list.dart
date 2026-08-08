@@ -43,6 +43,7 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
   var _query = '';
   var _sort = SubscriptionSort.added;
   String? _error;
+  Completer<void>? _loadCompleter;
 
   @override
   void initState() {
@@ -80,8 +81,16 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
 
   Future<void> _load({required bool force}) async {
     if (_loading) {
+      if (force) {
+        await _loadCompleter?.future;
+        if (mounted) {
+          return _load(force: true);
+        }
+      }
       return;
     }
+    final completer = Completer<void>();
+    _loadCompleter = completer;
     setState(() {
       _loading = true;
       _error = null;
@@ -105,6 +114,12 @@ class _SubscriptionsListState extends ConsumerState<SubscriptionsList>
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+      }
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+      if (identical(_loadCompleter, completer)) {
+        _loadCompleter = null;
       }
     }
   }

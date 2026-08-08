@@ -60,3 +60,5 @@ app.*.map.json
 *.apk
 *.aab
 /release/
+/dist/
+/tool/data/deepseek_trial_*.json

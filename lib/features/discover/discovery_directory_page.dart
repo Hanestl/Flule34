@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../core/services/translation_service.dart';
+import '../../shared/editable_translation.dart';
+import '../../shared/localized_translation_text.dart';
 import '../../shared/site_avatar.dart';
 
 class DiscoveryDirectoryPage extends StatefulWidget {
@@ -13,10 +16,12 @@ class DiscoveryDirectoryPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.spec,
+    required this.translationService,
   });
 
   final Rule34VideoApi api;
   final DiscoveryDirectorySpec spec;
+  final TranslationService translationService;
 
   @override
   State<DiscoveryDirectoryPage> createState() => _DiscoveryDirectoryPageState();
@@ -35,6 +40,7 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
   List<ContentCollectionItem>? _searchResults;
   String? _error;
   String? _searchError;
+  Completer<void>? _loadCompleter;
 
   SearchSuggestionKind? get _searchKind => switch (widget.spec.kind) {
     DiscoveryKind.tag => SearchSuggestionKind.tag,
@@ -47,12 +53,27 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    widget.translationService.addListener(_onTranslationChanged);
     unawaited(_load(reset: true));
+  }
+
+  @override
+  void didUpdateWidget(covariant DiscoveryDirectoryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.translationService != widget.translationService) {
+      oldWidget.translationService.removeListener(_onTranslationChanged);
+      widget.translationService.addListener(_onTranslationChanged);
+    }
+  }
+
+  void _onTranslationChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    widget.translationService.removeListener(_onTranslationChanged);
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -114,9 +135,20 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
   }
 
   Future<void> _load({required bool reset}) async {
-    if (_loading || (!reset && !_hasMore)) {
+    if (_loading) {
+      if (reset) {
+        await _loadCompleter?.future;
+        if (mounted) {
+          return _load(reset: true);
+        }
+      }
       return;
     }
+    if (!reset && !_hasMore) {
+      return;
+    }
+    final completer = Completer<void>();
+    _loadCompleter = completer;
     setState(() {
       _loading = true;
       _error = null;
@@ -155,6 +187,12 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+      }
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+      if (identical(_loadCompleter, completer)) {
+        _loadCompleter = null;
       }
     }
   }
@@ -225,7 +263,10 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
           if (index == visibleItems.length) {
             return _buildFooter();
           }
-          return _DirectoryItem(item: visibleItems[index]);
+          return _DirectoryItem(
+            item: visibleItems[index],
+            translationService: widget.translationService,
+          );
         },
       ),
     );
@@ -257,7 +298,10 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
       itemCount: results.length,
-      itemBuilder: (context, index) => _DirectoryItem(item: results[index]),
+      itemBuilder: (context, index) => _DirectoryItem(
+        item: results[index],
+        translationService: widget.translationService,
+      ),
     );
   }
 
@@ -296,28 +340,38 @@ class _DiscoveryDirectoryPageState extends State<DiscoveryDirectoryPage> {
 }
 
 class _DirectoryItem extends StatelessWidget {
-  const _DirectoryItem({required this.item});
+  const _DirectoryItem({required this.item, required this.translationService});
 
   final ContentCollectionItem item;
+  final TranslationService translationService;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: SiteAvatar(
-          imageUrl: item.thumbnailUrl,
-          radius: 20,
-          fallbackIcon: _kindIcon(item.kind),
-        ),
-        title: Text(item.title),
-        subtitle: item.total == null
-            ? Text(item.kind.label)
-            : Text('${item.total} 个视频'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.pushNamed(
-          AppRouteNames.collection,
-          pathParameters: {'kind': item.kind.name, 'id': item.id},
-          extra: item,
+    return EditableTranslationRegion(
+      translationService: translationService,
+      kind: item.kind,
+      english: item.title,
+      child: Card(
+        child: ListTile(
+          leading: SiteAvatar(
+            imageUrl: item.thumbnailUrl,
+            radius: 20,
+            fallbackIcon: _kindIcon(item.kind),
+          ),
+          title: TranslatedMetadataText(
+            translationService: translationService,
+            kind: item.kind,
+            original: item.title,
+          ),
+          subtitle: item.total == null
+              ? Text(item.kind.label)
+              : Text('${item.total} 个视频'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.pushNamed(
+            AppRouteNames.collection,
+            pathParameters: {'kind': item.kind.name, 'id': item.id},
+            extra: item,
+          ),
         ),
       ),
     );

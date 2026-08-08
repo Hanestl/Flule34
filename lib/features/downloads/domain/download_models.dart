@@ -147,6 +147,8 @@ abstract interface class DownloadPlatformService {
 
   Future<bool> enqueue(DownloadRequest request);
 
+  Future<bool> taskExists(String taskId);
+
   Future<bool> pause(String taskId);
 
   Future<bool> resume(String taskId);

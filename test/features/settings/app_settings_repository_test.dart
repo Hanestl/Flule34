@@ -5,6 +5,7 @@ import 'package:flule34/features/settings/data/app_settings_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
 import 'package:flule34/features/settings/domain/app_settings.dart';
 import 'package:flule34/features/settings/domain/quality_selection.dart';
+import 'package:flule34/core/models/translation_models.dart';
 
 void main() {
   test('设置使用安全默认值并持久化变更', () async {
@@ -122,6 +123,81 @@ void main() {
       AppSettings.defaults.playbackQuality,
     );
     expect(repository.settings.autoplay, AppSettings.defaults.autoplay);
+  });
+
+  test('旧翻译设置迁移到语言模式和自动翻译目标', () async {
+    final store = _MemorySettingsStore({
+      'flule34.settings.translation_enabled': false,
+      'flule34.settings.translation_display_mode': 'bilingual',
+      'flule34.settings.automatic_translation_mode': 'allMissing',
+    });
+    final repository = AppSettingsRepository(store);
+    addTearDown(repository.dispose);
+
+    await repository.load();
+
+    expect(
+      repository.settings.translationDisplayMode,
+      TranslationDisplayMode.originalOnly,
+    );
+    expect(repository.settings.automaticTranslationTargets, {
+      AutomaticTranslationTarget.title,
+      AutomaticTranslationTarget.category,
+      AutomaticTranslationTarget.tag,
+    });
+    expect(
+      await store.readString('flule34.settings.automatic_translation_targets'),
+      'title,category,tag',
+    );
+    expect(
+      await store.readBool('flule34.settings.translation_enabled'),
+      isNull,
+    );
+  });
+
+  test('标题、分类和标签语言显示模式可以分别持久化', () async {
+    final store = _MemorySettingsStore();
+    final repository = AppSettingsRepository(store);
+    addTearDown(repository.dispose);
+    await repository.load();
+
+    expect(
+      repository.settings.titleTranslationDisplayMode,
+      TranslationDisplayMode.bilingual,
+    );
+    expect(
+      repository.settings.categoryTranslationDisplayMode,
+      TranslationDisplayMode.bilingual,
+    );
+    expect(
+      repository.settings.tagTranslationDisplayMode,
+      TranslationDisplayMode.bilingual,
+    );
+
+    await repository.setTranslationDisplayModeFor(
+      TranslationDisplayTarget.title,
+      TranslationDisplayMode.chineseOnly,
+    );
+    await repository.setTranslationDisplayModeFor(
+      TranslationDisplayTarget.tag,
+      TranslationDisplayMode.originalOnly,
+    );
+
+    final restored = AppSettingsRepository(store);
+    addTearDown(restored.dispose);
+    await restored.load();
+    expect(
+      restored.settings.titleTranslationDisplayMode,
+      TranslationDisplayMode.chineseOnly,
+    );
+    expect(
+      restored.settings.categoryTranslationDisplayMode,
+      TranslationDisplayMode.bilingual,
+    );
+    expect(
+      restored.settings.tagTranslationDisplayMode,
+      TranslationDisplayMode.originalOnly,
+    );
   });
 
   test('清晰度规则优先目标档位并只向下回退', () {

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../core/services/translation_service.dart';
+import '../../shared/localized_translation_text.dart';
 import '../video/video_player_page.dart';
 
 enum PlaylistPlaybackMode {
@@ -37,10 +39,12 @@ class PlaylistPlaybackPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.request,
+    required this.translationService,
   });
 
   final Rule34VideoApi api;
   final PlaylistPlaybackRequest request;
+  final TranslationService translationService;
 
   @override
   State<PlaylistPlaybackPage> createState() => _PlaylistPlaybackPageState();
@@ -71,7 +75,21 @@ class _PlaylistPlaybackPageState extends State<PlaylistPlaybackPage> {
     _index = widget.request.initialIndex.clamp(0, _videos.length - 1);
     _nextPage = widget.request.nextPage;
     _hasMore = widget.request.hasMore;
+    widget.translationService.addListener(_onTranslationChanged);
     unawaited(_loadInitial());
+  }
+
+  @override
+  void didUpdateWidget(covariant PlaylistPlaybackPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.translationService != widget.translationService) {
+      oldWidget.translationService.removeListener(_onTranslationChanged);
+      widget.translationService.addListener(_onTranslationChanged);
+    }
+  }
+
+  void _onTranslationChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadInitial() async {
@@ -150,6 +168,7 @@ class _PlaylistPlaybackPageState extends State<PlaylistPlaybackPage> {
   @override
   void dispose() {
     _preloadOperation += 1;
+    widget.translationService.removeListener(_onTranslationChanged);
     unawaited(_playerHandle.stopPreCache());
     super.dispose();
   }
@@ -262,6 +281,21 @@ class _PlaylistPlaybackPageState extends State<PlaylistPlaybackPage> {
   @override
   Widget build(BuildContext context) {
     final details = _details;
+    if (details != null &&
+        widget.translationService.shouldAutoTranslateTitle(
+          details.video.id,
+          details.video.title,
+        )) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(
+          widget.translationService.requestAutomaticTitle(
+            videoId: details.video.id,
+            raw: details.video.title,
+            videoSlug: details.video.slug,
+          ),
+        );
+      });
+    }
     return Scaffold(
       appBar: AppBar(title: Text(widget.request.playlist.title)),
       body: details == null
@@ -309,10 +343,11 @@ class _PlaylistPlaybackPageState extends State<PlaylistPlaybackPage> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          details.video.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        child: LocalizedTranslationText(
+                          value: widget.translationService.resolveTitle(
+                            details.video.id,
+                            details.video.title,
+                          ),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),

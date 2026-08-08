@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/models/video_models.dart';
 import '../domain/app_settings.dart';
+import '../../../core/models/translation_models.dart';
 import 'app_settings_store.dart';
 
 final class AppSettingsRepository extends ChangeNotifier {
@@ -34,6 +35,15 @@ final class AppSettingsRepository extends ChangeNotifier {
   static const _videoLayoutKey = 'flule34.settings.video_layout';
   static const _legacyHomeVideoLayoutKey = 'flule34.settings.home_video_layout';
   static const _subscriptionLayoutKey = 'flule34.settings.subscription_layout';
+  static const _translationEnabledKey = 'flule34.settings.translation_enabled';
+  static const _translationDisplayModeKey =
+      'flule34.settings.translation_display_mode';
+  static const _translationDisplayModesKey =
+      'flule34.settings.translation_display_modes';
+  static const _automaticTranslationModeKey =
+      'flule34.settings.automatic_translation_mode';
+  static const _automaticTranslationTargetsKey =
+      'flule34.settings.automatic_translation_targets';
 
   final AppSettingsStore _store;
   AppSettings _settings = AppSettings.defaults;
@@ -68,6 +78,11 @@ final class AppSettingsRepository extends ChangeNotifier {
       _readString(_legacyHomeVideoLayoutKey),
       _readString(_subscriptionLayoutKey),
       _readBool(_videoPreviewEnabledKey),
+      _readBool(_translationEnabledKey),
+      _readString(_translationDisplayModeKey),
+      _readString(_automaticTranslationModeKey),
+      _readString(_automaticTranslationTargetsKey),
+      _readString(_translationDisplayModesKey),
     ]);
     _settings = AppSettings(
       theme: _themeValue(values[0] as String?),
@@ -131,11 +146,56 @@ final class AppSettingsRepository extends ChangeNotifier {
         values[19] as String?,
         AppSettings.defaults.subscriptionLayout,
       ),
+      titleTranslationDisplayMode: _translationDisplayModes(
+        values[25] as String?,
+        legacyValue: values[22] as String?,
+        legacyEnabled: values[21] as bool?,
+      ).$1,
+      categoryTranslationDisplayMode: _translationDisplayModes(
+        values[25] as String?,
+        legacyValue: values[22] as String?,
+        legacyEnabled: values[21] as bool?,
+      ).$2,
+      tagTranslationDisplayMode: _translationDisplayModes(
+        values[25] as String?,
+        legacyValue: values[22] as String?,
+        legacyEnabled: values[21] as bool?,
+      ).$3,
+      automaticTranslationTargets: _automaticTranslationTargets(
+        values[24] as String?,
+        legacyMode: values[23] as String?,
+      ),
     );
     final legacyVideoLayout = values[18] as String?;
     if (values[17] == null && legacyVideoLayout != null) {
       await _store.writeString(_videoLayoutKey, legacyVideoLayout);
     }
+    if (values[24] == null) {
+      await _store.writeString(
+        _automaticTranslationTargetsKey,
+        _encodeAutomaticTranslationTargets(
+          _settings.automaticTranslationTargets,
+        ),
+      );
+    }
+    if (values[25] == null) {
+      await _store.writeString(
+        _translationDisplayModesKey,
+        _encodeTranslationDisplayModes(
+          title: _settings.titleTranslationDisplayMode,
+          category: _settings.categoryTranslationDisplayMode,
+          tag: _settings.tagTranslationDisplayMode,
+        ),
+      );
+    }
+    if (values[21] == false) {
+      await _store.writeString(
+        _translationDisplayModeKey,
+        TranslationDisplayMode.originalOnly.name,
+      );
+    }
+    await _store.remove(_translationEnabledKey);
+    await _store.remove(_automaticTranslationModeKey);
     _loaded = true;
     notifyListeners();
   }
@@ -260,6 +320,79 @@ final class AppSettingsRepository extends ChangeNotifier {
     _update(_settings.copyWith(subscriptionLayout: value));
   }
 
+  Future<void> setTranslationDisplayMode(TranslationDisplayMode value) async {
+    await _store.writeString(_translationDisplayModeKey, value.name);
+    await setTranslationDisplayModes(
+      title: value,
+      category: value,
+      tag: value,
+      writeLegacy: false,
+    );
+  }
+
+  Future<void> setTranslationDisplayModeFor(
+    TranslationDisplayTarget target,
+    TranslationDisplayMode value,
+  ) async {
+    final next = switch (target) {
+      TranslationDisplayTarget.title => _settings.copyWith(
+        titleTranslationDisplayMode: value,
+      ),
+      TranslationDisplayTarget.category => _settings.copyWith(
+        categoryTranslationDisplayMode: value,
+      ),
+      TranslationDisplayTarget.tag => _settings.copyWith(
+        tagTranslationDisplayMode: value,
+      ),
+    };
+    await _store.writeString(
+      _translationDisplayModesKey,
+      _encodeTranslationDisplayModes(
+        title: next.titleTranslationDisplayMode,
+        category: next.categoryTranslationDisplayMode,
+        tag: next.tagTranslationDisplayMode,
+      ),
+    );
+    _update(next);
+  }
+
+  Future<void> setTranslationDisplayModes({
+    required TranslationDisplayMode title,
+    required TranslationDisplayMode category,
+    required TranslationDisplayMode tag,
+    bool writeLegacy = true,
+  }) async {
+    if (writeLegacy) {
+      await _store.writeString(_translationDisplayModeKey, title.name);
+    }
+    await _store.writeString(
+      _translationDisplayModesKey,
+      _encodeTranslationDisplayModes(
+        title: title,
+        category: category,
+        tag: tag,
+      ),
+    );
+    _update(
+      _settings.copyWith(
+        titleTranslationDisplayMode: title,
+        categoryTranslationDisplayMode: category,
+        tagTranslationDisplayMode: tag,
+      ),
+    );
+  }
+
+  Future<void> setAutomaticTranslationTargets(
+    Set<AutomaticTranslationTarget> value,
+  ) async {
+    final normalized = Set<AutomaticTranslationTarget>.unmodifiable(value);
+    await _store.writeString(
+      _automaticTranslationTargetsKey,
+      _encodeAutomaticTranslationTargets(normalized),
+    );
+    _update(_settings.copyWith(automaticTranslationTargets: normalized));
+  }
+
   void _update(AppSettings value) {
     if (identical(value, _settings)) {
       return;
@@ -284,7 +417,11 @@ final class AppSettingsRepository extends ChangeNotifier {
     }
   }
 
-  T _enumValue<T extends Enum>(List<T> values, String? name, T fallback) {
+  static T _enumValue<T extends Enum>(
+    List<T> values,
+    String? name,
+    T fallback,
+  ) {
     for (final value in values) {
       if (value.name == name) {
         return value;
@@ -314,4 +451,80 @@ final class AppSettingsRepository extends ChangeNotifier {
       AppSettings.defaults.theme,
     );
   }
+
+  static (
+    TranslationDisplayMode,
+    TranslationDisplayMode,
+    TranslationDisplayMode,
+  )
+  _translationDisplayModes(
+    String? encoded, {
+    required String? legacyValue,
+    required bool? legacyEnabled,
+  }) {
+    if (encoded != null && encoded.trim().isNotEmpty) {
+      final values = <String, TranslationDisplayMode>{};
+      for (final part in encoded.split(',')) {
+        final pieces = part.split(':');
+        if (pieces.length != 2) continue;
+        values[pieces[0].trim()] = _enumValue(
+          TranslationDisplayMode.values,
+          pieces[1].trim(),
+          TranslationDisplayMode.bilingual,
+        );
+      }
+      return (
+        values['title'] ?? TranslationDisplayMode.bilingual,
+        values['category'] ?? TranslationDisplayMode.bilingual,
+        values['tag'] ?? TranslationDisplayMode.bilingual,
+      );
+    }
+    final legacy = legacyEnabled == false
+        ? TranslationDisplayMode.originalOnly
+        : legacyValue == 'englishOnly'
+        ? TranslationDisplayMode.originalOnly
+        : _enumValue(
+            TranslationDisplayMode.values,
+            legacyValue,
+            AppSettings.defaults.translationDisplayMode,
+          );
+    return (legacy, legacy, legacy);
+  }
+
+  static Set<AutomaticTranslationTarget> _automaticTranslationTargets(
+    String? value, {
+    required String? legacyMode,
+  }) {
+    final names = value
+        ?.split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    if (names != null) {
+      return Set.unmodifiable(
+        AutomaticTranslationTarget.values.where(
+          (target) => names.contains(target.name),
+        ),
+      );
+    }
+    return switch (legacyMode) {
+      'titlesOnly' => const {AutomaticTranslationTarget.title},
+      'allMissing' => const {
+        AutomaticTranslationTarget.title,
+        AutomaticTranslationTarget.category,
+        AutomaticTranslationTarget.tag,
+      },
+      _ => const {},
+    };
+  }
+
+  static String _encodeAutomaticTranslationTargets(
+    Set<AutomaticTranslationTarget> value,
+  ) => value.map((item) => item.name).join(',');
+
+  static String _encodeTranslationDisplayModes({
+    required TranslationDisplayMode title,
+    required TranslationDisplayMode category,
+    required TranslationDisplayMode tag,
+  }) => 'title:${title.name},category:${category.name},tag:${tag.name}';
 }

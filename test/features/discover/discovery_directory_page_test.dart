@@ -3,8 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/models/video_models.dart';
+import 'package:flule34/core/services/translation_service.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/features/discover/discovery_directory_page.dart';
+import 'package:flule34/features/settings/data/app_settings_repository.dart';
+import 'package:flule34/features/settings/data/app_settings_store.dart';
 
 import '../../helpers/test_session_harness.dart';
 
@@ -14,11 +17,19 @@ void main() {
     addTearDown(harness.dispose);
     await harness.sessionStore.load();
     final api = _PagedDirectoryApi(harness.sessionStore);
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    final translationService = TranslationService.fromDictionary(
+      settingsRepository: settings,
+      dictionary: const {},
+    );
+    addTearDown(translationService.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
         home: DiscoveryDirectoryPage(
           api: api,
+          translationService: translationService,
           spec: const DiscoveryDirectorySpec(
             title: '标签',
             path: '/tags/',
@@ -47,6 +58,23 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+}
+
+final class _MemorySettingsStore implements AppSettingsStore {
+  @override
+  Future<bool?> readBool(String key) async => null;
+
+  @override
+  Future<String?> readString(String key) async => null;
+
+  @override
+  Future<void> writeBool(String key, bool value) async {}
+
+  @override
+  Future<void> writeString(String key, String value) async {}
+
+  @override
+  Future<void> remove(String key) async {}
 }
 
 final class _PagedDirectoryApi extends Rule34VideoApi {

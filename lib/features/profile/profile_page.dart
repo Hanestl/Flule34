@@ -50,6 +50,11 @@ class ProfilePage extends StatelessWidget {
               onTap: () => context.pushNamed(AppRouteNames.contentSettings),
             ),
             _SettingsTile(
+              icon: Icons.translate_outlined,
+              title: '翻译设置',
+              onTap: () => context.pushNamed(AppRouteNames.translationSettings),
+            ),
+            _SettingsTile(
               icon: Icons.privacy_tip_outlined,
               title: '隐私与数据',
               onTap: () => context.pushNamed(AppRouteNames.privacySettings),

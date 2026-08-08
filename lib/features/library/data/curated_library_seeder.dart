@@ -32,52 +32,63 @@ final class CuratedLibrarySeeder {
         final existingState = await (_database.select(
           _database.curatedLibrarySeeds,
         )..where((item) => item.seedKey.equals(preset.key))).getSingleOrNull();
-        if (existingState != null) {
+        if (existingState?.dismissed == true ||
+            (existingState?.packVersion ?? 0) >= manifest.version) {
           continue;
         }
 
-        final resolvedName = await _availableLibraryName(preset.name);
         final now = DateTime.now().toUtc();
-        final libraryId = await _database
-            .into(_database.localLibraries)
-            .insert(
-              LocalLibrariesCompanion.insert(
-                name: resolvedName,
-                normalizedName: _normalizeName(resolvedName),
-                seedKey: Value(preset.key),
-                createdAt: Value(now),
-                updatedAt: Value(now),
-              ),
+        final existingVideoIds = await _existingVideoIds(preset);
+        final missingVideos = preset.videos
+            .where((video) => !existingVideoIds.contains(video.id))
+            .toList(growable: false);
+        if (missingVideos.isNotEmpty) {
+          final preferredName = existingState == null
+              ? preset.name
+              : '${preset.name}（内置新增 v${manifest.version}）';
+          final resolvedName = await _availableLibraryName(preferredName);
+          final libraryId = await _database
+              .into(_database.localLibraries)
+              .insert(
+                LocalLibrariesCompanion.insert(
+                  name: resolvedName,
+                  normalizedName: _normalizeName(resolvedName),
+                  seedKey: Value(existingState == null ? preset.key : null),
+                  createdAt: Value(now),
+                  updatedAt: Value(now),
+                ),
+              );
+          await _database.batch((batch) {
+            batch.insertAll(
+              _database.localLibraryVideos,
+              missingVideos
+                  .map(
+                    (video) => LocalLibraryVideosCompanion.insert(
+                      libraryId: libraryId,
+                      videoId: video.id,
+                      title: video.title,
+                      slug: video.slug,
+                      thumbnailUrl: Value(video.thumbnailUrl),
+                      durationLabel: Value(video.duration),
+                      publishedLabel: Value(video.publishedLabel),
+                      views: Value(video.views),
+                      rating: Value(video.rating),
+                      ratingVotes: Value(video.ratingVotes),
+                      addedAt: Value(now),
+                    ),
+                  )
+                  .toList(growable: false),
+              mode: InsertMode.insertOrIgnore,
             );
-        await _database.batch((batch) {
-          batch.insertAll(
-            _database.localLibraryVideos,
-            preset.videos
-                .map(
-                  (video) => LocalLibraryVideosCompanion.insert(
-                    libraryId: libraryId,
-                    videoId: video.id,
-                    title: video.title,
-                    slug: video.slug,
-                    thumbnailUrl: Value(video.thumbnailUrl),
-                    durationLabel: Value(video.duration),
-                    publishedLabel: Value(video.publishedLabel),
-                    views: Value(video.views),
-                    rating: Value(video.rating),
-                    ratingVotes: Value(video.ratingVotes),
-                    addedAt: Value(now),
-                  ),
-                )
-                .toList(growable: false),
-            mode: InsertMode.insertOrIgnore,
-          );
-        });
+          });
+        }
         await _database
             .into(_database.curatedLibrarySeeds)
-            .insert(
+            .insertOnConflictUpdate(
               CuratedLibrarySeedsCompanion.insert(
                 seedKey: preset.key,
                 packVersion: manifest.version,
+                dismissed: Value(existingState?.dismissed ?? false),
                 appliedAt: Value(now),
               ),
             );
@@ -109,6 +120,25 @@ final class CuratedLibrarySeeder {
             ))
             .getSingleOrNull();
     return existing != null;
+  }
+
+  Future<Set<String>> _existingVideoIds(_CuratedLibrary preset) async {
+    final base = _normalizeName(preset.name);
+    final libraries = await _database.select(_database.localLibraries).get();
+    final libraryIds = libraries
+        .where(
+          (library) =>
+              library.seedKey == preset.key ||
+              _normalizeName(library.name) == base ||
+              _normalizeName(library.name).startsWith('$base（内置新增'),
+        )
+        .map((library) => library.id)
+        .toList(growable: false);
+    if (libraryIds.isEmpty) return <String>{};
+    final videos = await (_database.select(
+      _database.localLibraryVideos,
+    )..where((item) => item.libraryId.isIn(libraryIds))).get();
+    return videos.map((video) => video.videoId).toSet();
   }
 
   String _normalizeName(String value) => value.trim().toLowerCase();

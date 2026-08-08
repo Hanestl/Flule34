@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:flule34/app/providers.dart';
+import 'package:flule34/app/router/route_names.dart';
 import 'package:flule34/core/api/rule34video_api.dart';
 import 'package:flule34/core/database/app_database.dart';
 import 'package:flule34/core/models/video_models.dart';
 import 'package:flule34/core/session/session_store.dart';
 import 'package:flule34/core/services/predictive_prefetch_service.dart';
+import 'package:flule34/core/services/translation_service.dart';
 import 'package:flule34/features/search/data/search_history_repository.dart';
 import 'package:flule34/features/search/search_page.dart';
 import 'package:flule34/features/settings/data/app_settings_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
+import 'package:flule34/shared/localized_translation_text.dart';
 
 import '../../helpers/test_session_harness.dart';
 
@@ -53,6 +57,10 @@ void main() {
               harness.database,
               harness.sessionStore,
               settings,
+            ),
+            translationService: TranslationService.fromDictionary(
+              settingsRepository: settings,
+              dictionary: const {},
             ),
           ),
         ),
@@ -97,6 +105,10 @@ void main() {
               harness.database,
               harness.sessionStore,
               settings,
+            ),
+            translationService: TranslationService.fromDictionary(
+              settingsRepository: settings,
+              dictionary: const {},
             ),
           ),
         ),
@@ -208,6 +220,10 @@ void main() {
             api: api,
             historyRepository: historyRepository,
             prefetchService: _createPrefetch(api, harness.sessionStore),
+            translationService: TranslationService.fromDictionary(
+              settingsRepository: settings,
+              dictionary: const {},
+            ),
           ),
         ),
       ),
@@ -225,6 +241,117 @@ void main() {
     expect(historyRepository.watchCalls, 2);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
+  });
+
+  testWidgets('中文标签反查只在选择后解析英文标签', (tester) async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    final api = _FakeSearchApi(harness.sessionStore);
+    addTearDown(api.close);
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
+    final translationService = TranslationService.fromDictionary(
+      settingsRepository: settings,
+      dictionary: const {'footjob': '足交'},
+    );
+    addTearDown(translationService.dispose);
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(
+          path: '/search',
+          builder: (context, state) => SearchPage(
+            api: api,
+            historyRepository: SearchHistoryRepository(
+              harness.database,
+              harness.sessionStore,
+              settings,
+            ),
+            prefetchService: _createPrefetch(api, harness.sessionStore),
+            translationService: translationService,
+          ),
+        ),
+        GoRoute(
+          path: '/collection/:kind/:id',
+          name: AppRouteNames.collection,
+          builder: (context, state) => const Text('标签集合'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.enterText(find.byType(TextField), '足交');
+    await tester.pump();
+
+    expect(find.text('足交 · footjob'), findsOneWidget);
+    expect(api.suggestionQueries, isEmpty);
+
+    await tester.tap(find.text('足交 · footjob'));
+    await tester.pumpAndSettle();
+    expect(api.suggestionQueries, contains('footjob'));
+    expect(find.text('标签集合'), findsOneWidget);
+  });
+
+  testWidgets('中文标题搜索合并网站直搜和已学习标题反查', (tester) async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.database.upsertLearnedTranslation(
+      kind: 'title',
+      canonicalName: 'video-1',
+      sourceText: 'MOM BREAKER',
+      translation: '母亲终结者',
+      videoSlug: 'mom-breaker',
+    );
+    final api = _FakeSearchApi(harness.sessionStore);
+    addTearDown(api.close);
+    final settings = AppSettingsRepository(_MemorySettingsStore());
+    addTearDown(settings.dispose);
+    await settings.load();
+    final translationService = TranslationService.fromDictionary(
+      settingsRepository: settings,
+      database: harness.database,
+      dictionary: const {},
+    );
+    addTearDown(translationService.dispose);
+    await translationService.initialize();
+    final container = ProviderContainer(
+      overrides: [
+        appSettingsRepositoryProvider.overrideWithValue(settings),
+        translationServiceProvider.overrideWithValue(translationService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SearchPage(
+              api: api,
+              historyRepository: SearchHistoryRepository(
+                harness.database,
+                harness.sessionStore,
+                settings,
+              ),
+              prefetchService: _createPrefetch(api, harness.sessionStore),
+              translationService: translationService,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), '母亲终结者');
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pumpAndSettle();
+
+    expect(api.videoQueries, contains('母亲终结者'));
+    expect(api.videoQueries, contains('MOM BREAKER'));
+    expect(find.byType(LocalizedTranslationText), findsWidgets);
   });
 }
 
@@ -257,6 +384,8 @@ class _FakeSearchApi extends Rule34VideoApi {
   _FakeSearchApi(SessionStore sessionStore) : super(sessionStore: sessionStore);
 
   SearchFilters lastFilters = const SearchFilters();
+  final List<String> suggestionQueries = [];
+  final List<String> videoQueries = [];
 
   @override
   Future<List<ContentCollectionItem>> loadDiscoveryDirectory(
@@ -271,6 +400,19 @@ class _FakeSearchApi extends Rule34VideoApi {
     String query,
     SearchSuggestionKind kind,
   ) async {
+    if (kind == SearchSuggestionKind.tag) {
+      suggestionQueries.add(query);
+      if (query == 'footjob') {
+        return const [
+          SearchSuggestion(
+            id: '42',
+            title: 'footjob',
+            total: 123,
+            kind: SearchSuggestionKind.tag,
+          ),
+        ];
+      }
+    }
     return const [];
   }
 
@@ -281,6 +423,12 @@ class _FakeSearchApi extends Rule34VideoApi {
     SearchFilters filters = const SearchFilters(),
   }) async {
     lastFilters = filters;
+    videoQueries.add(query);
+    if (query == 'MOM BREAKER' && page == 1) {
+      return const [
+        VideoItem(id: 'video-1', title: 'MOM BREAKER', slug: 'mom-breaker'),
+      ];
+    }
     return const [];
   }
 

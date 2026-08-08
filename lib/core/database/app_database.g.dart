@@ -3635,6 +3635,1701 @@ class LocalLibraryVideosCompanion extends UpdateCompanion<LocalLibraryVideo> {
   }
 }
 
+class $TranslationOverridesTable extends TranslationOverrides
+    with TableInfo<$TranslationOverridesTable, TranslationOverride> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranslationOverridesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _canonicalNameMeta = const VerificationMeta(
+    'canonicalName',
+  );
+  @override
+  late final GeneratedColumn<String> canonicalName = GeneratedColumn<String>(
+    'canonical_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceTextMeta = const VerificationMeta(
+    'sourceText',
+  );
+  @override
+  late final GeneratedColumn<String> sourceText = GeneratedColumn<String>(
+    'source_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _videoSlugMeta = const VerificationMeta(
+    'videoSlug',
+  );
+  @override
+  late final GeneratedColumn<String> videoSlug = GeneratedColumn<String>(
+    'video_slug',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _translationMeta = const VerificationMeta(
+    'translation',
+  );
+  @override
+  late final GeneratedColumn<String> translation = GeneratedColumn<String>(
+    'translation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    kind,
+    canonicalName,
+    sourceText,
+    videoSlug,
+    translation,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'translation_overrides';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TranslationOverride> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('canonical_name')) {
+      context.handle(
+        _canonicalNameMeta,
+        canonicalName.isAcceptableOrUnknown(
+          data['canonical_name']!,
+          _canonicalNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_canonicalNameMeta);
+    }
+    if (data.containsKey('source_text')) {
+      context.handle(
+        _sourceTextMeta,
+        sourceText.isAcceptableOrUnknown(data['source_text']!, _sourceTextMeta),
+      );
+    }
+    if (data.containsKey('video_slug')) {
+      context.handle(
+        _videoSlugMeta,
+        videoSlug.isAcceptableOrUnknown(data['video_slug']!, _videoSlugMeta),
+      );
+    }
+    if (data.containsKey('translation')) {
+      context.handle(
+        _translationMeta,
+        translation.isAcceptableOrUnknown(
+          data['translation']!,
+          _translationMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_translationMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {kind, canonicalName};
+  @override
+  TranslationOverride map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TranslationOverride(
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      canonicalName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}canonical_name'],
+      )!,
+      sourceText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_text'],
+      ),
+      videoSlug: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}video_slug'],
+      ),
+      translation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}translation'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TranslationOverridesTable createAlias(String alias) {
+    return $TranslationOverridesTable(attachedDatabase, alias);
+  }
+}
+
+class TranslationOverride extends DataClass
+    implements Insertable<TranslationOverride> {
+  final String kind;
+  final String canonicalName;
+  final String? sourceText;
+  final String? videoSlug;
+  final String translation;
+  final DateTime updatedAt;
+  const TranslationOverride({
+    required this.kind,
+    required this.canonicalName,
+    this.sourceText,
+    this.videoSlug,
+    required this.translation,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['kind'] = Variable<String>(kind);
+    map['canonical_name'] = Variable<String>(canonicalName);
+    if (!nullToAbsent || sourceText != null) {
+      map['source_text'] = Variable<String>(sourceText);
+    }
+    if (!nullToAbsent || videoSlug != null) {
+      map['video_slug'] = Variable<String>(videoSlug);
+    }
+    map['translation'] = Variable<String>(translation);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  TranslationOverridesCompanion toCompanion(bool nullToAbsent) {
+    return TranslationOverridesCompanion(
+      kind: Value(kind),
+      canonicalName: Value(canonicalName),
+      sourceText: sourceText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceText),
+      videoSlug: videoSlug == null && nullToAbsent
+          ? const Value.absent()
+          : Value(videoSlug),
+      translation: Value(translation),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory TranslationOverride.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TranslationOverride(
+      kind: serializer.fromJson<String>(json['kind']),
+      canonicalName: serializer.fromJson<String>(json['canonicalName']),
+      sourceText: serializer.fromJson<String?>(json['sourceText']),
+      videoSlug: serializer.fromJson<String?>(json['videoSlug']),
+      translation: serializer.fromJson<String>(json['translation']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'kind': serializer.toJson<String>(kind),
+      'canonicalName': serializer.toJson<String>(canonicalName),
+      'sourceText': serializer.toJson<String?>(sourceText),
+      'videoSlug': serializer.toJson<String?>(videoSlug),
+      'translation': serializer.toJson<String>(translation),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  TranslationOverride copyWith({
+    String? kind,
+    String? canonicalName,
+    Value<String?> sourceText = const Value.absent(),
+    Value<String?> videoSlug = const Value.absent(),
+    String? translation,
+    DateTime? updatedAt,
+  }) => TranslationOverride(
+    kind: kind ?? this.kind,
+    canonicalName: canonicalName ?? this.canonicalName,
+    sourceText: sourceText.present ? sourceText.value : this.sourceText,
+    videoSlug: videoSlug.present ? videoSlug.value : this.videoSlug,
+    translation: translation ?? this.translation,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  TranslationOverride copyWithCompanion(TranslationOverridesCompanion data) {
+    return TranslationOverride(
+      kind: data.kind.present ? data.kind.value : this.kind,
+      canonicalName: data.canonicalName.present
+          ? data.canonicalName.value
+          : this.canonicalName,
+      sourceText: data.sourceText.present
+          ? data.sourceText.value
+          : this.sourceText,
+      videoSlug: data.videoSlug.present ? data.videoSlug.value : this.videoSlug,
+      translation: data.translation.present
+          ? data.translation.value
+          : this.translation,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationOverride(')
+          ..write('kind: $kind, ')
+          ..write('canonicalName: $canonicalName, ')
+          ..write('sourceText: $sourceText, ')
+          ..write('videoSlug: $videoSlug, ')
+          ..write('translation: $translation, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    kind,
+    canonicalName,
+    sourceText,
+    videoSlug,
+    translation,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TranslationOverride &&
+          other.kind == this.kind &&
+          other.canonicalName == this.canonicalName &&
+          other.sourceText == this.sourceText &&
+          other.videoSlug == this.videoSlug &&
+          other.translation == this.translation &&
+          other.updatedAt == this.updatedAt);
+}
+
+class TranslationOverridesCompanion
+    extends UpdateCompanion<TranslationOverride> {
+  final Value<String> kind;
+  final Value<String> canonicalName;
+  final Value<String?> sourceText;
+  final Value<String?> videoSlug;
+  final Value<String> translation;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const TranslationOverridesCompanion({
+    this.kind = const Value.absent(),
+    this.canonicalName = const Value.absent(),
+    this.sourceText = const Value.absent(),
+    this.videoSlug = const Value.absent(),
+    this.translation = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TranslationOverridesCompanion.insert({
+    required String kind,
+    required String canonicalName,
+    this.sourceText = const Value.absent(),
+    this.videoSlug = const Value.absent(),
+    required String translation,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : kind = Value(kind),
+       canonicalName = Value(canonicalName),
+       translation = Value(translation);
+  static Insertable<TranslationOverride> custom({
+    Expression<String>? kind,
+    Expression<String>? canonicalName,
+    Expression<String>? sourceText,
+    Expression<String>? videoSlug,
+    Expression<String>? translation,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (kind != null) 'kind': kind,
+      if (canonicalName != null) 'canonical_name': canonicalName,
+      if (sourceText != null) 'source_text': sourceText,
+      if (videoSlug != null) 'video_slug': videoSlug,
+      if (translation != null) 'translation': translation,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TranslationOverridesCompanion copyWith({
+    Value<String>? kind,
+    Value<String>? canonicalName,
+    Value<String?>? sourceText,
+    Value<String?>? videoSlug,
+    Value<String>? translation,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return TranslationOverridesCompanion(
+      kind: kind ?? this.kind,
+      canonicalName: canonicalName ?? this.canonicalName,
+      sourceText: sourceText ?? this.sourceText,
+      videoSlug: videoSlug ?? this.videoSlug,
+      translation: translation ?? this.translation,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (canonicalName.present) {
+      map['canonical_name'] = Variable<String>(canonicalName.value);
+    }
+    if (sourceText.present) {
+      map['source_text'] = Variable<String>(sourceText.value);
+    }
+    if (videoSlug.present) {
+      map['video_slug'] = Variable<String>(videoSlug.value);
+    }
+    if (translation.present) {
+      map['translation'] = Variable<String>(translation.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationOverridesCompanion(')
+          ..write('kind: $kind, ')
+          ..write('canonicalName: $canonicalName, ')
+          ..write('sourceText: $sourceText, ')
+          ..write('videoSlug: $videoSlug, ')
+          ..write('translation: $translation, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LearnedTranslationsTable extends LearnedTranslations
+    with TableInfo<$LearnedTranslationsTable, LearnedTranslation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LearnedTranslationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _canonicalNameMeta = const VerificationMeta(
+    'canonicalName',
+  );
+  @override
+  late final GeneratedColumn<String> canonicalName = GeneratedColumn<String>(
+    'canonical_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceTextMeta = const VerificationMeta(
+    'sourceText',
+  );
+  @override
+  late final GeneratedColumn<String> sourceText = GeneratedColumn<String>(
+    'source_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _translationMeta = const VerificationMeta(
+    'translation',
+  );
+  @override
+  late final GeneratedColumn<String> translation = GeneratedColumn<String>(
+    'translation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<String> providerId = GeneratedColumn<String>(
+    'provider_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _providerNameMeta = const VerificationMeta(
+    'providerName',
+  );
+  @override
+  late final GeneratedColumn<String> providerName = GeneratedColumn<String>(
+    'provider_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _videoSlugMeta = const VerificationMeta(
+    'videoSlug',
+  );
+  @override
+  late final GeneratedColumn<String> videoSlug = GeneratedColumn<String>(
+    'video_slug',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    kind,
+    canonicalName,
+    sourceText,
+    translation,
+    providerId,
+    providerName,
+    videoSlug,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'learned_translations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LearnedTranslation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('canonical_name')) {
+      context.handle(
+        _canonicalNameMeta,
+        canonicalName.isAcceptableOrUnknown(
+          data['canonical_name']!,
+          _canonicalNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_canonicalNameMeta);
+    }
+    if (data.containsKey('source_text')) {
+      context.handle(
+        _sourceTextMeta,
+        sourceText.isAcceptableOrUnknown(data['source_text']!, _sourceTextMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceTextMeta);
+    }
+    if (data.containsKey('translation')) {
+      context.handle(
+        _translationMeta,
+        translation.isAcceptableOrUnknown(
+          data['translation']!,
+          _translationMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_translationMeta);
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    }
+    if (data.containsKey('provider_name')) {
+      context.handle(
+        _providerNameMeta,
+        providerName.isAcceptableOrUnknown(
+          data['provider_name']!,
+          _providerNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('video_slug')) {
+      context.handle(
+        _videoSlugMeta,
+        videoSlug.isAcceptableOrUnknown(data['video_slug']!, _videoSlugMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {kind, canonicalName};
+  @override
+  LearnedTranslation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LearnedTranslation(
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      canonicalName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}canonical_name'],
+      )!,
+      sourceText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_text'],
+      )!,
+      translation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}translation'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_id'],
+      ),
+      providerName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_name'],
+      ),
+      videoSlug: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}video_slug'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LearnedTranslationsTable createAlias(String alias) {
+    return $LearnedTranslationsTable(attachedDatabase, alias);
+  }
+}
+
+class LearnedTranslation extends DataClass
+    implements Insertable<LearnedTranslation> {
+  final String kind;
+  final String canonicalName;
+  final String sourceText;
+  final String translation;
+  final String? providerId;
+  final String? providerName;
+  final String? videoSlug;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const LearnedTranslation({
+    required this.kind,
+    required this.canonicalName,
+    required this.sourceText,
+    required this.translation,
+    this.providerId,
+    this.providerName,
+    this.videoSlug,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['kind'] = Variable<String>(kind);
+    map['canonical_name'] = Variable<String>(canonicalName);
+    map['source_text'] = Variable<String>(sourceText);
+    map['translation'] = Variable<String>(translation);
+    if (!nullToAbsent || providerId != null) {
+      map['provider_id'] = Variable<String>(providerId);
+    }
+    if (!nullToAbsent || providerName != null) {
+      map['provider_name'] = Variable<String>(providerName);
+    }
+    if (!nullToAbsent || videoSlug != null) {
+      map['video_slug'] = Variable<String>(videoSlug);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LearnedTranslationsCompanion toCompanion(bool nullToAbsent) {
+    return LearnedTranslationsCompanion(
+      kind: Value(kind),
+      canonicalName: Value(canonicalName),
+      sourceText: Value(sourceText),
+      translation: Value(translation),
+      providerId: providerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerId),
+      providerName: providerName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerName),
+      videoSlug: videoSlug == null && nullToAbsent
+          ? const Value.absent()
+          : Value(videoSlug),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LearnedTranslation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LearnedTranslation(
+      kind: serializer.fromJson<String>(json['kind']),
+      canonicalName: serializer.fromJson<String>(json['canonicalName']),
+      sourceText: serializer.fromJson<String>(json['sourceText']),
+      translation: serializer.fromJson<String>(json['translation']),
+      providerId: serializer.fromJson<String?>(json['providerId']),
+      providerName: serializer.fromJson<String?>(json['providerName']),
+      videoSlug: serializer.fromJson<String?>(json['videoSlug']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'kind': serializer.toJson<String>(kind),
+      'canonicalName': serializer.toJson<String>(canonicalName),
+      'sourceText': serializer.toJson<String>(sourceText),
+      'translation': serializer.toJson<String>(translation),
+      'providerId': serializer.toJson<String?>(providerId),
+      'providerName': serializer.toJson<String?>(providerName),
+      'videoSlug': serializer.toJson<String?>(videoSlug),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LearnedTranslation copyWith({
+    String? kind,
+    String? canonicalName,
+    String? sourceText,
+    String? translation,
+    Value<String?> providerId = const Value.absent(),
+    Value<String?> providerName = const Value.absent(),
+    Value<String?> videoSlug = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => LearnedTranslation(
+    kind: kind ?? this.kind,
+    canonicalName: canonicalName ?? this.canonicalName,
+    sourceText: sourceText ?? this.sourceText,
+    translation: translation ?? this.translation,
+    providerId: providerId.present ? providerId.value : this.providerId,
+    providerName: providerName.present ? providerName.value : this.providerName,
+    videoSlug: videoSlug.present ? videoSlug.value : this.videoSlug,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LearnedTranslation copyWithCompanion(LearnedTranslationsCompanion data) {
+    return LearnedTranslation(
+      kind: data.kind.present ? data.kind.value : this.kind,
+      canonicalName: data.canonicalName.present
+          ? data.canonicalName.value
+          : this.canonicalName,
+      sourceText: data.sourceText.present
+          ? data.sourceText.value
+          : this.sourceText,
+      translation: data.translation.present
+          ? data.translation.value
+          : this.translation,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      providerName: data.providerName.present
+          ? data.providerName.value
+          : this.providerName,
+      videoSlug: data.videoSlug.present ? data.videoSlug.value : this.videoSlug,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LearnedTranslation(')
+          ..write('kind: $kind, ')
+          ..write('canonicalName: $canonicalName, ')
+          ..write('sourceText: $sourceText, ')
+          ..write('translation: $translation, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerName: $providerName, ')
+          ..write('videoSlug: $videoSlug, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    kind,
+    canonicalName,
+    sourceText,
+    translation,
+    providerId,
+    providerName,
+    videoSlug,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LearnedTranslation &&
+          other.kind == this.kind &&
+          other.canonicalName == this.canonicalName &&
+          other.sourceText == this.sourceText &&
+          other.translation == this.translation &&
+          other.providerId == this.providerId &&
+          other.providerName == this.providerName &&
+          other.videoSlug == this.videoSlug &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LearnedTranslationsCompanion extends UpdateCompanion<LearnedTranslation> {
+  final Value<String> kind;
+  final Value<String> canonicalName;
+  final Value<String> sourceText;
+  final Value<String> translation;
+  final Value<String?> providerId;
+  final Value<String?> providerName;
+  final Value<String?> videoSlug;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const LearnedTranslationsCompanion({
+    this.kind = const Value.absent(),
+    this.canonicalName = const Value.absent(),
+    this.sourceText = const Value.absent(),
+    this.translation = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.providerName = const Value.absent(),
+    this.videoSlug = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LearnedTranslationsCompanion.insert({
+    required String kind,
+    required String canonicalName,
+    required String sourceText,
+    required String translation,
+    this.providerId = const Value.absent(),
+    this.providerName = const Value.absent(),
+    this.videoSlug = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : kind = Value(kind),
+       canonicalName = Value(canonicalName),
+       sourceText = Value(sourceText),
+       translation = Value(translation);
+  static Insertable<LearnedTranslation> custom({
+    Expression<String>? kind,
+    Expression<String>? canonicalName,
+    Expression<String>? sourceText,
+    Expression<String>? translation,
+    Expression<String>? providerId,
+    Expression<String>? providerName,
+    Expression<String>? videoSlug,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (kind != null) 'kind': kind,
+      if (canonicalName != null) 'canonical_name': canonicalName,
+      if (sourceText != null) 'source_text': sourceText,
+      if (translation != null) 'translation': translation,
+      if (providerId != null) 'provider_id': providerId,
+      if (providerName != null) 'provider_name': providerName,
+      if (videoSlug != null) 'video_slug': videoSlug,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LearnedTranslationsCompanion copyWith({
+    Value<String>? kind,
+    Value<String>? canonicalName,
+    Value<String>? sourceText,
+    Value<String>? translation,
+    Value<String?>? providerId,
+    Value<String?>? providerName,
+    Value<String?>? videoSlug,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return LearnedTranslationsCompanion(
+      kind: kind ?? this.kind,
+      canonicalName: canonicalName ?? this.canonicalName,
+      sourceText: sourceText ?? this.sourceText,
+      translation: translation ?? this.translation,
+      providerId: providerId ?? this.providerId,
+      providerName: providerName ?? this.providerName,
+      videoSlug: videoSlug ?? this.videoSlug,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (canonicalName.present) {
+      map['canonical_name'] = Variable<String>(canonicalName.value);
+    }
+    if (sourceText.present) {
+      map['source_text'] = Variable<String>(sourceText.value);
+    }
+    if (translation.present) {
+      map['translation'] = Variable<String>(translation.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<String>(providerId.value);
+    }
+    if (providerName.present) {
+      map['provider_name'] = Variable<String>(providerName.value);
+    }
+    if (videoSlug.present) {
+      map['video_slug'] = Variable<String>(videoSlug.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LearnedTranslationsCompanion(')
+          ..write('kind: $kind, ')
+          ..write('canonicalName: $canonicalName, ')
+          ..write('sourceText: $sourceText, ')
+          ..write('translation: $translation, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerName: $providerName, ')
+          ..write('videoSlug: $videoSlug, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BuiltInTranslationStatesTable extends BuiltInTranslationStates
+    with TableInfo<$BuiltInTranslationStatesTable, BuiltInTranslationState> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BuiltInTranslationStatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _canonicalNameMeta = const VerificationMeta(
+    'canonicalName',
+  );
+  @override
+  late final GeneratedColumn<String> canonicalName = GeneratedColumn<String>(
+    'canonical_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _introducedPackVersionMeta =
+      const VerificationMeta('introducedPackVersion');
+  @override
+  late final GeneratedColumn<int> introducedPackVersion = GeneratedColumn<int>(
+    'introduced_pack_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _protectExistingLearnedMeta =
+      const VerificationMeta('protectExistingLearned');
+  @override
+  late final GeneratedColumn<bool> protectExistingLearned =
+      GeneratedColumn<bool>(
+        'protect_existing_learned',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("protect_existing_learned" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    kind,
+    canonicalName,
+    introducedPackVersion,
+    protectExistingLearned,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'built_in_translation_states';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BuiltInTranslationState> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('canonical_name')) {
+      context.handle(
+        _canonicalNameMeta,
+        canonicalName.isAcceptableOrUnknown(
+          data['canonical_name']!,
+          _canonicalNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_canonicalNameMeta);
+    }
+    if (data.containsKey('introduced_pack_version')) {
+      context.handle(
+        _introducedPackVersionMeta,
+        introducedPackVersion.isAcceptableOrUnknown(
+          data['introduced_pack_version']!,
+          _introducedPackVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_introducedPackVersionMeta);
+    }
+    if (data.containsKey('protect_existing_learned')) {
+      context.handle(
+        _protectExistingLearnedMeta,
+        protectExistingLearned.isAcceptableOrUnknown(
+          data['protect_existing_learned']!,
+          _protectExistingLearnedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {kind, canonicalName};
+  @override
+  BuiltInTranslationState map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BuiltInTranslationState(
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      canonicalName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}canonical_name'],
+      )!,
+      introducedPackVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}introduced_pack_version'],
+      )!,
+      protectExistingLearned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}protect_existing_learned'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BuiltInTranslationStatesTable createAlias(String alias) {
+    return $BuiltInTranslationStatesTable(attachedDatabase, alias);
+  }
+}
+
+class BuiltInTranslationState extends DataClass
+    implements Insertable<BuiltInTranslationState> {
+  final String kind;
+  final String canonicalName;
+  final int introducedPackVersion;
+  final bool protectExistingLearned;
+  final DateTime updatedAt;
+  const BuiltInTranslationState({
+    required this.kind,
+    required this.canonicalName,
+    required this.introducedPackVersion,
+    required this.protectExistingLearned,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['kind'] = Variable<String>(kind);
+    map['canonical_name'] = Variable<String>(canonicalName);
+    map['introduced_pack_version'] = Variable<int>(introducedPackVersion);
+    map['protect_existing_learned'] = Variable<bool>(protectExistingLearned);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  BuiltInTranslationStatesCompanion toCompanion(bool nullToAbsent) {
+    return BuiltInTranslationStatesCompanion(
+      kind: Value(kind),
+      canonicalName: Value(canonicalName),
+      introducedPackVersion: Value(introducedPackVersion),
+      protectExistingLearned: Value(protectExistingLearned),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory BuiltInTranslationState.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BuiltInTranslationState(
+      kind: serializer.fromJson<String>(json['kind']),
+      canonicalName: serializer.fromJson<String>(json['canonicalName']),
+      introducedPackVersion: serializer.fromJson<int>(
+        json['introducedPackVersion'],
+      ),
+      protectExistingLearned: serializer.fromJson<bool>(
+        json['protectExistingLearned'],
+      ),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'kind': serializer.toJson<String>(kind),
+      'canonicalName': serializer.toJson<String>(canonicalName),
+      'introducedPackVersion': serializer.toJson<int>(introducedPackVersion),
+      'protectExistingLearned': serializer.toJson<bool>(protectExistingLearned),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  BuiltInTranslationState copyWith({
+    String? kind,
+    String? canonicalName,
+    int? introducedPackVersion,
+    bool? protectExistingLearned,
+    DateTime? updatedAt,
+  }) => BuiltInTranslationState(
+    kind: kind ?? this.kind,
+    canonicalName: canonicalName ?? this.canonicalName,
+    introducedPackVersion: introducedPackVersion ?? this.introducedPackVersion,
+    protectExistingLearned:
+        protectExistingLearned ?? this.protectExistingLearned,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  BuiltInTranslationState copyWithCompanion(
+    BuiltInTranslationStatesCompanion data,
+  ) {
+    return BuiltInTranslationState(
+      kind: data.kind.present ? data.kind.value : this.kind,
+      canonicalName: data.canonicalName.present
+          ? data.canonicalName.value
+          : this.canonicalName,
+      introducedPackVersion: data.introducedPackVersion.present
+          ? data.introducedPackVersion.value
+          : this.introducedPackVersion,
+      protectExistingLearned: data.protectExistingLearned.present
+          ? data.protectExistingLearned.value
+          : this.protectExistingLearned,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BuiltInTranslationState(')
+          ..write('kind: $kind, ')
+          ..write('canonicalName: $canonicalName, ')
+          ..write('introducedPackVersion: $introducedPackVersion, ')
+          ..write('protectExistingLearned: $protectExistingLearned, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    kind,
+    canonicalName,
+    introducedPackVersion,
+    protectExistingLearned,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BuiltInTranslationState &&
+          other.kind == this.kind &&
+          other.canonicalName == this.canonicalName &&
+          other.introducedPackVersion == this.introducedPackVersion &&
+          other.protectExistingLearned == this.protectExistingLearned &&
+          other.updatedAt == this.updatedAt);
+}
+
+class BuiltInTranslationStatesCompanion
+    extends UpdateCompanion<BuiltInTranslationState> {
+  final Value<String> kind;
+  final Value<String> canonicalName;
+  final Value<int> introducedPackVersion;
+  final Value<bool> protectExistingLearned;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const BuiltInTranslationStatesCompanion({
+    this.kind = const Value.absent(),
+    this.canonicalName = const Value.absent(),
+    this.introducedPackVersion = const Value.absent(),
+    this.protectExistingLearned = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BuiltInTranslationStatesCompanion.insert({
+    required String kind,
+    required String canonicalName,
+    required int introducedPackVersion,
+    this.protectExistingLearned = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : kind = Value(kind),
+       canonicalName = Value(canonicalName),
+       introducedPackVersion = Value(introducedPackVersion);
+  static Insertable<BuiltInTranslationState> custom({
+    Expression<String>? kind,
+    Expression<String>? canonicalName,
+    Expression<int>? introducedPackVersion,
+    Expression<bool>? protectExistingLearned,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (kind != null) 'kind': kind,
+      if (canonicalName != null) 'canonical_name': canonicalName,
+      if (introducedPackVersion != null)
+        'introduced_pack_version': introducedPackVersion,
+      if (protectExistingLearned != null)
+        'protect_existing_learned': protectExistingLearned,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BuiltInTranslationStatesCompanion copyWith({
+    Value<String>? kind,
+    Value<String>? canonicalName,
+    Value<int>? introducedPackVersion,
+    Value<bool>? protectExistingLearned,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return BuiltInTranslationStatesCompanion(
+      kind: kind ?? this.kind,
+      canonicalName: canonicalName ?? this.canonicalName,
+      introducedPackVersion:
+          introducedPackVersion ?? this.introducedPackVersion,
+      protectExistingLearned:
+          protectExistingLearned ?? this.protectExistingLearned,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (canonicalName.present) {
+      map['canonical_name'] = Variable<String>(canonicalName.value);
+    }
+    if (introducedPackVersion.present) {
+      map['introduced_pack_version'] = Variable<int>(
+        introducedPackVersion.value,
+      );
+    }
+    if (protectExistingLearned.present) {
+      map['protect_existing_learned'] = Variable<bool>(
+        protectExistingLearned.value,
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BuiltInTranslationStatesCompanion(')
+          ..write('kind: $kind, ')
+          ..write('canonicalName: $canonicalName, ')
+          ..write('introducedPackVersion: $introducedPackVersion, ')
+          ..write('protectExistingLearned: $protectExistingLearned, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TranslationCatalogPacksTable extends TranslationCatalogPacks
+    with TableInfo<$TranslationCatalogPacksTable, TranslationCatalogPack> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranslationCatalogPacksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _packKeyMeta = const VerificationMeta(
+    'packKey',
+  );
+  @override
+  late final GeneratedColumn<String> packKey = GeneratedColumn<String>(
+    'pack_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _packVersionMeta = const VerificationMeta(
+    'packVersion',
+  );
+  @override
+  late final GeneratedColumn<int> packVersion = GeneratedColumn<int>(
+    'pack_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _appliedAtMeta = const VerificationMeta(
+    'appliedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> appliedAt = GeneratedColumn<DateTime>(
+    'applied_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [packKey, packVersion, appliedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'translation_catalog_packs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TranslationCatalogPack> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('pack_key')) {
+      context.handle(
+        _packKeyMeta,
+        packKey.isAcceptableOrUnknown(data['pack_key']!, _packKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_packKeyMeta);
+    }
+    if (data.containsKey('pack_version')) {
+      context.handle(
+        _packVersionMeta,
+        packVersion.isAcceptableOrUnknown(
+          data['pack_version']!,
+          _packVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_packVersionMeta);
+    }
+    if (data.containsKey('applied_at')) {
+      context.handle(
+        _appliedAtMeta,
+        appliedAt.isAcceptableOrUnknown(data['applied_at']!, _appliedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {packKey};
+  @override
+  TranslationCatalogPack map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TranslationCatalogPack(
+      packKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pack_key'],
+      )!,
+      packVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pack_version'],
+      )!,
+      appliedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}applied_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TranslationCatalogPacksTable createAlias(String alias) {
+    return $TranslationCatalogPacksTable(attachedDatabase, alias);
+  }
+}
+
+class TranslationCatalogPack extends DataClass
+    implements Insertable<TranslationCatalogPack> {
+  final String packKey;
+  final int packVersion;
+  final DateTime appliedAt;
+  const TranslationCatalogPack({
+    required this.packKey,
+    required this.packVersion,
+    required this.appliedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['pack_key'] = Variable<String>(packKey);
+    map['pack_version'] = Variable<int>(packVersion);
+    map['applied_at'] = Variable<DateTime>(appliedAt);
+    return map;
+  }
+
+  TranslationCatalogPacksCompanion toCompanion(bool nullToAbsent) {
+    return TranslationCatalogPacksCompanion(
+      packKey: Value(packKey),
+      packVersion: Value(packVersion),
+      appliedAt: Value(appliedAt),
+    );
+  }
+
+  factory TranslationCatalogPack.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TranslationCatalogPack(
+      packKey: serializer.fromJson<String>(json['packKey']),
+      packVersion: serializer.fromJson<int>(json['packVersion']),
+      appliedAt: serializer.fromJson<DateTime>(json['appliedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'packKey': serializer.toJson<String>(packKey),
+      'packVersion': serializer.toJson<int>(packVersion),
+      'appliedAt': serializer.toJson<DateTime>(appliedAt),
+    };
+  }
+
+  TranslationCatalogPack copyWith({
+    String? packKey,
+    int? packVersion,
+    DateTime? appliedAt,
+  }) => TranslationCatalogPack(
+    packKey: packKey ?? this.packKey,
+    packVersion: packVersion ?? this.packVersion,
+    appliedAt: appliedAt ?? this.appliedAt,
+  );
+  TranslationCatalogPack copyWithCompanion(
+    TranslationCatalogPacksCompanion data,
+  ) {
+    return TranslationCatalogPack(
+      packKey: data.packKey.present ? data.packKey.value : this.packKey,
+      packVersion: data.packVersion.present
+          ? data.packVersion.value
+          : this.packVersion,
+      appliedAt: data.appliedAt.present ? data.appliedAt.value : this.appliedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationCatalogPack(')
+          ..write('packKey: $packKey, ')
+          ..write('packVersion: $packVersion, ')
+          ..write('appliedAt: $appliedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(packKey, packVersion, appliedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TranslationCatalogPack &&
+          other.packKey == this.packKey &&
+          other.packVersion == this.packVersion &&
+          other.appliedAt == this.appliedAt);
+}
+
+class TranslationCatalogPacksCompanion
+    extends UpdateCompanion<TranslationCatalogPack> {
+  final Value<String> packKey;
+  final Value<int> packVersion;
+  final Value<DateTime> appliedAt;
+  final Value<int> rowid;
+  const TranslationCatalogPacksCompanion({
+    this.packKey = const Value.absent(),
+    this.packVersion = const Value.absent(),
+    this.appliedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TranslationCatalogPacksCompanion.insert({
+    required String packKey,
+    required int packVersion,
+    this.appliedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : packKey = Value(packKey),
+       packVersion = Value(packVersion);
+  static Insertable<TranslationCatalogPack> custom({
+    Expression<String>? packKey,
+    Expression<int>? packVersion,
+    Expression<DateTime>? appliedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (packKey != null) 'pack_key': packKey,
+      if (packVersion != null) 'pack_version': packVersion,
+      if (appliedAt != null) 'applied_at': appliedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TranslationCatalogPacksCompanion copyWith({
+    Value<String>? packKey,
+    Value<int>? packVersion,
+    Value<DateTime>? appliedAt,
+    Value<int>? rowid,
+  }) {
+    return TranslationCatalogPacksCompanion(
+      packKey: packKey ?? this.packKey,
+      packVersion: packVersion ?? this.packVersion,
+      appliedAt: appliedAt ?? this.appliedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (packKey.present) {
+      map['pack_key'] = Variable<String>(packKey.value);
+    }
+    if (packVersion.present) {
+      map['pack_version'] = Variable<int>(packVersion.value);
+    }
+    if (appliedAt.present) {
+      map['applied_at'] = Variable<DateTime>(appliedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationCatalogPacksCompanion(')
+          ..write('packKey: $packKey, ')
+          ..write('packVersion: $packVersion, ')
+          ..write('appliedAt: $appliedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3652,6 +5347,30 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $CuratedLibrarySeedsTable(this);
   late final $LocalLibraryVideosTable localLibraryVideos =
       $LocalLibraryVideosTable(this);
+  late final $TranslationOverridesTable translationOverrides =
+      $TranslationOverridesTable(this);
+  late final $LearnedTranslationsTable learnedTranslations =
+      $LearnedTranslationsTable(this);
+  late final $BuiltInTranslationStatesTable builtInTranslationStates =
+      $BuiltInTranslationStatesTable(this);
+  late final $TranslationCatalogPacksTable translationCatalogPacks =
+      $TranslationCatalogPacksTable(this);
+  late final Index idxPlaybackPositionsUpdatedAt = Index(
+    'idx_playback_positions_updated_at',
+    'CREATE INDEX idx_playback_positions_updated_at ON playback_positions (updated_at)',
+  );
+  late final Index idxDownloadRecordsTaskId = Index(
+    'idx_download_records_task_id',
+    'CREATE INDEX idx_download_records_task_id ON download_records (task_id)',
+  );
+  late final Index idxDownloadRecordsUserState = Index(
+    'idx_download_records_user_state',
+    'CREATE INDEX idx_download_records_user_state ON download_records (user_id, state)',
+  );
+  late final Index idxSearchHistoriesUserLastSearched = Index(
+    'idx_search_histories_user_last_searched',
+    'CREATE INDEX idx_search_histories_user_last_searched ON search_histories (user_id, last_searched_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3664,6 +5383,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     localLibraries,
     curatedLibrarySeeds,
     localLibraryVideos,
+    translationOverrides,
+    learnedTranslations,
+    builtInTranslationStates,
+    translationCatalogPacks,
+    idxPlaybackPositionsUpdatedAt,
+    idxDownloadRecordsTaskId,
+    idxDownloadRecordsUserState,
+    idxSearchHistoriesUserLastSearched,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -6241,6 +7968,957 @@ typedef $$LocalLibraryVideosTableProcessedTableManager =
       LocalLibraryVideo,
       PrefetchHooks Function({bool libraryId})
     >;
+typedef $$TranslationOverridesTableCreateCompanionBuilder =
+    TranslationOverridesCompanion Function({
+      required String kind,
+      required String canonicalName,
+      Value<String?> sourceText,
+      Value<String?> videoSlug,
+      required String translation,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$TranslationOverridesTableUpdateCompanionBuilder =
+    TranslationOverridesCompanion Function({
+      Value<String> kind,
+      Value<String> canonicalName,
+      Value<String?> sourceText,
+      Value<String?> videoSlug,
+      Value<String> translation,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$TranslationOverridesTableFilterComposer
+    extends Composer<_$AppDatabase, $TranslationOverridesTable> {
+  $$TranslationOverridesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceText => $composableBuilder(
+    column: $table.sourceText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get videoSlug => $composableBuilder(
+    column: $table.videoSlug,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TranslationOverridesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranslationOverridesTable> {
+  $$TranslationOverridesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceText => $composableBuilder(
+    column: $table.sourceText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get videoSlug => $composableBuilder(
+    column: $table.videoSlug,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TranslationOverridesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranslationOverridesTable> {
+  $$TranslationOverridesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceText => $composableBuilder(
+    column: $table.sourceText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get videoSlug =>
+      $composableBuilder(column: $table.videoSlug, builder: (column) => column);
+
+  GeneratedColumn<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$TranslationOverridesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranslationOverridesTable,
+          TranslationOverride,
+          $$TranslationOverridesTableFilterComposer,
+          $$TranslationOverridesTableOrderingComposer,
+          $$TranslationOverridesTableAnnotationComposer,
+          $$TranslationOverridesTableCreateCompanionBuilder,
+          $$TranslationOverridesTableUpdateCompanionBuilder,
+          (
+            TranslationOverride,
+            BaseReferences<
+              _$AppDatabase,
+              $TranslationOverridesTable,
+              TranslationOverride
+            >,
+          ),
+          TranslationOverride,
+          PrefetchHooks Function()
+        > {
+  $$TranslationOverridesTableTableManager(
+    _$AppDatabase db,
+    $TranslationOverridesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranslationOverridesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TranslationOverridesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TranslationOverridesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> kind = const Value.absent(),
+                Value<String> canonicalName = const Value.absent(),
+                Value<String?> sourceText = const Value.absent(),
+                Value<String?> videoSlug = const Value.absent(),
+                Value<String> translation = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationOverridesCompanion(
+                kind: kind,
+                canonicalName: canonicalName,
+                sourceText: sourceText,
+                videoSlug: videoSlug,
+                translation: translation,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String kind,
+                required String canonicalName,
+                Value<String?> sourceText = const Value.absent(),
+                Value<String?> videoSlug = const Value.absent(),
+                required String translation,
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationOverridesCompanion.insert(
+                kind: kind,
+                canonicalName: canonicalName,
+                sourceText: sourceText,
+                videoSlug: videoSlug,
+                translation: translation,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TranslationOverridesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranslationOverridesTable,
+      TranslationOverride,
+      $$TranslationOverridesTableFilterComposer,
+      $$TranslationOverridesTableOrderingComposer,
+      $$TranslationOverridesTableAnnotationComposer,
+      $$TranslationOverridesTableCreateCompanionBuilder,
+      $$TranslationOverridesTableUpdateCompanionBuilder,
+      (
+        TranslationOverride,
+        BaseReferences<
+          _$AppDatabase,
+          $TranslationOverridesTable,
+          TranslationOverride
+        >,
+      ),
+      TranslationOverride,
+      PrefetchHooks Function()
+    >;
+typedef $$LearnedTranslationsTableCreateCompanionBuilder =
+    LearnedTranslationsCompanion Function({
+      required String kind,
+      required String canonicalName,
+      required String sourceText,
+      required String translation,
+      Value<String?> providerId,
+      Value<String?> providerName,
+      Value<String?> videoSlug,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$LearnedTranslationsTableUpdateCompanionBuilder =
+    LearnedTranslationsCompanion Function({
+      Value<String> kind,
+      Value<String> canonicalName,
+      Value<String> sourceText,
+      Value<String> translation,
+      Value<String?> providerId,
+      Value<String?> providerName,
+      Value<String?> videoSlug,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$LearnedTranslationsTableFilterComposer
+    extends Composer<_$AppDatabase, $LearnedTranslationsTable> {
+  $$LearnedTranslationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceText => $composableBuilder(
+    column: $table.sourceText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerName => $composableBuilder(
+    column: $table.providerName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get videoSlug => $composableBuilder(
+    column: $table.videoSlug,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LearnedTranslationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LearnedTranslationsTable> {
+  $$LearnedTranslationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceText => $composableBuilder(
+    column: $table.sourceText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerName => $composableBuilder(
+    column: $table.providerName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get videoSlug => $composableBuilder(
+    column: $table.videoSlug,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LearnedTranslationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LearnedTranslationsTable> {
+  $$LearnedTranslationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceText => $composableBuilder(
+    column: $table.sourceText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get providerName => $composableBuilder(
+    column: $table.providerName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get videoSlug =>
+      $composableBuilder(column: $table.videoSlug, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LearnedTranslationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LearnedTranslationsTable,
+          LearnedTranslation,
+          $$LearnedTranslationsTableFilterComposer,
+          $$LearnedTranslationsTableOrderingComposer,
+          $$LearnedTranslationsTableAnnotationComposer,
+          $$LearnedTranslationsTableCreateCompanionBuilder,
+          $$LearnedTranslationsTableUpdateCompanionBuilder,
+          (
+            LearnedTranslation,
+            BaseReferences<
+              _$AppDatabase,
+              $LearnedTranslationsTable,
+              LearnedTranslation
+            >,
+          ),
+          LearnedTranslation,
+          PrefetchHooks Function()
+        > {
+  $$LearnedTranslationsTableTableManager(
+    _$AppDatabase db,
+    $LearnedTranslationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LearnedTranslationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LearnedTranslationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LearnedTranslationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> kind = const Value.absent(),
+                Value<String> canonicalName = const Value.absent(),
+                Value<String> sourceText = const Value.absent(),
+                Value<String> translation = const Value.absent(),
+                Value<String?> providerId = const Value.absent(),
+                Value<String?> providerName = const Value.absent(),
+                Value<String?> videoSlug = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LearnedTranslationsCompanion(
+                kind: kind,
+                canonicalName: canonicalName,
+                sourceText: sourceText,
+                translation: translation,
+                providerId: providerId,
+                providerName: providerName,
+                videoSlug: videoSlug,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String kind,
+                required String canonicalName,
+                required String sourceText,
+                required String translation,
+                Value<String?> providerId = const Value.absent(),
+                Value<String?> providerName = const Value.absent(),
+                Value<String?> videoSlug = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LearnedTranslationsCompanion.insert(
+                kind: kind,
+                canonicalName: canonicalName,
+                sourceText: sourceText,
+                translation: translation,
+                providerId: providerId,
+                providerName: providerName,
+                videoSlug: videoSlug,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LearnedTranslationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LearnedTranslationsTable,
+      LearnedTranslation,
+      $$LearnedTranslationsTableFilterComposer,
+      $$LearnedTranslationsTableOrderingComposer,
+      $$LearnedTranslationsTableAnnotationComposer,
+      $$LearnedTranslationsTableCreateCompanionBuilder,
+      $$LearnedTranslationsTableUpdateCompanionBuilder,
+      (
+        LearnedTranslation,
+        BaseReferences<
+          _$AppDatabase,
+          $LearnedTranslationsTable,
+          LearnedTranslation
+        >,
+      ),
+      LearnedTranslation,
+      PrefetchHooks Function()
+    >;
+typedef $$BuiltInTranslationStatesTableCreateCompanionBuilder =
+    BuiltInTranslationStatesCompanion Function({
+      required String kind,
+      required String canonicalName,
+      required int introducedPackVersion,
+      Value<bool> protectExistingLearned,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$BuiltInTranslationStatesTableUpdateCompanionBuilder =
+    BuiltInTranslationStatesCompanion Function({
+      Value<String> kind,
+      Value<String> canonicalName,
+      Value<int> introducedPackVersion,
+      Value<bool> protectExistingLearned,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$BuiltInTranslationStatesTableFilterComposer
+    extends Composer<_$AppDatabase, $BuiltInTranslationStatesTable> {
+  $$BuiltInTranslationStatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get introducedPackVersion => $composableBuilder(
+    column: $table.introducedPackVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get protectExistingLearned => $composableBuilder(
+    column: $table.protectExistingLearned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BuiltInTranslationStatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BuiltInTranslationStatesTable> {
+  $$BuiltInTranslationStatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get introducedPackVersion => $composableBuilder(
+    column: $table.introducedPackVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get protectExistingLearned => $composableBuilder(
+    column: $table.protectExistingLearned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BuiltInTranslationStatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BuiltInTranslationStatesTable> {
+  $$BuiltInTranslationStatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get canonicalName => $composableBuilder(
+    column: $table.canonicalName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get introducedPackVersion => $composableBuilder(
+    column: $table.introducedPackVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get protectExistingLearned => $composableBuilder(
+    column: $table.protectExistingLearned,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$BuiltInTranslationStatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BuiltInTranslationStatesTable,
+          BuiltInTranslationState,
+          $$BuiltInTranslationStatesTableFilterComposer,
+          $$BuiltInTranslationStatesTableOrderingComposer,
+          $$BuiltInTranslationStatesTableAnnotationComposer,
+          $$BuiltInTranslationStatesTableCreateCompanionBuilder,
+          $$BuiltInTranslationStatesTableUpdateCompanionBuilder,
+          (
+            BuiltInTranslationState,
+            BaseReferences<
+              _$AppDatabase,
+              $BuiltInTranslationStatesTable,
+              BuiltInTranslationState
+            >,
+          ),
+          BuiltInTranslationState,
+          PrefetchHooks Function()
+        > {
+  $$BuiltInTranslationStatesTableTableManager(
+    _$AppDatabase db,
+    $BuiltInTranslationStatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BuiltInTranslationStatesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$BuiltInTranslationStatesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$BuiltInTranslationStatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> kind = const Value.absent(),
+                Value<String> canonicalName = const Value.absent(),
+                Value<int> introducedPackVersion = const Value.absent(),
+                Value<bool> protectExistingLearned = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BuiltInTranslationStatesCompanion(
+                kind: kind,
+                canonicalName: canonicalName,
+                introducedPackVersion: introducedPackVersion,
+                protectExistingLearned: protectExistingLearned,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String kind,
+                required String canonicalName,
+                required int introducedPackVersion,
+                Value<bool> protectExistingLearned = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BuiltInTranslationStatesCompanion.insert(
+                kind: kind,
+                canonicalName: canonicalName,
+                introducedPackVersion: introducedPackVersion,
+                protectExistingLearned: protectExistingLearned,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BuiltInTranslationStatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BuiltInTranslationStatesTable,
+      BuiltInTranslationState,
+      $$BuiltInTranslationStatesTableFilterComposer,
+      $$BuiltInTranslationStatesTableOrderingComposer,
+      $$BuiltInTranslationStatesTableAnnotationComposer,
+      $$BuiltInTranslationStatesTableCreateCompanionBuilder,
+      $$BuiltInTranslationStatesTableUpdateCompanionBuilder,
+      (
+        BuiltInTranslationState,
+        BaseReferences<
+          _$AppDatabase,
+          $BuiltInTranslationStatesTable,
+          BuiltInTranslationState
+        >,
+      ),
+      BuiltInTranslationState,
+      PrefetchHooks Function()
+    >;
+typedef $$TranslationCatalogPacksTableCreateCompanionBuilder =
+    TranslationCatalogPacksCompanion Function({
+      required String packKey,
+      required int packVersion,
+      Value<DateTime> appliedAt,
+      Value<int> rowid,
+    });
+typedef $$TranslationCatalogPacksTableUpdateCompanionBuilder =
+    TranslationCatalogPacksCompanion Function({
+      Value<String> packKey,
+      Value<int> packVersion,
+      Value<DateTime> appliedAt,
+      Value<int> rowid,
+    });
+
+class $$TranslationCatalogPacksTableFilterComposer
+    extends Composer<_$AppDatabase, $TranslationCatalogPacksTable> {
+  $$TranslationCatalogPacksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get packKey => $composableBuilder(
+    column: $table.packKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get packVersion => $composableBuilder(
+    column: $table.packVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get appliedAt => $composableBuilder(
+    column: $table.appliedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TranslationCatalogPacksTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranslationCatalogPacksTable> {
+  $$TranslationCatalogPacksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get packKey => $composableBuilder(
+    column: $table.packKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get packVersion => $composableBuilder(
+    column: $table.packVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get appliedAt => $composableBuilder(
+    column: $table.appliedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TranslationCatalogPacksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranslationCatalogPacksTable> {
+  $$TranslationCatalogPacksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get packKey =>
+      $composableBuilder(column: $table.packKey, builder: (column) => column);
+
+  GeneratedColumn<int> get packVersion => $composableBuilder(
+    column: $table.packVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get appliedAt =>
+      $composableBuilder(column: $table.appliedAt, builder: (column) => column);
+}
+
+class $$TranslationCatalogPacksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranslationCatalogPacksTable,
+          TranslationCatalogPack,
+          $$TranslationCatalogPacksTableFilterComposer,
+          $$TranslationCatalogPacksTableOrderingComposer,
+          $$TranslationCatalogPacksTableAnnotationComposer,
+          $$TranslationCatalogPacksTableCreateCompanionBuilder,
+          $$TranslationCatalogPacksTableUpdateCompanionBuilder,
+          (
+            TranslationCatalogPack,
+            BaseReferences<
+              _$AppDatabase,
+              $TranslationCatalogPacksTable,
+              TranslationCatalogPack
+            >,
+          ),
+          TranslationCatalogPack,
+          PrefetchHooks Function()
+        > {
+  $$TranslationCatalogPacksTableTableManager(
+    _$AppDatabase db,
+    $TranslationCatalogPacksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranslationCatalogPacksTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$TranslationCatalogPacksTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TranslationCatalogPacksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> packKey = const Value.absent(),
+                Value<int> packVersion = const Value.absent(),
+                Value<DateTime> appliedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationCatalogPacksCompanion(
+                packKey: packKey,
+                packVersion: packVersion,
+                appliedAt: appliedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String packKey,
+                required int packVersion,
+                Value<DateTime> appliedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationCatalogPacksCompanion.insert(
+                packKey: packKey,
+                packVersion: packVersion,
+                appliedAt: appliedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TranslationCatalogPacksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranslationCatalogPacksTable,
+      TranslationCatalogPack,
+      $$TranslationCatalogPacksTableFilterComposer,
+      $$TranslationCatalogPacksTableOrderingComposer,
+      $$TranslationCatalogPacksTableAnnotationComposer,
+      $$TranslationCatalogPacksTableCreateCompanionBuilder,
+      $$TranslationCatalogPacksTableUpdateCompanionBuilder,
+      (
+        TranslationCatalogPack,
+        BaseReferences<
+          _$AppDatabase,
+          $TranslationCatalogPacksTable,
+          TranslationCatalogPack
+        >,
+      ),
+      TranslationCatalogPack,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6259,4 +8937,18 @@ class $AppDatabaseManager {
       $$CuratedLibrarySeedsTableTableManager(_db, _db.curatedLibrarySeeds);
   $$LocalLibraryVideosTableTableManager get localLibraryVideos =>
       $$LocalLibraryVideosTableTableManager(_db, _db.localLibraryVideos);
+  $$TranslationOverridesTableTableManager get translationOverrides =>
+      $$TranslationOverridesTableTableManager(_db, _db.translationOverrides);
+  $$LearnedTranslationsTableTableManager get learnedTranslations =>
+      $$LearnedTranslationsTableTableManager(_db, _db.learnedTranslations);
+  $$BuiltInTranslationStatesTableTableManager get builtInTranslationStates =>
+      $$BuiltInTranslationStatesTableTableManager(
+        _db,
+        _db.builtInTranslationStates,
+      );
+  $$TranslationCatalogPacksTableTableManager get translationCatalogPacks =>
+      $$TranslationCatalogPacksTableTableManager(
+        _db,
+        _db.translationCatalogPacks,
+      );
 }

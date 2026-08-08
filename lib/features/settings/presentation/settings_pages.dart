@@ -3,14 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../app/providers.dart';
+import '../../../app/router/route_names.dart';
 import '../../../core/api/rule34video_api.dart';
+import '../../../core/logging/app_log_service.dart';
 import '../../../core/models/video_models.dart';
 import '../../playback/data/playback_repository.dart';
 import '../../search/data/search_history_repository.dart';
 import '../data/app_settings_repository.dart';
+import '../data/app_diagnostics_service.dart';
 import '../domain/app_settings.dart';
+import '../../../core/models/translation_models.dart';
+import 'translation_provider_section.dart';
 
 class AppearanceSettingsPage extends ConsumerWidget {
   const AppearanceSettingsPage({super.key});
@@ -242,6 +249,118 @@ class ContentSettingsPage extends ConsumerWidget {
   }
 }
 
+class TranslationSettingsPage extends ConsumerWidget {
+  const TranslationSettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final repository = ref.watch(appSettingsRepositoryProvider);
+    final translationService = ref.watch(translationServiceProvider);
+    return _SettingsScaffold(
+      title: '翻译设置',
+      repository: repository,
+      builder: (context, settings) {
+        TranslationDisplayMode modeFor(TranslationDisplayTarget target) =>
+            switch (target) {
+              TranslationDisplayTarget.title =>
+                settings.titleTranslationDisplayMode,
+              TranslationDisplayTarget.category =>
+                settings.categoryTranslationDisplayMode,
+              TranslationDisplayTarget.tag =>
+                settings.tagTranslationDisplayMode,
+            };
+        return [
+          Text('语言显示模式', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          const Text('标题、分类和标签可以分别选择显示原文、中文或双语。'),
+          const SizedBox(height: 4),
+          Text(
+            '提示：长按标题、分类或标签，可以手动添加或修改中文翻译。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 10),
+          for (final target in TranslationDisplayTarget.values) ...[
+            Row(
+              children: [
+                SizedBox(width: 56, child: Text(target.label)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SegmentedButton<TranslationDisplayMode>(
+                    segments: TranslationDisplayMode.values
+                        .map(
+                          (mode) => ButtonSegment<TranslationDisplayMode>(
+                            value: mode,
+                            label: Text(mode.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                    selected: {modeFor(target)},
+                    onSelectionChanged: (selection) => unawaited(
+                      _save(
+                        context,
+                        repository.setTranslationDisplayModeFor(
+                          target,
+                          selection.single,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (target != TranslationDisplayTarget.values.last)
+              const SizedBox(height: 8),
+          ],
+          const Divider(height: 32),
+          Text('自动翻译', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          const Text('勾选需要自动翻译的内容类型；仅在缺少本地译文且已配置可用翻译服务时请求。默认全部关闭。'),
+          const SizedBox(height: 4),
+          for (final target in AutomaticTranslationTarget.values)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(target.label),
+              value: settings.automaticTranslationTargets.contains(target),
+              onChanged: (selected) {
+                final next = {...settings.automaticTranslationTargets};
+                if (selected == true) {
+                  next.add(target);
+                } else {
+                  next.remove(target);
+                }
+                unawaited(
+                  _save(
+                    context,
+                    repository.setAutomaticTranslationTargets(next),
+                  ),
+                );
+              },
+            ),
+          ListenableBuilder(
+            listenable: translationService,
+            builder: (context, _) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.auto_stories_outlined),
+              title: const Text('中文翻译库'),
+              subtitle: Text(
+                '共 ${translationService.catalogEntryCount} 条 · '
+                '内置 ${translationService.builtinTotalEntryCount} · '
+                'API ${translationService.learnedEntryCount} · '
+                '用户 ${translationService.overrideEntryCount}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.pushNamed(AppRouteNames.translationCatalog),
+            ),
+          ),
+          const TranslationProviderSection(),
+        ];
+      },
+    );
+  }
+}
+
 class DownloadSettingsPage extends ConsumerWidget {
   const DownloadSettingsPage({super.key});
 
@@ -312,6 +431,18 @@ class PrivacySettingsPage extends ConsumerStatefulWidget {
 
 class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
   var _clearing = false;
+  var _logBusy = false;
+  Future<LogStorageInfo>? _logInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _reloadLogInfo();
+  }
+
+  void _reloadLogInfo() {
+    _logInfo = ref.read(appLogServiceProvider).storageInfo();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -356,6 +487,44 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                   onTap: _clearing ? null : _clearImageCache,
                 ),
               ),
+              const SizedBox(height: 12),
+              Text('应用日志', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Card(
+                child: Column(
+                  children: [
+                    FutureBuilder<LogStorageInfo>(
+                      future: _logInfo,
+                      builder: (context, snapshot) {
+                        final info = snapshot.data;
+                        final status = info == null
+                            ? '正在读取日志信息…'
+                            : '${info.fileCount} 个文件 · ${info.formattedSize}';
+                        return ListTile(
+                          leading: const Icon(Icons.article_outlined),
+                          title: const Text('本地诊断日志'),
+                          subtitle: Text('仅保存在本机，自动脱敏，保留最近 7 天。\n$status'),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.ios_share_outlined),
+                      title: const Text('导出日志'),
+                      subtitle: const Text('生成包含诊断信息和最近日志的文本文件。'),
+                      enabled: !_logBusy,
+                      onTap: _logBusy ? null : _exportLogs,
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.delete_sweep_outlined),
+                      title: const Text('清除日志'),
+                      subtitle: const Text('删除这台设备上的全部应用日志。'),
+                      enabled: !_logBusy,
+                      onTap: _logBusy ? null : _clearLogs,
+                    ),
+                  ],
+                ),
+              ),
               if (widget.api.sessionStore.isLoggedIn) ...[
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
@@ -371,6 +540,106 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _exportLogs() async {
+    setState(() => _logBusy = true);
+    try {
+      final diagnostics = await AppDiagnosticsService(
+        ref.read(appDatabaseProvider),
+        ref.read(sessionStoreProvider),
+        ref.read(appSettingsRepositoryProvider).settings,
+      ).collect();
+      final logs = await ref.read(appLogServiceProvider).readAll();
+      final now = DateTime.now();
+      final content = StringBuffer()
+        ..writeln('Flule34 本地诊断日志')
+        ..writeln('导出时间：${now.toIso8601String()}')
+        ..writeln('隐私说明：日志已自动脱敏，发送前仍建议自行检查。')
+        ..writeln()
+        ..writeln('===== 诊断信息 =====')
+        ..writeln(diagnostics.toPlainText())
+        ..writeln()
+        ..writeln('===== 最近 7 天日志 =====')
+        ..write(logs.isEmpty ? '没有可导出的日志。\n' : logs);
+      final fileName =
+          'Flule34-logs-${now.year.toString().padLeft(4, '0')}'
+          '${now.month.toString().padLeft(2, '0')}'
+          '${now.day.toString().padLeft(2, '0')}.txt';
+      final export = await ref
+          .read(appLogServiceProvider)
+          .createExportFile(content.toString(), fileName: fileName);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(export.path, mimeType: 'text/plain')],
+          subject: 'Flule34 本地诊断日志',
+        ),
+      );
+    } catch (error, stackTrace) {
+      unawaited(
+        ref
+            .read(appLogServiceProvider)
+            .error(error, stackTrace, component: 'log_export'),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('导出日志失败，请稍后重试。')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _logBusy = false);
+      }
+    }
+  }
+
+  Future<void> _clearLogs() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除应用日志？'),
+        content: const Text('将删除这台设备上的全部诊断日志，此操作无法撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _logBusy = true);
+    try {
+      await ref.read(appLogServiceProvider).clear();
+      if (!mounted) {
+        return;
+      }
+      setState(_reloadLogInfo);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('应用日志已清除。')));
+    } catch (error, stackTrace) {
+      unawaited(
+        ref
+            .read(appLogServiceProvider)
+            .error(error, stackTrace, component: 'log_clear'),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('清除日志失败，请稍后重试。')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _logBusy = false);
+      }
+    }
   }
 
   Future<void> _clearImageCache() async {

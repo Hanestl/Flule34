@@ -24,6 +24,8 @@ class PlaylistPage extends ConsumerStatefulWidget {
 }
 
 class _PlaylistPageState extends ConsumerState<PlaylistPage> {
+  static const _maxAutomaticFilterPages = 5;
+
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final List<VideoItem> _videos = [];
@@ -35,6 +37,8 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   var _query = '';
   var _filters = const VideoListFilters();
   var _loadingAllForFilter = false;
+  var _automaticFilterPages = 0;
+  Completer<void>? _loadCompleter;
 
   @override
   void initState() {
@@ -59,9 +63,20 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   }
 
   Future<void> _load({required bool reset}) async {
-    if (_loading || (!reset && !_hasMore)) {
+    if (_loading) {
+      if (reset) {
+        await _loadCompleter?.future;
+        if (mounted) {
+          return _load(reset: true);
+        }
+      }
       return;
     }
+    if (!reset && !_hasMore) {
+      return;
+    }
+    final completer = Completer<void>();
+    _loadCompleter = completer;
     setState(() {
       _loading = true;
       _error = null;
@@ -95,19 +110,38 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
           unawaited(_loadAllForFilter());
         }
       }
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+      if (identical(_loadCompleter, completer)) {
+        _loadCompleter = null;
+      }
     }
   }
 
   bool get _hasActiveFiltering => _query.isNotEmpty || _filters.activeCount > 0;
 
   Future<void> _loadAllForFilter() async {
-    if (!_hasActiveFiltering || _loading || _loadingAllForFilter || !_hasMore) {
+    if (!_hasActiveFiltering ||
+        _loading ||
+        _loadingAllForFilter ||
+        !_hasMore ||
+        _automaticFilterPages >= _maxAutomaticFilterPages) {
       return;
     }
     setState(() => _loadingAllForFilter = true);
     try {
-      while (_hasMore && mounted && _hasActiveFiltering) {
+      while (_hasMore &&
+          mounted &&
+          _hasActiveFiltering &&
+          _automaticFilterPages < _maxAutomaticFilterPages) {
+        final previousPage = _page;
         await _load(reset: false);
+        if (_page > previousPage) {
+          _automaticFilterPages += 1;
+        } else {
+          break;
+        }
       }
     } finally {
       if (mounted) {
@@ -117,7 +151,13 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   }
 
   void _applyQuery(String value) {
-    setState(() => _query = value.trim());
+    final wasActive = _hasActiveFiltering;
+    setState(() {
+      _query = value.trim();
+      if (!_hasActiveFiltering || !wasActive) {
+        _automaticFilterPages = 0;
+      }
+    });
     unawaited(_loadAllForFilter());
   }
 
@@ -129,7 +169,13 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
       defaultSortLabel: '列表顺序',
     );
     if (selected != null && mounted) {
-      setState(() => _filters = selected);
+      final wasActive = _hasActiveFiltering;
+      setState(() {
+        _filters = selected;
+        if (!_hasActiveFiltering || !wasActive) {
+          _automaticFilterPages = 0;
+        }
+      });
       unawaited(_loadAllForFilter());
     }
   }
@@ -264,6 +310,11 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
                         child: Text(
                           _loadingAllForFilter
                               ? '正在读取全部视频…'
+                              : (_hasActiveFiltering &&
+                                    _hasMore &&
+                                    _automaticFilterPages >=
+                                        _maxAutomaticFilterPages)
+                              ? '筛选仅覆盖已加载内容，继续下滑可加载更多'
                               : (_hasMore ? '继续向下滚动' : '已经到底了'),
                         ),
                       ),

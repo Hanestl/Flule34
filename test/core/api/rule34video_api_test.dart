@@ -89,6 +89,41 @@ void main() {
     expect(harness.sessionStore.currentUserId, '2421071');
   });
 
+  test('失效凭据不会递归登录，并发会话恢复只发送一次登录请求', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    await harness.sessionStore.saveCredentials(
+      email: 'user@example.com',
+      password: 'expired-password',
+    );
+    var loginRequests = 0;
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        if (options.method == 'POST' && options.uri.path == '/login/') {
+          loginRequests += 1;
+        }
+        return ResponseBody.fromString(
+          '',
+          302,
+          headers: {
+            HttpHeaders.locationHeader: ['/?login'],
+          },
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    await Future.wait([
+      api.loadFavorites(1).catchError((_) => const <VideoItem>[]),
+      api.loadHistory(1).catchError((_) => const <VideoItem>[]),
+    ]).timeout(const Duration(seconds: 2));
+
+    expect(loginRequests, 1);
+  });
+
   test('启动校验遇到无法识别的页面时保留本地身份并清理失效 Cookie', () async {
     final harness = TestSessionHarness.create();
     addTearDown(harness.dispose);
@@ -379,6 +414,45 @@ void main() {
 
     await api.loadFavorites(1, force: true);
     expect(requests, 2);
+  });
+
+  test('收藏列表进入详情时保留列表已确认的收藏状态', () async {
+    final harness = TestSessionHarness.create();
+    addTearDown(harness.dispose);
+    await harness.sessionStore.load();
+    await harness.sessionStore.authenticate('2421071');
+    final api = Rule34VideoApi(
+      sessionStore: harness.sessionStore,
+      httpClientAdapter: _TestAdapter((options) {
+        if (options.uri.path == '/my/favourites/videos/') {
+          return _htmlResponse(
+            _videoListItem(
+              id: '1',
+              slug: 'favorite-video',
+              title: '收藏视频',
+              published: 'today',
+            ),
+          );
+        }
+        return _htmlResponse('''
+          <link rel="canonical" href="/video/1/favorite-video/">
+          <script>
+            flashvars = {
+              video_url: 'https://cdn.example.com/favorite.mp4',
+              video_url_text: '720p'
+            };
+          </script>
+        ''');
+      }),
+    );
+    addTearDown(api.close);
+
+    final favorite = (await api.loadFavorites(1)).single;
+    final details = await api.loadVideoDetails(favorite);
+
+    expect(favorite.isFavorite, isTrue);
+    expect(details.isFavorite, isTrue);
+    expect(details.video.isFavorite, isTrue);
   });
 
   test('普通 403 保留登录状态并按 HTTP 错误上报', () async {

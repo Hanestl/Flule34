@@ -8,6 +8,7 @@ import '../app/providers.dart';
 import '../app/router/route_names.dart';
 import '../core/models/video_models.dart';
 import '../core/services/predictive_prefetch_service.dart';
+import '../features/settings/data/app_settings_repository.dart';
 import '../features/settings/domain/app_settings.dart';
 import 'video_card.dart';
 import 'video_collection_layout.dart';
@@ -56,10 +57,14 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
   String? _error;
   String _query = '';
   VideoListFilters _filters = const VideoListFilters();
+  Completer<void>? _loadCompleter;
+  late final AppSettingsRepository _settingsRepository;
 
   @override
   void initState() {
     super.initState();
+    _settingsRepository = ref.read(appSettingsRepositoryProvider)
+      ..addListener(_onSettingsChanged);
     _videos.addAll(widget.initialItems);
     _scrollController.addListener(_onScroll);
     if (widget.active) {
@@ -81,7 +86,12 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       ..removeListener(_onScroll)
       ..dispose();
     _searchController.dispose();
+    _settingsRepository.removeListener(_onSettingsChanged);
     super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onScroll() {
@@ -91,9 +101,20 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
   }
 
   Future<void> _load({required bool reset, bool forceRefresh = false}) async {
-    if (_loading || (!reset && !_hasMore)) {
+    if (_loading) {
+      if (reset) {
+        await _loadCompleter?.future;
+        if (mounted) {
+          return _load(reset: true, forceRefresh: forceRefresh);
+        }
+      }
       return;
     }
+    if (!reset && !_hasMore) {
+      return;
+    }
+    final completer = Completer<void>();
+    _loadCompleter = completer;
     setState(() {
       _loading = true;
       _error = null;
@@ -141,6 +162,12 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       if (mounted) {
         setState(() => _loading = false);
       }
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+      if (identical(_loadCompleter, completer)) {
+        _loadCompleter = null;
+      }
     }
   }
 
@@ -151,10 +178,7 @@ class _VideoFeedState extends ConsumerState<VideoFeed>
       return const SizedBox.shrink();
     }
     final visibleVideos = _visibleVideos();
-    final layout = ref
-        .watch(appSettingsRepositoryProvider)
-        .settings
-        .videoLayout;
+    final layout = _settingsRepository.settings.videoLayout;
     final body = _buildBody(context, visibleVideos, layout);
     if (!widget.showSearchAndFilters) {
       return body;

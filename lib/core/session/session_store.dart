@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 
 import '../database/app_database.dart';
+import '../logging/app_log_service.dart';
 import 'secret_store.dart';
 
 @immutable
@@ -44,11 +47,22 @@ class SessionStore extends ChangeNotifier {
   bool get isLoaded => _loaded;
 
   Future<void> load() async {
-    await cookieJar.forceInit();
-    final storedUserId = await secretStore.read(_userIdKey);
-    if (storedUserId != null && _validUserId.hasMatch(storedUserId)) {
-      _currentUser = SessionUser(id: storedUserId);
-      await database.recordAuthenticatedAccount(storedUserId);
+    try {
+      await cookieJar.forceInit();
+      final storedUserId = await secretStore.read(_userIdKey);
+      if (storedUserId != null && _validUserId.hasMatch(storedUserId)) {
+        _currentUser = SessionUser(id: storedUserId);
+        await database.recordAuthenticatedAccount(storedUserId);
+      }
+    } on Object catch (error, stackTrace) {
+      _currentUser = null;
+      unawaited(
+        AppLogService.instance.error(
+          error,
+          stackTrace,
+          component: 'session_load',
+        ),
+      );
     }
     _loaded = true;
     notifyListeners();
@@ -60,8 +74,18 @@ class SessionStore extends ChangeNotifier {
       throw ArgumentError.value(userId, 'userId', '用户 ID 格式无效');
     }
 
-    await database.recordAuthenticatedAccount(normalized);
-    await secretStore.write(_userIdKey, normalized);
+    final previousUserId = await secretStore.read(_userIdKey);
+    try {
+      await secretStore.write(_userIdKey, normalized);
+      await database.recordAuthenticatedAccount(normalized);
+    } on Object {
+      if (previousUserId == null) {
+        await secretStore.delete(_userIdKey);
+      } else {
+        await secretStore.write(_userIdKey, previousUserId);
+      }
+      rethrow;
+    }
     if (_currentUser?.id == normalized) {
       return;
     }

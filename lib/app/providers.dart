@@ -15,6 +15,10 @@ import '../core/services/screen_wake_lock_service.dart';
 import '../core/services/share_service.dart';
 import '../core/services/subscription_activity_index.dart';
 import '../core/services/video_preview_service.dart';
+import '../core/services/translation_service.dart';
+import '../core/services/translation_provider_repository.dart';
+import '../core/services/translation_provider_router.dart';
+import '../core/logging/app_log_service.dart';
 import '../shared/scroll_to_top_overlay.dart';
 import '../features/downloads/data/background_download_platform_service.dart';
 import '../features/downloads/data/download_repository.dart';
@@ -28,6 +32,10 @@ import '../features/settings/data/app_settings_store.dart';
 
 final appSettingsStoreProvider = Provider<AppSettingsStore>((ref) {
   return SharedPreferencesAppSettingsStore();
+});
+
+final appLogServiceProvider = Provider<AppLogService>((ref) {
+  return AppLogService.instance;
 });
 
 final appSettingsRepositoryProvider = Provider<AppSettingsRepository>((ref) {
@@ -62,6 +70,24 @@ final secretStoreProvider = Provider<SecretStore>((ref) {
   return FlutterSecretStore();
 });
 
+final translationProviderRepositoryProvider =
+    Provider<TranslationProviderRepository>((ref) {
+      final repository = TranslationProviderRepository(
+        store: ref.watch(appSettingsStoreProvider),
+        secrets: ref.watch(secretStoreProvider),
+      );
+      ref.onDispose(repository.dispose);
+      return repository;
+    });
+
+final translationProviderRouterProvider = Provider<TranslationProviderRouter>((
+  ref,
+) {
+  return TranslationProviderRouter(
+    repository: ref.watch(translationProviderRepositoryProvider),
+  );
+});
+
 final cookieJarProvider = Provider<PersistCookieJar>((ref) {
   return PersistCookieJar(
     persistSession: true,
@@ -73,6 +99,16 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase.defaults();
   ref.onDispose(() => unawaited(database.close()));
   return database;
+});
+
+final translationServiceProvider = Provider<TranslationService>((ref) {
+  final service = TranslationService(
+    settingsRepository: ref.watch(appSettingsRepositoryProvider),
+    database: ref.watch(appDatabaseProvider),
+    providerRouter: ref.watch(translationProviderRouterProvider),
+  );
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 final sessionStoreProvider = Provider<SessionStore>((ref) {
@@ -188,14 +224,24 @@ final searchHistoryRepositoryProvider = Provider<SearchHistoryRepository>((
 });
 
 final appInitializationProvider = FutureProvider<void>((ref) async {
-  await ref.read(appSettingsRepositoryProvider).load();
-  await ref.read(curatedLibrarySeederProvider).seedIfNeeded();
-  final sessionStore = ref.read(sessionStoreProvider);
-  await sessionStore.load();
-  await ref.read(rule34VideoApiProvider).restoreSession();
-  await ref.read(rule34VideoApiProvider).subscriptionActivity.loadStored();
-  ref.read(predictivePrefetchServiceProvider).scheduleStartup();
-  await ref.read(downloadRepositoryProvider).initialize();
+  final log = ref.read(appLogServiceProvider);
+  await log.initialize();
+  try {
+    await ref.read(appSettingsRepositoryProvider).load();
+    await ref.read(translationProviderRepositoryProvider).load();
+    await ref.read(translationServiceProvider).initialize();
+    await ref.read(curatedLibrarySeederProvider).seedIfNeeded();
+    final sessionStore = ref.read(sessionStoreProvider);
+    await sessionStore.load();
+    await ref.read(rule34VideoApiProvider).restoreSession();
+    await ref.read(rule34VideoApiProvider).subscriptionActivity.loadStored();
+    ref.read(predictivePrefetchServiceProvider).scheduleStartup();
+    await ref.read(downloadRepositoryProvider).initialize();
+    await log.info('应用初始化完成。', component: 'bootstrap');
+  } on Object catch (error, stackTrace) {
+    await log.error(error, stackTrace, component: 'bootstrap');
+    Error.throwWithStackTrace(error, stackTrace);
+  }
 });
 
 final class _SettingsBackedSubscriptionActivityStore

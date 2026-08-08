@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flule34/core/maintenance/legacy_debug_data_cleanup.dart';
 
 void main() {
-  test('启动清理旧日志目录和调试日志设置', () async {
+  test('启动只清理旧调试设置，不删除当前日志目录', () async {
     final root = await Directory.systemTemp.createTemp('flule34-log-cleanup-');
     addTearDown(() async {
       if (await root.exists()) {
@@ -24,7 +24,11 @@ void main() {
       clearPreferences: () async => preferencesCleared = true,
     );
 
-    expect(await logs.exists(), isFalse);
+    expect(await logs.exists(), isTrue);
+    expect(
+      await File('${logs.path}${Platform.pathSeparator}legacy.log').exists(),
+      isTrue,
+    );
     expect(preferencesCleared, isTrue);
   });
 }

@@ -118,6 +118,49 @@ void main() {
     expect(playerProgressStrokeWidth(true), 5);
   });
 
+  test('缓冲提示只在已初始化且保持播放意图时显示', () {
+    expect(
+      playerShouldShowBufferingIndicator(
+        initialized: true,
+        isPlaying: true,
+        isBuffering: true,
+      ),
+      isTrue,
+    );
+    expect(
+      playerShouldShowBufferingIndicator(
+        initialized: true,
+        isPlaying: false,
+        isBuffering: true,
+      ),
+      isFalse,
+    );
+    expect(
+      playerShouldShowBufferingIndicator(
+        initialized: false,
+        isPlaying: true,
+        isBuffering: true,
+      ),
+      isFalse,
+    );
+  });
+
+  test('临时倍速指示器的三个箭头按顺序错峰明灭', () {
+    final first = playerSpeedIndicatorOpacity(0.20, 0);
+    final second = playerSpeedIndicatorOpacity(0.20, 1);
+    final third = playerSpeedIndicatorOpacity(0.20, 2);
+    expect(first, greaterThan(second));
+    expect(second, greaterThan(third));
+    for (final progress in [0.0, 0.25, 0.5, 0.75, 1.0]) {
+      for (var index = 0; index < 3; index++) {
+        expect(
+          playerSpeedIndicatorOpacity(progress, index),
+          inInclusiveRange(0.18, 0.60),
+        );
+      }
+    }
+  });
+
   test('视频源刷新守卫区分活跃刷新和无人收尾的失败源', () {
     expect(
       sourceRefreshGate(refreshing: true, force: false, previouslyFailed: true),

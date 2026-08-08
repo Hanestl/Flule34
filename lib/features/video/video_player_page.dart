@@ -13,8 +13,10 @@ import '../../core/models/video_models.dart';
 import '../../core/security/error_redaction.dart';
 import '../../core/services/network_status_service.dart';
 import '../../shared/scroll_to_top_overlay.dart';
+import '../../shared/localized_translation_text.dart';
 import '../../core/services/media_volume_service.dart';
 import '../../core/services/screen_wake_lock_service.dart';
+import '../../core/services/translation_service.dart';
 import '../playback/data/playback_repository.dart';
 import '../settings/domain/app_settings.dart';
 import '../settings/domain/quality_selection.dart';
@@ -200,6 +202,27 @@ double playerGestureTargetVolume({
 
 double playerProgressStrokeWidth(bool active) => active ? 5 : 3;
 
+bool playerShouldShowBufferingIndicator({
+  required bool initialized,
+  required bool isPlaying,
+  required bool isBuffering,
+}) => initialized && isPlaying && isBuffering;
+
+double playerSpeedIndicatorOpacity(double progress, int index) {
+  var phase = progress - index * 0.17;
+  while (phase < 0) {
+    phase += 1;
+  }
+  phase %= 1;
+  if (phase < 0.22) {
+    return 0.18 + (phase / 0.22) * 0.42;
+  }
+  if (phase < 0.44) {
+    return 0.60 - ((phase - 0.22) / 0.22) * 0.42;
+  }
+  return 0.18;
+}
+
 class VideoPlayerHandle {
   bool get isFullScreen => _isFullScreen?.call() ?? false;
 
@@ -292,6 +315,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   late List<VideoSource> _sources;
   late VideoSource _selectedSource;
   final Set<String> _failedUrls = {};
+  static const _maxAutomaticSourceRefreshes = 3;
+  var _automaticSourceRefreshes = 0;
   var _initializing = true;
   var _refreshingSource = false;
   var _seeking = false;
@@ -360,6 +385,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         ref.read(appSettingsRepositoryProvider).settings.playbackQuality,
       );
       _failedUrls.clear();
+      _automaticSourceRefreshes = 0;
       _initializing = true;
       _refreshingSource = false;
       _switchingVideo = true;
@@ -522,7 +548,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           customControlsBuilder: (controller, onVisibilityChanged, _) {
             return _FluleVideoControls(
               controller: controller,
-              title: widget.video.title,
+              title: ref
+                  .read(translationServiceProvider)
+                  .renderTitle(widget.video.id, widget.video.title),
               sources: _sources,
               selectedSource: _selectedSource,
               onSourceChanged: _changeSource,
@@ -560,31 +588,31 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       });
     }
 
-    final headers = <String, String>{..._mediaHeaders};
-    final cookie = await widget.api.sessionCookieHeader();
-    if (cookie != null) {
-      headers['Cookie'] = cookie;
-    }
-    final settings = ref.read(appSettingsRepositoryProvider).settings;
-    final controller = _controller ??= _createController();
-    if (!_controllerReady.isCompleted) {
-      _controllerReady.complete(controller);
-    }
-    final dataSource = BetterPlayerDataSource.network(
-      source.url,
-      headers: headers,
-      cacheConfiguration: BetterPlayerCacheConfiguration(
-        useCache: true,
-        maxCacheSize: 1024 * 1024 * 1024,
-        maxCacheFileSize: 512 * 1024 * 1024,
-        key: videoCacheKey(widget.video.id, source),
-      ),
-      bufferingConfiguration: videoBufferingConfiguration,
-      notificationConfiguration: playbackNotificationConfiguration(
-        showNotification: settings.backgroundPlayback,
-      ),
-    );
     try {
+      final headers = <String, String>{..._mediaHeaders};
+      final cookie = await widget.api.sessionCookieHeader();
+      if (cookie != null) {
+        headers['Cookie'] = cookie;
+      }
+      final settings = ref.read(appSettingsRepositoryProvider).settings;
+      final controller = _controller ??= _createController();
+      if (!_controllerReady.isCompleted) {
+        _controllerReady.complete(controller);
+      }
+      final dataSource = BetterPlayerDataSource.network(
+        source.url,
+        headers: headers,
+        cacheConfiguration: BetterPlayerCacheConfiguration(
+          useCache: true,
+          maxCacheSize: 1024 * 1024 * 1024,
+          maxCacheFileSize: 512 * 1024 * 1024,
+          key: videoCacheKey(widget.video.id, source),
+        ),
+        bufferingConfiguration: videoBufferingConfiguration,
+        notificationConfiguration: playbackNotificationConfiguration(
+          showNotification: settings.backgroundPlayback,
+        ),
+      );
       _finishedNotified = false;
       await controller.setupDataSource(dataSource);
       if (!mounted || operation != _operation) {
@@ -690,7 +718,12 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       return;
     }
     final headers = <String, String>{..._mediaHeaders};
-    final cookie = await widget.api.sessionCookieHeader();
+    String? cookie;
+    try {
+      cookie = await widget.api.sessionCookieHeader();
+    } on Object {
+      return;
+    }
     if (cookie != null) {
       headers['Cookie'] = cookie;
     }
@@ -829,6 +862,16 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     required bool shouldPlay,
     bool force = false,
   }) async {
+    if (!force && _automaticSourceRefreshes >= _maxAutomaticSourceRefreshes) {
+      if (mounted) {
+        setState(() {
+          _initializing = false;
+          _switchingVideo = false;
+          _error = '视频地址已连续刷新多次仍无法播放，请稍后手动重试。';
+        });
+      }
+      return false;
+    }
     switch (sourceRefreshGate(
       refreshing: _refreshingSource,
       force: force,
@@ -849,6 +892,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         break;
     }
     _failedUrls.add(failedSource.url);
+    _automaticSourceRefreshes += 1;
     _refreshingSource = true;
     if (mounted) {
       setState(() {
@@ -909,6 +953,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   Future<void> _manualRetry() async {
     _failedUrls.clear();
+    _automaticSourceRefreshes = 0;
     final value = _videoController?.value;
     await _refreshSources(
       failedSource: _selectedSource,
@@ -938,6 +983,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         readActualPosition: () => video.position,
       );
       return result;
+    } on Object {
+      return VerifiedSeekResult(position: video.value.position, matched: false);
     } finally {
       _seeking = false;
     }
@@ -961,17 +1008,43 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   @override
   Widget build(BuildContext context) {
-    final player = _buildPlayer();
-    if (widget.embedded) {
-      return player;
-    }
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.video.title)),
-      body: Center(child: player),
+    final translationService = ref.read(translationServiceProvider);
+    return ListenableBuilder(
+      listenable: translationService,
+      builder: (context, _) {
+        if (translationService.shouldAutoTranslateTitle(
+          widget.video.id,
+          widget.video.title,
+        )) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            unawaited(
+              translationService.requestAutomaticTitle(
+                videoId: widget.video.id,
+                raw: widget.video.title,
+                videoSlug: widget.video.slug,
+              ),
+            );
+          });
+        }
+        final player = _buildPlayer(translationService);
+        if (widget.embedded) return player;
+        return Scaffold(
+          appBar: AppBar(
+            title: LocalizedTranslationText(
+              value: translationService.resolveTitle(
+                widget.video.id,
+                widget.video.title,
+              ),
+              maxLines: 2,
+            ),
+          ),
+          body: Center(child: player),
+        );
+      },
     );
   }
 
-  Widget _buildPlayer() {
+  Widget _buildPlayer(TranslationService translationService) {
     return AspectRatio(
       key: const ValueKey('inline-video-player'),
       aspectRatio: 16 / 9,
@@ -1044,12 +1117,14 @@ class _FluleVideoControls extends StatefulWidget {
   State<_FluleVideoControls> createState() => _FluleVideoControlsState();
 }
 
-class _FluleVideoControlsState extends State<_FluleVideoControls> {
+class _FluleVideoControlsState extends State<_FluleVideoControls>
+    with SingleTickerProviderStateMixin {
   static const _speeds = [0.5, 1.0, 1.25, 1.5, 2.0];
   ValueNotifier<VideoPlayerValue>? _videoController;
   Timer? _hideTimer;
   Timer? _lockTimer;
   Timer? _gestureFeedbackTimer;
+  late final AnimationController _speedIndicatorController;
   late bool _visible;
   late bool _useFullscreenLayout;
   var _animateOpacity = true;
@@ -1063,12 +1138,20 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   PlayerGestureAxis? _gestureAxis;
   Duration? _gestureTargetPosition;
   String? _gestureFeedback;
+  bool _buffering = false;
+  bool _temporarySpeedActive = false;
+  double? _speedBeforeTemporaryBoost;
+  Future<void>? _temporarySpeedSetFuture;
 
   @override
   void initState() {
     super.initState();
     _visible = initialVideoControlsVisible(widget.controller.isFullScreen);
     _useFullscreenLayout = widget.controller.isFullScreen;
+    _speedIndicatorController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1050),
+    );
     widget.controller.addEventsListener(_onPlayerEvent);
     _bindVideoController();
     unawaited(
@@ -1108,6 +1191,10 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     _hideTimer?.cancel();
     _lockTimer?.cancel();
     _gestureFeedbackTimer?.cancel();
+    _speedIndicatorController.dispose();
+    if (_temporarySpeedActive && _speedBeforeTemporaryBoost != null) {
+      unawaited(widget.controller.setSpeed(_speedBeforeTemporaryBoost!));
+    }
     widget.controller.removeEventsListener(_onPlayerEvent);
     _videoController?.removeListener(_onValueChanged);
     super.dispose();
@@ -1186,7 +1273,8 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     if (!mounted) {
       return;
     }
-    final buffered = _videoController?.value.buffered ?? const [];
+    final value = _videoController?.value;
+    final buffered = value?.buffered ?? const [];
     if (buffered.isNotEmpty) {
       _stableBuffered = mergeBufferedRanges(
         _stableBuffered,
@@ -1195,7 +1283,29 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
             .toList(growable: false),
       );
     }
+    final buffering = playerShouldShowBufferingIndicator(
+      initialized: value?.initialized == true,
+      isPlaying: value?.isPlaying == true,
+      isBuffering: value?.isBuffering == true,
+    );
+    final bufferingChanged = buffering != _buffering;
+    var visibilityChanged = false;
+    if (bufferingChanged) {
+      _buffering = buffering;
+      if (buffering && !_locked && !_visible) {
+        _visible = true;
+        visibilityChanged = true;
+      }
+    }
     setState(() {});
+    if (visibilityChanged) {
+      widget.onVisibilityChanged(true);
+    }
+    if (buffering) {
+      _hideTimer?.cancel();
+    } else if (bufferingChanged && _visible && !_locked) {
+      _scheduleHide();
+    }
   }
 
   void _toggleControls() {
@@ -1217,11 +1327,15 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
 
   void _scheduleHide() {
     _hideTimer?.cancel();
-    if (_locked || !_visible) {
+    if (_locked || !_visible || _buffering || _temporarySpeedActive) {
       return;
     }
     _hideTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && _visible && !_locked) {
+      if (mounted &&
+          _visible &&
+          !_locked &&
+          !_buffering &&
+          !_temporarySpeedActive) {
         setState(() => _visible = false);
         widget.onVisibilityChanged(false);
       }
@@ -1264,6 +1378,73 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     );
   }
 
+  Future<void> _startTemporarySpeedBoost() async {
+    final value = _videoController?.value;
+    if (_locked ||
+        _temporarySpeedActive ||
+        value == null ||
+        !value.initialized ||
+        !value.isPlaying) {
+      return;
+    }
+    _hideTimer?.cancel();
+    _speedBeforeTemporaryBoost = value.speed;
+    setState(() {
+      _temporarySpeedActive = true;
+      _visible = false;
+      _panStart = null;
+      _panPosition = null;
+      _gestureTargetPosition = null;
+      _gestureAxis = null;
+      _dragPosition = null;
+      _gestureFeedback = null;
+    });
+    widget.onVisibilityChanged(false);
+    _speedIndicatorController.repeat();
+    final future = widget.controller.setSpeed(2.0);
+    _temporarySpeedSetFuture = future;
+    try {
+      await future;
+    } on Object {
+      if (mounted && _temporarySpeedActive) {
+        await _stopTemporarySpeedBoost();
+      }
+    }
+  }
+
+  Future<void> _stopTemporarySpeedBoost() async {
+    if (!_temporarySpeedActive) return;
+    final restoreSpeed = _speedBeforeTemporaryBoost ?? 1.0;
+    final pending = _temporarySpeedSetFuture;
+    setState(() {
+      _temporarySpeedActive = false;
+      _speedBeforeTemporaryBoost = null;
+      _temporarySpeedSetFuture = null;
+    });
+    _speedIndicatorController
+      ..stop()
+      ..value = 0;
+    if (pending != null) {
+      try {
+        await pending;
+      } on Object {
+        // 临时倍速设置失败时仍继续尝试恢复原速度。
+      }
+    }
+    try {
+      await widget.controller.setSpeed(restoreSpeed);
+    } on Object {
+      // 播放器切换视频或退出页面时，恢复失败无需阻断界面。
+    }
+    if (mounted && !_locked && !_buffering) {
+      _scheduleHide();
+    }
+  }
+
+  double _speedArrowOpacity(int index) {
+    return playerSpeedIndicatorOpacity(_speedIndicatorController.value, index);
+  }
+
   void _showLockButton() {
     if (!_locked) {
       return;
@@ -1298,7 +1479,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   }
 
   void _onPanStart(DragStartDetails details) {
-    if (_locked) {
+    if (_locked || _temporarySpeedActive) {
       return;
     }
     final value = _videoController?.value;
@@ -1325,7 +1506,11 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     final start = _panStart;
     final value = _videoController?.value;
     final duration = value?.duration;
-    if (start == null || value == null || duration == null || _locked) {
+    if (start == null ||
+        value == null ||
+        duration == null ||
+        _locked ||
+        _temporarySpeedActive) {
       return;
     }
     final delta = details.localPosition - start;
@@ -1361,6 +1546,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   }
 
   void _onPanEnd(DragEndDetails details) {
+    if (_temporarySpeedActive) return;
     final target = _gestureTargetPosition;
     final axis = _gestureAxis;
     setState(() {
@@ -1384,9 +1570,14 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   }
 
   Future<void> _commitPanSeek(Duration target) async {
-    await widget.onSeek(target);
-    if (mounted && _dragPosition == target) {
-      setState(() => _dragPosition = null);
+    try {
+      await widget.onSeek(target);
+    } on Object {
+      // 手势 seek 失败时恢复控件状态，播放器本身继续保持原位置。
+    } finally {
+      if (mounted && _dragPosition == target) {
+        setState(() => _dragPosition = null);
+      }
     }
   }
 
@@ -1401,6 +1592,8 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
     }
     try {
       await widget.onSeek(target);
+    } on Object {
+      // 进度条 seek 失败时清理拖动状态，避免未捕获异步异常。
     } finally {
       if (mounted && _dragPosition == target) {
         setState(() => _dragPosition = null);
@@ -1410,6 +1603,7 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
   }
 
   void _onPanCancel() {
+    if (_temporarySpeedActive) return;
     if (!mounted) {
       return;
     }
@@ -1431,10 +1625,10 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
       key: const ValueKey('video-controls-pan-area'),
       behavior: HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
-      onPanStart: _locked ? null : _onPanStart,
-      onPanUpdate: _locked ? null : _onPanUpdate,
-      onPanEnd: _locked ? null : _onPanEnd,
-      onPanCancel: _locked ? null : _onPanCancel,
+      onPanStart: _locked || _temporarySpeedActive ? null : _onPanStart,
+      onPanUpdate: _locked || _temporarySpeedActive ? null : _onPanUpdate,
+      onPanEnd: _locked || _temporarySpeedActive ? null : _onPanEnd,
+      onPanCancel: _locked || _temporarySpeedActive ? null : _onPanCancel,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -1445,6 +1639,17 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
             onDoubleTap: _locked
                 ? _showLockButton
                 : () => unawaited(_togglePlaybackFromGesture()),
+            // Flutter 的长按识别阈值为 500ms；识别成功后会赢得手势竞技场，
+            // 后续移动不会再转为横向快进或纵向音量手势。
+            onLongPressStart: _locked
+                ? null
+                : (_) => unawaited(_startTemporarySpeedBoost()),
+            onLongPressEnd: _locked
+                ? null
+                : (_) => unawaited(_stopTemporarySpeedBoost()),
+            onLongPressCancel: _locked
+                ? null
+                : () => unawaited(_stopTemporarySpeedBoost()),
           ),
           IgnorePointer(
             ignoring: !_visible || _locked,
@@ -1500,6 +1705,44 @@ class _FluleVideoControlsState extends State<_FluleVideoControls> {
                       _gestureFeedback!,
                       style: const TextStyle(color: Colors.white),
                     ),
+                  ),
+                ),
+              ),
+            ),
+          if (_buffering)
+            const IgnorePointer(
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 34,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: Colors.white,
+                    backgroundColor: Colors.black26,
+                  ),
+                ),
+              ),
+            ),
+          if (_temporarySpeedActive)
+            IgnorePointer(
+              child: Align(
+                alignment: const Alignment(0, -0.28),
+                child: AnimatedBuilder(
+                  animation: _speedIndicatorController,
+                  builder: (context, _) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var index = 0; index < 3; index++)
+                        Icon(
+                          Icons.play_arrow_rounded,
+                          size: 19,
+                          color: Colors.white.withValues(
+                            alpha: _speedArrowOpacity(index),
+                          ),
+                          shadows: const [
+                            Shadow(color: Colors.black45, blurRadius: 4),
+                          ],
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -1763,7 +2006,7 @@ class _CompactPopup<T> extends StatelessWidget {
   }
 }
 
-class _VideoProgressBar extends StatelessWidget {
+class _VideoProgressBar extends StatefulWidget {
   const _VideoProgressBar({
     required this.value,
     required this.dragPosition,
@@ -1776,8 +2019,13 @@ class _VideoProgressBar extends StatelessWidget {
   final List<({Duration start, Duration end})> buffered;
   final ValueChanged<Duration> onSeek;
 
+  @override
+  State<_VideoProgressBar> createState() => _VideoProgressBarState();
+}
+
+class _VideoProgressBarState extends State<_VideoProgressBar> {
   Duration _positionFor(double dx, double width) {
-    final duration = value.duration ?? Duration.zero;
+    final duration = widget.value.duration ?? Duration.zero;
     if (width <= 0 || duration <= Duration.zero) {
       return Duration.zero;
     }
@@ -1792,16 +2040,16 @@ class _VideoProgressBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) => GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapUp: (details) => onSeek(
+        onTapUp: (details) => widget.onSeek(
           _positionFor(details.localPosition.dx, constraints.maxWidth),
         ),
         child: CustomPaint(
           painter: _ProgressPainter(
-            duration: value.duration ?? Duration.zero,
-            position: dragPosition ?? value.position,
-            buffered: buffered,
+            duration: widget.value.duration ?? Duration.zero,
+            position: widget.dragPosition ?? widget.value.position,
+            buffered: widget.buffered,
             playedColor: Theme.of(context).colorScheme.primary,
-            active: dragPosition != null,
+            active: widget.dragPosition != null,
           ),
           child: const SizedBox(height: 28),
         ),

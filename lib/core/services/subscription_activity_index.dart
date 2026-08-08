@@ -90,6 +90,7 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
   List<VideoItem> _videos = const [];
   Future<void>? _loadStoredRequest;
   Future<void>? _scanRequest;
+  Future<void> _mutationChain = Future<void>.value();
   String? _userId;
   DateTime? _refreshedAt;
   Object? _lastError;
@@ -155,9 +156,11 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
     }
     late final Future<void> request;
     request =
-        _scanFirstPages(
-          refreshSubscriptions: refreshSubscriptions,
-          cancelToken: cancelToken,
+        _serializeMutation(
+          () => _scanFirstPages(
+            refreshSubscriptions: refreshSubscriptions,
+            cancelToken: cancelToken,
+          ),
         ).whenComplete(() {
           if (identical(_scanRequest, request)) {
             _scanRequest = null;
@@ -189,20 +192,7 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
       await refresh(force: true, cancelToken: cancelToken);
     }
     final targetCount = page * pageSize;
-    final userId = _userId;
-    var attempts = 0;
-    while (_videos.length < targetCount &&
-        _sources.values.any((source) => !source.exhausted) &&
-        attempts < 3) {
-      final added = await _loadNextSourcePages(cancelToken: cancelToken);
-      attempts += 1;
-      if (added == 0 && _lastError != null) {
-        throw const SubscriptionActivityException('部分订阅暂时无法读取，请稍后重试。');
-      }
-    }
-    if (attempts > 0 && userId != null) {
-      await _persist(userId);
-    }
+    await _loadUntilTarget(targetCount, cancelToken: cancelToken);
     final start = (page - 1) * pageSize;
     if (start >= _videos.length) {
       if (_sources.values.any((source) => !source.exhausted)) {
@@ -293,7 +283,7 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
         _latestPublishedByPath.clear();
         _refreshedAt = DateTime.now();
         _revision += 1;
-        await _persist(userId);
+        await _persist(userId, operation);
         return;
       }
 
@@ -366,7 +356,7 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
           ? SubscriptionActivityException('有 $failures 个订阅暂时无法读取。')
           : null;
       _revision += 1;
-      await _persist(userId);
+      await _persist(userId, operation);
     } on Object catch (error) {
       if (cancelToken?.isCancelled == true) {
         throw const SubscriptionActivityCancelledException();
@@ -378,9 +368,42 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
     }
   }
 
-  Future<int> _loadNextSourcePages({CancelToken? cancelToken}) async {
-    final userId = _userId;
-    if (userId == null) {
+  Future<void> _loadUntilTarget(int targetCount, {CancelToken? cancelToken}) {
+    return _serializeMutation(() async {
+      final userId = _userId;
+      final operation = _operation;
+      if (userId == null) {
+        return;
+      }
+      var attempts = 0;
+      while (_videos.length < targetCount &&
+          _sources.values.any((source) => !source.exhausted) &&
+          attempts < 3) {
+        final added = await _loadNextSourcePages(
+          userId,
+          operation,
+          cancelToken: cancelToken,
+        );
+        if (!_isCurrent(userId, operation)) {
+          return;
+        }
+        attempts += 1;
+        if (added == 0 && _lastError != null) {
+          throw const SubscriptionActivityException('部分订阅暂时无法读取，请稍后重试。');
+        }
+      }
+      if (attempts > 0) {
+        await _persist(userId, operation);
+      }
+    });
+  }
+
+  Future<int> _loadNextSourcePages(
+    String userId,
+    int operation, {
+    CancelToken? cancelToken,
+  }) async {
+    if (!_isCurrent(userId, operation)) {
       return 0;
     }
     final active = _sources.values
@@ -409,6 +432,9 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
           ),
         ),
       );
+      if (!_isCurrent(userId, operation)) {
+        return 0;
+      }
       for (final result in results) {
         final source = _sources[result.subscription.path];
         if (source == null) {
@@ -432,6 +458,9 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
           }
         }
       }
+    }
+    if (!_isCurrent(userId, operation)) {
+      return 0;
     }
     _videos = _sortVideos(merged.values);
     _scanHadFailures = failures > 0;
@@ -472,22 +501,35 @@ final class SubscriptionActivityIndex extends ChangeNotifier {
     );
   }
 
-  Future<void> _persist(String userId) async {
-    if (_userId != userId) {
+  Future<void> _persist(String userId, int operation) async {
+    if (!_isCurrent(userId, operation)) {
       return;
     }
     final storedVideos = _videos
         .take(_storedVideoLimit)
         .map(_videoToJson)
         .toList(growable: false);
-    await store.write(
-      userId,
-      jsonEncode({
-        'refreshedAt': _refreshedAt?.toUtc().toIso8601String(),
-        'videos': storedVideos,
-        'latestPublishedByPath': _latestPublishedByPath,
-      }),
-    );
+    final value = jsonEncode({
+      'refreshedAt': _refreshedAt?.toUtc().toIso8601String(),
+      'videos': storedVideos,
+      'latestPublishedByPath': _latestPublishedByPath,
+    });
+    if (!_isCurrent(userId, operation)) {
+      return;
+    }
+    await store.write(userId, value);
+  }
+
+  Future<T> _serializeMutation<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    _mutationChain = _mutationChain.then((_) async {
+      try {
+        completer.complete(await action());
+      } on Object catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
   }
 
   void onSessionChanged() {

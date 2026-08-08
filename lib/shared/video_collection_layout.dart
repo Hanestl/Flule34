@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../features/settings/domain/app_settings.dart';
 
@@ -23,16 +24,14 @@ class VideoCollectionSliver extends StatelessWidget {
   Widget build(BuildContext context) {
     if (layout == ContentLayout.doubleColumn) {
       return SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        sliver: SliverGrid(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.88,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (context, index) => itemBuilder(context, index, true),
-            childCount: itemCount,
-          ),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        sliver: SliverMasonryGrid.count(
+          key: const ValueKey('double-column-masonry'),
+          crossAxisCount: 2,
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+          childCount: itemCount,
+          itemBuilder: (context, index) => itemBuilder(context, index, true),
         ),
       );
     }
@@ -63,14 +62,13 @@ class VideoCollectionBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (layout == ContentLayout.doubleColumn) {
-      return GridView.builder(
+      return MasonryGridView.count(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.88,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        crossAxisCount: 2,
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
         itemCount: itemCount,
         itemBuilder: (context, index) => itemBuilder(context, index, true),
       );

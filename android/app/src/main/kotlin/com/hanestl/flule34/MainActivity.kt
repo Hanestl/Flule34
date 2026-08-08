@@ -162,7 +162,20 @@ class MainActivity : FlutterActivity() {
 
     private fun deleteFile(uri: Uri): Boolean {
         if (uri.scheme == "file") {
-            val file = uri.path?.let(::File) ?: return false
+            val file = uri.path?.let(::File)?.canonicalFile ?: return false
+            val allowedRoots = listOfNotNull(
+                filesDir,
+                cacheDir,
+                noBackupFilesDir,
+                getExternalFilesDir(null),
+                externalCacheDir,
+            ).map { it.canonicalFile }
+            val allowed = allowedRoots.any { root ->
+                file.path == root.path || file.path.startsWith(root.path + File.separator)
+            }
+            if (!allowed) {
+                return false
+            }
             return !file.exists() || file.delete()
         }
         if (uri.scheme != "content") {

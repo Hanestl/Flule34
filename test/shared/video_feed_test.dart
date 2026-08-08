@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flule34/app/providers.dart';
 import 'package:flule34/core/models/video_models.dart';
+import 'package:flule34/core/services/translation_service.dart';
 import 'package:flule34/features/settings/data/app_settings_repository.dart';
 import 'package:flule34/features/settings/data/app_settings_store.dart';
 import 'package:flule34/features/settings/domain/app_settings.dart';
@@ -17,7 +19,10 @@ void main() {
     addTearDown(settings.dispose);
     await settings.load();
     final container = ProviderContainer(
-      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+      overrides: [
+        appSettingsRepositoryProvider.overrideWithValue(settings),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
+      ],
     );
     addTearDown(container.dispose);
     var allowPageTwo = false;
@@ -75,7 +80,10 @@ void main() {
     addTearDown(settings.dispose);
     await settings.load();
     final container = ProviderContainer(
-      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+      overrides: [
+        appSettingsRepositoryProvider.overrideWithValue(settings),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -120,7 +128,10 @@ void main() {
     addTearDown(settings.dispose);
     await settings.load();
     final container = ProviderContainer(
-      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+      overrides: [
+        appSettingsRepositoryProvider.overrideWithValue(settings),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
+      ],
     );
     addTearDown(container.dispose);
     final refreshed = Completer<List<VideoItem>>();
@@ -160,7 +171,10 @@ void main() {
     await settings.load();
     await settings.setVideoLayout(ContentLayout.doubleColumn);
     final container = ProviderContainer(
-      overrides: [appSettingsRepositoryProvider.overrideWithValue(settings)],
+      overrides: [
+        appSettingsRepositoryProvider.overrideWithValue(settings),
+        translationServiceProvider.overrideWith(_memoryTranslationService),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -183,10 +197,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(SliverGrid), findsOneWidget);
+    expect(find.byType(SliverMasonryGrid), findsOneWidget);
     expect(find.text('第一条'), findsOneWidget);
     expect(find.text('第二条'), findsOneWidget);
   });
+}
+
+TranslationService _memoryTranslationService(Ref ref) {
+  final service = TranslationService.fromDictionary(
+    settingsRepository: ref.watch(appSettingsRepositoryProvider),
+    dictionary: const {},
+  );
+  ref.onDispose(service.dispose);
+  return service;
 }
 
 final class _MemorySettingsStore implements AppSettingsStore {

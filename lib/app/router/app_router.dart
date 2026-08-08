@@ -21,6 +21,7 @@ import '../../features/profile/uploader_page.dart';
 import '../../features/search/search_page.dart';
 import '../../features/settings/presentation/settings_pages.dart';
 import '../../features/settings/presentation/support_pages.dart';
+import '../../features/settings/presentation/translation_catalog_page.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/video/video_detail_page.dart';
 import '../../shared/scroll_to_top_overlay.dart';
@@ -151,6 +152,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         scrollablePage(state, const ContentSettingsPage()),
                   ),
                   GoRoute(
+                    path: 'translation',
+                    name: AppRouteNames.translationSettings,
+                    builder: (context, state) =>
+                        scrollablePage(state, const TranslationSettingsPage()),
+                    routes: [
+                      GoRoute(
+                        path: 'catalog',
+                        name: AppRouteNames.translationCatalog,
+                        builder: (context, state) => scrollablePage(
+                          state,
+                          const TranslationCatalogPage(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  GoRoute(
                     path: 'downloads',
                     name: AppRouteNames.downloadSettings,
                     builder: (context, state) =>
@@ -218,6 +235,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             api: api,
             historyRepository: searchHistoryRepository,
             prefetchService: ref.read(predictivePrefetchServiceProvider),
+            translationService: ref.read(translationServiceProvider),
           ),
         ),
       ),
@@ -241,7 +259,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 );
           return scrollablePage(
             state,
-            DiscoveryDirectoryPage(api: api, spec: spec),
+            DiscoveryDirectoryPage(
+              api: api,
+              spec: spec,
+              translationService: ref.read(translationServiceProvider),
+            ),
           );
         },
       ),
@@ -274,7 +296,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
           return scrollablePage(
             state,
-            CollectionPage(api: api, collection: collection, initialSort: sort),
+            CollectionPage(
+              api: api,
+              collection: collection,
+              initialSort: sort,
+              translationService: ref.read(translationServiceProvider),
+            ),
           );
         },
       ),
@@ -335,7 +362,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
           return scrollablePage(
             state,
-            PlaylistPlaybackPage(api: api, request: extra),
+            PlaylistPlaybackPage(
+              api: api,
+              request: extra,
+              translationService: ref.read(translationServiceProvider),
+            ),
           );
         },
       ),

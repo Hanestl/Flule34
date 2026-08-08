@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
+import '../../core/services/translation_service.dart';
+import '../../shared/editable_translation.dart';
+import '../../shared/localized_translation_text.dart';
 import '../../shared/site_avatar.dart';
 import '../../shared/video_feed.dart';
 import '../search/video_filter_sheet.dart';
@@ -11,11 +14,13 @@ class CollectionPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.collection,
+    required this.translationService,
     this.initialSort = VideoSort.newest,
   });
 
   final Rule34VideoApi api;
   final ContentCollectionItem collection;
+  final TranslationService translationService;
   final VideoSort initialSort;
 
   @override
@@ -73,7 +78,12 @@ class _CollectionPageState extends State<CollectionPage> {
             final collection = snapshot.data ?? widget.collection;
             final thumbnailUrl = collection.thumbnailUrl;
             if (thumbnailUrl == null) {
-              return Text(collection.title);
+              return TranslatedMetadataText(
+                translationService: widget.translationService,
+                kind: collection.kind,
+                original: collection.title,
+                maxLines: 2,
+              );
             }
             return Row(
               mainAxisSize: MainAxisSize.min,
@@ -85,9 +95,11 @@ class _CollectionPageState extends State<CollectionPage> {
                 ),
                 const SizedBox(width: 10),
                 Flexible(
-                  child: Text(
-                    collection.title,
-                    overflow: TextOverflow.ellipsis,
+                  child: TranslatedMetadataText(
+                    translationService: widget.translationService,
+                    kind: collection.kind,
+                    original: collection.title,
+                    maxLines: 2,
                   ),
                 ),
               ],
@@ -125,6 +137,7 @@ class _CollectionPageState extends State<CollectionPage> {
               children: [
                 _ActiveFilterBar(
                   filters: _filters,
+                  translationService: widget.translationService,
                   onRemove: _removeEntity,
                   onClear: () => setState(
                     () => _filters = SearchFilters(sort: widget.initialSort),
@@ -165,6 +178,7 @@ class _CollectionPageState extends State<CollectionPage> {
       context: context,
       api: widget.api,
       initialFilters: _filters,
+      translationService: widget.translationService,
     );
     if (selected != null && mounted) {
       setState(() => _filters = selected);
@@ -230,11 +244,13 @@ class _CollectionPageState extends State<CollectionPage> {
 class _ActiveFilterBar extends StatelessWidget {
   const _ActiveFilterBar({
     required this.filters,
+    required this.translationService,
     required this.onRemove,
     required this.onClear,
   });
 
   final SearchFilters filters;
+  final TranslationService translationService;
   final void Function(SearchSuggestion suggestion, bool excluded) onRemove;
   final VoidCallback onClear;
 
@@ -251,20 +267,28 @@ class _ActiveFilterBar extends StatelessWidget {
     if (entries.isEmpty && !filters.hasQualityFilters) {
       return const SizedBox.shrink();
     }
-    return SizedBox(
-      height: 52,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      child: Row(
         children: [
           for (final entry in entries)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: InputChip(
-                label: Text(
-                  entry.excluded ? '排除：${entry.item.title}' : entry.item.title,
+              child: EditableTranslationRegion(
+                translationService: translationService,
+                kind: entry.item.kind.discoveryKind,
+                english: entry.item.title,
+                child: InputChip(
+                  label: TranslatedMetadataText(
+                    translationService: translationService,
+                    kind: entry.item.kind.discoveryKind,
+                    original: entry.item.title,
+                    prefix: entry.excluded ? '排除：' : '',
+                    constrainToScreen: true,
+                  ),
+                  onDeleted: () => onRemove(entry.item, entry.excluded),
                 ),
-                onDeleted: () => onRemove(entry.item, entry.excluded),
               ),
             ),
           if (filters.minRating != null)

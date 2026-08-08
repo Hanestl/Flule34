@@ -66,6 +66,70 @@ void main() {
     expect(await database.select(database.playbackPositions).get(), isEmpty);
   });
 
+  test('用户翻译覆盖按类型和英文键保存', () async {
+    await database.upsertTranslationOverride(
+      kind: 'tag',
+      canonicalName: 'footjob',
+      translation: '足部服务',
+    );
+    await database.upsertTranslationOverride(
+      kind: 'category',
+      canonicalName: 'footjob',
+      translation: '足部分类',
+    );
+    await database.upsertTranslationOverride(
+      kind: 'tag',
+      canonicalName: 'footjob',
+      translation: '足交修改版',
+    );
+
+    final rows = await database.loadTranslationOverrides();
+    expect(rows, hasLength(2));
+    expect(rows.singleWhere((row) => row.kind == 'tag').translation, '足交修改版');
+    expect(
+      rows.singleWhere((row) => row.kind == 'category').translation,
+      '足部分类',
+    );
+
+    await database.deleteTranslationOverride(
+      kind: 'tag',
+      canonicalName: 'footjob',
+    );
+    expect((await database.loadTranslationOverrides()).single.kind, 'category');
+  });
+
+  test('已学习译文永久保存来源和标题定位信息', () async {
+    await database.upsertLearnedTranslation(
+      kind: 'title',
+      canonicalName: 'video-1',
+      sourceText: 'MOM BREAKER',
+      translation: '母亲终结者',
+      providerId: 'provider-1',
+      providerName: '首选服务',
+      videoSlug: 'mom-breaker',
+    );
+    await database.upsertLearnedTranslation(
+      kind: 'tag',
+      canonicalName: 'new tag',
+      sourceText: 'new tag',
+      translation: '新标签',
+      providerId: 'provider-2',
+      providerName: '备用服务',
+    );
+
+    final rows = await database.loadLearnedTranslations();
+    expect(rows, hasLength(2));
+    final title = rows.singleWhere((row) => row.kind == 'title');
+    expect(title.canonicalName, 'video-1');
+    expect(title.sourceText, 'MOM BREAKER');
+    expect(title.translation, '母亲终结者');
+    expect(title.videoSlug, 'mom-breaker');
+    expect(title.providerName, '首选服务');
+
+    await database.clearLearnedTranslations();
+    expect(await database.loadLearnedTranslations(), isEmpty);
+  });
+
   test('搜索历史按账号隔离并对大小写去重', () async {
     await database.recordAuthenticatedAccount('1001');
     await database.recordAuthenticatedAccount('2002');

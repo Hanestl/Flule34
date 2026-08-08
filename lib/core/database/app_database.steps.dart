@@ -1450,6 +1450,938 @@ class Shape10 extends i0.VersionedTable {
       columnsByName['updated_at']! as i1.GeneratedColumn<int>;
 }
 
+final class Schema9 extends i0.VersionedSchema {
+  Schema9({required super.database}) : super(version: 9);
+  @override
+  late final List<i1.DatabaseSchemaEntity> entities = [
+    userAccounts,
+    playbackPositions,
+    downloadRecords,
+    searchHistories,
+    localLibraries,
+    curatedLibrarySeeds,
+    localLibraryVideos,
+    translationOverrides,
+  ];
+  late final Shape0 userAccounts = Shape0(
+    source: i0.VersionedTable(
+      entityName: 'user_accounts',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id)'],
+      columns: [_column_0, _column_1, _column_2, _column_3, _column_4],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape10 playbackPositions = Shape10(
+    source: i0.VersionedTable(
+      entityName: 'playback_positions',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(video_id)'],
+      columns: [
+        _column_6,
+        _column_7,
+        _column_8,
+        _column_9,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape6 downloadRecords = Shape6(
+    source: i0.VersionedTable(
+      entityName: 'download_records',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [
+        'PRIMARY KEY(id)',
+        'UNIQUE(user_id, video_id, quality)',
+      ],
+      columns: [
+        _column_14,
+        _column_5,
+        _column_6,
+        _column_15,
+        _column_16,
+        _column_9,
+        _column_37,
+        _column_17,
+        _column_18,
+        _column_19,
+        _column_20,
+        _column_21,
+        _column_22,
+        _column_3,
+        _column_13,
+        _column_23,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape3 searchHistories = Shape3(
+    source: i0.VersionedTable(
+      entityName: 'search_histories',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id, normalized_query)'],
+      columns: [_column_5, _column_24, _column_25, _column_26],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape7 localLibraries = Shape7(
+    source: i0.VersionedTable(
+      entityName: 'local_libraries',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['UNIQUE(normalized_name)'],
+      columns: [
+        _column_27,
+        _column_28,
+        _column_29,
+        _column_38,
+        _column_3,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape8 curatedLibrarySeeds = Shape8(
+    source: i0.VersionedTable(
+      entityName: 'curated_library_seeds',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(seed_key)'],
+      columns: [_column_39, _column_40, _column_41, _column_42],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape9 localLibraryVideos = Shape9(
+    source: i0.VersionedTable(
+      entityName: 'local_library_videos',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(library_id, video_id)'],
+      columns: [
+        _column_30,
+        _column_6,
+        _column_15,
+        _column_31,
+        _column_9,
+        _column_43,
+        _column_10,
+        _column_32,
+        _column_33,
+        _column_34,
+        _column_35,
+        _column_36,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape11 translationOverrides = Shape11(
+    source: i0.VersionedTable(
+      entityName: 'translation_overrides',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [_column_44, _column_45, _column_46, _column_13],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+}
+
+class Shape11 extends i0.VersionedTable {
+  Shape11({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get kind =>
+      columnsByName['kind']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get canonicalName =>
+      columnsByName['canonical_name']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get translation =>
+      columnsByName['translation']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get updatedAt =>
+      columnsByName['updated_at']! as i1.GeneratedColumn<int>;
+}
+
+i1.GeneratedColumn<String> _column_44(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'kind',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NOT NULL',
+    );
+i1.GeneratedColumn<String> _column_45(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'canonical_name',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NOT NULL',
+    );
+i1.GeneratedColumn<String> _column_46(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'translation',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NOT NULL',
+    );
+
+final class Schema10 extends i0.VersionedSchema {
+  Schema10({required super.database}) : super(version: 10);
+  @override
+  late final List<i1.DatabaseSchemaEntity> entities = [
+    userAccounts,
+    playbackPositions,
+    downloadRecords,
+    searchHistories,
+    localLibraries,
+    curatedLibrarySeeds,
+    localLibraryVideos,
+    translationOverrides,
+    learnedTranslations,
+  ];
+  late final Shape0 userAccounts = Shape0(
+    source: i0.VersionedTable(
+      entityName: 'user_accounts',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id)'],
+      columns: [_column_0, _column_1, _column_2, _column_3, _column_4],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape10 playbackPositions = Shape10(
+    source: i0.VersionedTable(
+      entityName: 'playback_positions',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(video_id)'],
+      columns: [
+        _column_6,
+        _column_7,
+        _column_8,
+        _column_9,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape6 downloadRecords = Shape6(
+    source: i0.VersionedTable(
+      entityName: 'download_records',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [
+        'PRIMARY KEY(id)',
+        'UNIQUE(user_id, video_id, quality)',
+      ],
+      columns: [
+        _column_14,
+        _column_5,
+        _column_6,
+        _column_15,
+        _column_16,
+        _column_9,
+        _column_37,
+        _column_17,
+        _column_18,
+        _column_19,
+        _column_20,
+        _column_21,
+        _column_22,
+        _column_3,
+        _column_13,
+        _column_23,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape3 searchHistories = Shape3(
+    source: i0.VersionedTable(
+      entityName: 'search_histories',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id, normalized_query)'],
+      columns: [_column_5, _column_24, _column_25, _column_26],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape7 localLibraries = Shape7(
+    source: i0.VersionedTable(
+      entityName: 'local_libraries',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['UNIQUE(normalized_name)'],
+      columns: [
+        _column_27,
+        _column_28,
+        _column_29,
+        _column_38,
+        _column_3,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape8 curatedLibrarySeeds = Shape8(
+    source: i0.VersionedTable(
+      entityName: 'curated_library_seeds',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(seed_key)'],
+      columns: [_column_39, _column_40, _column_41, _column_42],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape9 localLibraryVideos = Shape9(
+    source: i0.VersionedTable(
+      entityName: 'local_library_videos',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(library_id, video_id)'],
+      columns: [
+        _column_30,
+        _column_6,
+        _column_15,
+        _column_31,
+        _column_9,
+        _column_43,
+        _column_10,
+        _column_32,
+        _column_33,
+        _column_34,
+        _column_35,
+        _column_36,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape12 translationOverrides = Shape12(
+    source: i0.VersionedTable(
+      entityName: 'translation_overrides',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [
+        _column_44,
+        _column_45,
+        _column_47,
+        _column_48,
+        _column_46,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape13 learnedTranslations = Shape13(
+    source: i0.VersionedTable(
+      entityName: 'learned_translations',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [
+        _column_44,
+        _column_45,
+        _column_49,
+        _column_46,
+        _column_50,
+        _column_51,
+        _column_48,
+        _column_3,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+}
+
+class Shape12 extends i0.VersionedTable {
+  Shape12({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get kind =>
+      columnsByName['kind']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get canonicalName =>
+      columnsByName['canonical_name']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get sourceText =>
+      columnsByName['source_text']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get videoSlug =>
+      columnsByName['video_slug']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get translation =>
+      columnsByName['translation']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get updatedAt =>
+      columnsByName['updated_at']! as i1.GeneratedColumn<int>;
+}
+
+i1.GeneratedColumn<String> _column_47(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'source_text',
+      aliasedName,
+      true,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NULL',
+    );
+i1.GeneratedColumn<String> _column_48(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'video_slug',
+      aliasedName,
+      true,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NULL',
+    );
+
+class Shape13 extends i0.VersionedTable {
+  Shape13({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get kind =>
+      columnsByName['kind']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get canonicalName =>
+      columnsByName['canonical_name']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get sourceText =>
+      columnsByName['source_text']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get translation =>
+      columnsByName['translation']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get providerId =>
+      columnsByName['provider_id']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get providerName =>
+      columnsByName['provider_name']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get videoSlug =>
+      columnsByName['video_slug']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get createdAt =>
+      columnsByName['created_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<int> get updatedAt =>
+      columnsByName['updated_at']! as i1.GeneratedColumn<int>;
+}
+
+i1.GeneratedColumn<String> _column_49(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'source_text',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NOT NULL',
+    );
+i1.GeneratedColumn<String> _column_50(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'provider_id',
+      aliasedName,
+      true,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NULL',
+    );
+i1.GeneratedColumn<String> _column_51(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'provider_name',
+      aliasedName,
+      true,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NULL',
+    );
+
+final class Schema11 extends i0.VersionedSchema {
+  Schema11({required super.database}) : super(version: 11);
+  @override
+  late final List<i1.DatabaseSchemaEntity> entities = [
+    userAccounts,
+    playbackPositions,
+    downloadRecords,
+    searchHistories,
+    localLibraries,
+    curatedLibrarySeeds,
+    localLibraryVideos,
+    translationOverrides,
+    learnedTranslations,
+    builtInTranslationStates,
+    translationCatalogPacks,
+  ];
+  late final Shape0 userAccounts = Shape0(
+    source: i0.VersionedTable(
+      entityName: 'user_accounts',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id)'],
+      columns: [_column_0, _column_1, _column_2, _column_3, _column_4],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape10 playbackPositions = Shape10(
+    source: i0.VersionedTable(
+      entityName: 'playback_positions',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(video_id)'],
+      columns: [
+        _column_6,
+        _column_7,
+        _column_8,
+        _column_9,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape6 downloadRecords = Shape6(
+    source: i0.VersionedTable(
+      entityName: 'download_records',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [
+        'PRIMARY KEY(id)',
+        'UNIQUE(user_id, video_id, quality)',
+      ],
+      columns: [
+        _column_14,
+        _column_5,
+        _column_6,
+        _column_15,
+        _column_16,
+        _column_9,
+        _column_37,
+        _column_17,
+        _column_18,
+        _column_19,
+        _column_20,
+        _column_21,
+        _column_22,
+        _column_3,
+        _column_13,
+        _column_23,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape3 searchHistories = Shape3(
+    source: i0.VersionedTable(
+      entityName: 'search_histories',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id, normalized_query)'],
+      columns: [_column_5, _column_24, _column_25, _column_26],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape7 localLibraries = Shape7(
+    source: i0.VersionedTable(
+      entityName: 'local_libraries',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['UNIQUE(normalized_name)'],
+      columns: [
+        _column_27,
+        _column_28,
+        _column_29,
+        _column_38,
+        _column_3,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape8 curatedLibrarySeeds = Shape8(
+    source: i0.VersionedTable(
+      entityName: 'curated_library_seeds',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(seed_key)'],
+      columns: [_column_39, _column_40, _column_41, _column_42],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape9 localLibraryVideos = Shape9(
+    source: i0.VersionedTable(
+      entityName: 'local_library_videos',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(library_id, video_id)'],
+      columns: [
+        _column_30,
+        _column_6,
+        _column_15,
+        _column_31,
+        _column_9,
+        _column_43,
+        _column_10,
+        _column_32,
+        _column_33,
+        _column_34,
+        _column_35,
+        _column_36,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape12 translationOverrides = Shape12(
+    source: i0.VersionedTable(
+      entityName: 'translation_overrides',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [
+        _column_44,
+        _column_45,
+        _column_47,
+        _column_48,
+        _column_46,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape13 learnedTranslations = Shape13(
+    source: i0.VersionedTable(
+      entityName: 'learned_translations',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [
+        _column_44,
+        _column_45,
+        _column_49,
+        _column_46,
+        _column_50,
+        _column_51,
+        _column_48,
+        _column_3,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape14 builtInTranslationStates = Shape14(
+    source: i0.VersionedTable(
+      entityName: 'built_in_translation_states',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [_column_44, _column_45, _column_52, _column_53, _column_13],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape15 translationCatalogPacks = Shape15(
+    source: i0.VersionedTable(
+      entityName: 'translation_catalog_packs',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(pack_key)'],
+      columns: [_column_54, _column_40, _column_42],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+}
+
+class Shape14 extends i0.VersionedTable {
+  Shape14({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get kind =>
+      columnsByName['kind']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get canonicalName =>
+      columnsByName['canonical_name']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get introducedPackVersion =>
+      columnsByName['introduced_pack_version']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<int> get protectExistingLearned =>
+      columnsByName['protect_existing_learned']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<int> get updatedAt =>
+      columnsByName['updated_at']! as i1.GeneratedColumn<int>;
+}
+
+i1.GeneratedColumn<int> _column_52(String aliasedName) =>
+    i1.GeneratedColumn<int>(
+      'introduced_pack_version',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.int,
+      $customConstraints: 'NOT NULL',
+    );
+i1.GeneratedColumn<int> _column_53(String aliasedName) =>
+    i1.GeneratedColumn<int>(
+      'protect_existing_learned',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.int,
+      $customConstraints:
+          'NOT NULL DEFAULT 0 CHECK (protect_existing_learned IN (0, 1))',
+      defaultValue: const i1.CustomExpression('0'),
+    );
+
+class Shape15 extends i0.VersionedTable {
+  Shape15({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get packKey =>
+      columnsByName['pack_key']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get packVersion =>
+      columnsByName['pack_version']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<int> get appliedAt =>
+      columnsByName['applied_at']! as i1.GeneratedColumn<int>;
+}
+
+i1.GeneratedColumn<String> _column_54(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'pack_key',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NOT NULL',
+    );
+
+final class Schema12 extends i0.VersionedSchema {
+  Schema12({required super.database}) : super(version: 12);
+  @override
+  late final List<i1.DatabaseSchemaEntity> entities = [
+    userAccounts,
+    playbackPositions,
+    downloadRecords,
+    searchHistories,
+    localLibraries,
+    curatedLibrarySeeds,
+    localLibraryVideos,
+    translationOverrides,
+    learnedTranslations,
+    builtInTranslationStates,
+    translationCatalogPacks,
+    idxPlaybackPositionsUpdatedAt,
+    idxDownloadRecordsTaskId,
+    idxDownloadRecordsUserState,
+    idxSearchHistoriesUserLastSearched,
+  ];
+  late final Shape0 userAccounts = Shape0(
+    source: i0.VersionedTable(
+      entityName: 'user_accounts',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id)'],
+      columns: [_column_0, _column_1, _column_2, _column_3, _column_4],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape10 playbackPositions = Shape10(
+    source: i0.VersionedTable(
+      entityName: 'playback_positions',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(video_id)'],
+      columns: [
+        _column_6,
+        _column_7,
+        _column_8,
+        _column_9,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape6 downloadRecords = Shape6(
+    source: i0.VersionedTable(
+      entityName: 'download_records',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [
+        'PRIMARY KEY(id)',
+        'UNIQUE(user_id, video_id, quality)',
+      ],
+      columns: [
+        _column_14,
+        _column_5,
+        _column_6,
+        _column_15,
+        _column_16,
+        _column_9,
+        _column_37,
+        _column_17,
+        _column_18,
+        _column_19,
+        _column_20,
+        _column_21,
+        _column_22,
+        _column_3,
+        _column_13,
+        _column_23,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape3 searchHistories = Shape3(
+    source: i0.VersionedTable(
+      entityName: 'search_histories',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(user_id, normalized_query)'],
+      columns: [_column_5, _column_24, _column_25, _column_26],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape7 localLibraries = Shape7(
+    source: i0.VersionedTable(
+      entityName: 'local_libraries',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['UNIQUE(normalized_name)'],
+      columns: [
+        _column_27,
+        _column_28,
+        _column_29,
+        _column_38,
+        _column_3,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape8 curatedLibrarySeeds = Shape8(
+    source: i0.VersionedTable(
+      entityName: 'curated_library_seeds',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(seed_key)'],
+      columns: [_column_39, _column_40, _column_41, _column_42],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape9 localLibraryVideos = Shape9(
+    source: i0.VersionedTable(
+      entityName: 'local_library_videos',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(library_id, video_id)'],
+      columns: [
+        _column_30,
+        _column_6,
+        _column_15,
+        _column_31,
+        _column_9,
+        _column_43,
+        _column_10,
+        _column_32,
+        _column_33,
+        _column_34,
+        _column_35,
+        _column_36,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape12 translationOverrides = Shape12(
+    source: i0.VersionedTable(
+      entityName: 'translation_overrides',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [
+        _column_44,
+        _column_45,
+        _column_47,
+        _column_48,
+        _column_46,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape13 learnedTranslations = Shape13(
+    source: i0.VersionedTable(
+      entityName: 'learned_translations',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [
+        _column_44,
+        _column_45,
+        _column_49,
+        _column_46,
+        _column_50,
+        _column_51,
+        _column_48,
+        _column_3,
+        _column_13,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape14 builtInTranslationStates = Shape14(
+    source: i0.VersionedTable(
+      entityName: 'built_in_translation_states',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(kind, canonical_name)'],
+      columns: [_column_44, _column_45, _column_52, _column_53, _column_13],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape15 translationCatalogPacks = Shape15(
+    source: i0.VersionedTable(
+      entityName: 'translation_catalog_packs',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(pack_key)'],
+      columns: [_column_54, _column_40, _column_42],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  final i1.Index idxPlaybackPositionsUpdatedAt = i1.Index(
+    'idx_playback_positions_updated_at',
+    'CREATE INDEX idx_playback_positions_updated_at ON playback_positions (updated_at)',
+  );
+  final i1.Index idxDownloadRecordsTaskId = i1.Index(
+    'idx_download_records_task_id',
+    'CREATE INDEX idx_download_records_task_id ON download_records (task_id)',
+  );
+  final i1.Index idxDownloadRecordsUserState = i1.Index(
+    'idx_download_records_user_state',
+    'CREATE INDEX idx_download_records_user_state ON download_records (user_id, state)',
+  );
+  final i1.Index idxSearchHistoriesUserLastSearched = i1.Index(
+    'idx_search_histories_user_last_searched',
+    'CREATE INDEX idx_search_histories_user_last_searched ON search_histories (user_id, last_searched_at)',
+  );
+}
+
 i0.MigrationStepWithVersion migrationSteps({
   required Future<void> Function(i1.Migrator m, Schema2 schema) from1To2,
   required Future<void> Function(i1.Migrator m, Schema3 schema) from2To3,
@@ -1458,6 +2390,10 @@ i0.MigrationStepWithVersion migrationSteps({
   required Future<void> Function(i1.Migrator m, Schema6 schema) from5To6,
   required Future<void> Function(i1.Migrator m, Schema7 schema) from6To7,
   required Future<void> Function(i1.Migrator m, Schema8 schema) from7To8,
+  required Future<void> Function(i1.Migrator m, Schema9 schema) from8To9,
+  required Future<void> Function(i1.Migrator m, Schema10 schema) from9To10,
+  required Future<void> Function(i1.Migrator m, Schema11 schema) from10To11,
+  required Future<void> Function(i1.Migrator m, Schema12 schema) from11To12,
 }) {
   return (currentVersion, database) async {
     switch (currentVersion) {
@@ -1496,6 +2432,26 @@ i0.MigrationStepWithVersion migrationSteps({
         final migrator = i1.Migrator(database, schema);
         await from7To8(migrator, schema);
         return 8;
+      case 8:
+        final schema = Schema9(database: database);
+        final migrator = i1.Migrator(database, schema);
+        await from8To9(migrator, schema);
+        return 9;
+      case 9:
+        final schema = Schema10(database: database);
+        final migrator = i1.Migrator(database, schema);
+        await from9To10(migrator, schema);
+        return 10;
+      case 10:
+        final schema = Schema11(database: database);
+        final migrator = i1.Migrator(database, schema);
+        await from10To11(migrator, schema);
+        return 11;
+      case 11:
+        final schema = Schema12(database: database);
+        final migrator = i1.Migrator(database, schema);
+        await from11To12(migrator, schema);
+        return 12;
       default:
         throw ArgumentError.value('Unknown migration from $currentVersion');
     }
@@ -1510,6 +2466,10 @@ i1.OnUpgrade stepByStep({
   required Future<void> Function(i1.Migrator m, Schema6 schema) from5To6,
   required Future<void> Function(i1.Migrator m, Schema7 schema) from6To7,
   required Future<void> Function(i1.Migrator m, Schema8 schema) from7To8,
+  required Future<void> Function(i1.Migrator m, Schema9 schema) from8To9,
+  required Future<void> Function(i1.Migrator m, Schema10 schema) from9To10,
+  required Future<void> Function(i1.Migrator m, Schema11 schema) from10To11,
+  required Future<void> Function(i1.Migrator m, Schema12 schema) from11To12,
 }) => i0.VersionedSchema.stepByStepHelper(
   step: migrationSteps(
     from1To2: from1To2,
@@ -1519,5 +2479,9 @@ i1.OnUpgrade stepByStep({
     from5To6: from5To6,
     from6To7: from6To7,
     from7To8: from7To8,
+    from8To9: from8To9,
+    from9To10: from9To10,
+    from10To11: from10To11,
+    from11To12: from11To12,
   ),
 );

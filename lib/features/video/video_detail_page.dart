@@ -11,9 +11,12 @@ import '../../app/router/route_names.dart';
 import '../../core/api/rule34video_api.dart';
 import '../../core/models/video_models.dart';
 import '../../core/services/share_service.dart';
+import '../../core/services/translation_service.dart';
 import '../../core/services/predictive_prefetch_service.dart';
 import '../../shared/video_card.dart';
 import '../../shared/video_collection_layout.dart';
+import '../../shared/editable_translation.dart';
+import '../../shared/localized_translation_text.dart';
 import '../../shared/site_avatar.dart';
 import '../auth/login_sheet.dart';
 import '../downloads/data/download_repository.dart';
@@ -125,6 +128,7 @@ class _VideoDetailPageState extends ConsumerState<VideoDetailPage>
             downloads: ref.watch(downloadRepositoryProvider),
             settings: ref.watch(appSettingsRepositoryProvider),
             shareService: ref.watch(shareServiceProvider),
+            translationService: ref.read(translationServiceProvider),
             playerHandle: _playerHandle,
             localLibraryRepository: ref.watch(localLibraryRepositoryProvider),
           );
@@ -214,6 +218,7 @@ class _VideoDetailsBody extends StatefulWidget {
     required this.downloads,
     required this.settings,
     required this.shareService,
+    required this.translationService,
     required this.playerHandle,
     required this.localLibraryRepository,
   });
@@ -223,6 +228,7 @@ class _VideoDetailsBody extends StatefulWidget {
   final DownloadRepository downloads;
   final AppSettingsRepository settings;
   final ShareService shareService;
+  final TranslationService translationService;
   final VideoPlayerHandle playerHandle;
   final LocalLibraryRepository localLibraryRepository;
 
@@ -232,6 +238,8 @@ class _VideoDetailsBody extends StatefulWidget {
 
 class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
   late VideoDetails _details;
+  final GlobalKey<SelectionAreaState> _descriptionSelectionKey =
+      GlobalKey<SelectionAreaState>();
   late bool _favorite;
   final Set<String> _subscriptionPaths = {};
   final Set<String> _updatingMetadata = {};
@@ -246,8 +254,36 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     super.initState();
     _details = widget.details;
     _favorite = widget.details.isFavorite;
+    widget.translationService.addListener(_onTranslationChanged);
     if (widget.api.sessionStore.isLoggedIn) {
       _loadSubscriptions();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoDetailsBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.details != widget.details) {
+      _details = widget.details;
+      if (!_updatingFavorite) {
+        _favorite = widget.details.isFavorite;
+      }
+    }
+    if (oldWidget.translationService != widget.translationService) {
+      oldWidget.translationService.removeListener(_onTranslationChanged);
+      widget.translationService.addListener(_onTranslationChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.translationService.removeListener(_onTranslationChanged);
+    super.dispose();
+  }
+
+  void _onTranslationChanged() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -296,10 +332,7 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     }
     setState(() => _updatingFavorite = true);
     try {
-      await widget.api.toggleFavorite(
-        video: widget.details.video,
-        add: !_favorite,
-      );
+      await widget.api.toggleFavorite(video: _details.video, add: !_favorite);
       if (mounted) {
         setState(() => _favorite = !_favorite);
       }
@@ -510,9 +543,27 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _clearDescriptionSelection() {
+    _descriptionSelectionKey.currentState?.selectableRegion.clearSelection();
+  }
+
   @override
   Widget build(BuildContext context) {
     final details = _details;
+    if (widget.translationService.shouldAutoTranslateTitle(
+      details.video.id,
+      details.video.title,
+    )) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(
+          widget.translationService.requestAutomaticTitle(
+            videoId: details.video.id,
+            raw: details.video.title,
+            videoSlug: details.video.slug,
+          ),
+        );
+      });
+    }
     final metadata = details.metadataItems;
     final player = details.sources.isNotEmpty
         ? VideoPlayerPage(
@@ -539,202 +590,243 @@ class _VideoDetailsBodyState extends State<_VideoDetailsBody> {
       children: [
         player,
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 28),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      details.video.title,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: [
-                        if (details.video.duration != null)
-                          _StatChip(
-                            icon: Icons.schedule,
-                            label: details.video.duration!,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _clearDescriptionSelection,
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 28),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: GestureDetector(
+                          key: const ValueKey(
+                            'video-detail-title-translation-region',
                           ),
-                        if (details.video.views != null)
-                          _StatChip(
-                            icon: Icons.visibility_outlined,
-                            label: '${details.video.views} 次观看',
+                          behavior: HitTestBehavior.opaque,
+                          onLongPress: () => showTitleTranslationEditDialog(
+                            context,
+                            translationService: widget.translationService,
+                            videoId: details.video.id,
+                            english: details.video.title,
+                            videoSlug: details.video.slug,
                           ),
-                        if (details.video.rating != null)
-                          _StatChip(
-                            icon: Icons.thumb_up_alt_outlined,
-                            label: details.ratingVotes == null
-                                ? '${details.video.rating}%'
-                                : '${details.video.rating}% · ${details.ratingVotes} 票',
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: LocalizedTranslationText(
+                              value: widget.translationService.resolveTitle(
+                                details.video.id,
+                                details.video.title,
+                              ),
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
                           ),
-                        if (details.video.publishedLabel != null)
-                          _StatChip(
-                            icon: Icons.calendar_today_outlined,
-                            label: details.video.publishedLabel!,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _ActionButton(
-                          icon: _favorite
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          label: _favorite ? '已收藏' : '收藏',
-                          busy: _updatingFavorite,
-                          onPressed: _toggleFavorite,
                         ),
-                        _ActionButton(
-                          icon: Icons.download,
-                          label: '下载',
-                          busy: _addingDownload,
-                          onPressed: details.sources.isEmpty ? null : _download,
-                        ),
-                        _ActionButton(
-                          icon: Icons.library_add_outlined,
-                          label: '本地分类库',
-                          busy: false,
-                          onPressed: _addToLocalLibrary,
-                        ),
-                        _ActionButton(
-                          icon: Icons.playlist_add,
-                          label: '播放列表',
-                          busy: _addingPlaylist,
-                          onPressed: _addToPlaylist,
-                        ),
-                        _ActionButton(
-                          icon: Icons.share_outlined,
-                          label: '分享',
-                          busy: false,
-                          onPressed: _share,
-                        ),
-                      ],
-                    ),
-                    if (details.description != null) ...[
-                      const SizedBox(height: 24),
-                      Text(
-                        '简介',
-                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      const SizedBox(height: 8),
-                      SelectableText(details.description!),
-                    ],
-                    _MetadataSection(
-                      title: '分类',
-                      items: metadata
-                          .where((item) => item.kind == DiscoveryKind.category)
-                          .toList(growable: false),
-                      fallbackValues: details.categories,
-                      subscribedPaths: _subscriptionPaths,
-                      updatingKeys: _updatingMetadata,
-                      onTap: _openMetadataActions,
-                    ),
-                    _MetadataSection(
-                      title: '标签',
-                      items: metadata
-                          .where((item) => item.kind == DiscoveryKind.tag)
-                          .toList(growable: false),
-                      fallbackValues: details.tags,
-                      subscribedPaths: _subscriptionPaths,
-                      updatingKeys: _updatingMetadata,
-                      onTap: _openMetadataActions,
-                    ),
-                    _MetadataSection(
-                      title: '艺术家',
-                      items: metadata
-                          .where((item) => item.kind == DiscoveryKind.model)
-                          .toList(growable: false),
-                      fallbackValues: details.models,
-                      subscribedPaths: _subscriptionPaths,
-                      updatingKeys: _updatingMetadata,
-                      onTap: _openMetadataActions,
-                    ),
-                    if (details.uploader case final uploader?) ...[
-                      const SizedBox(height: 24),
-                      Text(
-                        '上传者',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
+                        children: [
+                          if (details.video.duration != null)
+                            _StatChip(
+                              icon: Icons.schedule,
+                              label: details.video.duration!,
+                            ),
+                          if (details.video.views != null)
+                            _StatChip(
+                              icon: Icons.visibility_outlined,
+                              label: '${details.video.views} 次观看',
+                            ),
+                          if (details.video.rating != null)
+                            _StatChip(
+                              icon: Icons.thumb_up_alt_outlined,
+                              label: details.ratingVotes == null
+                                  ? '${details.video.rating}%'
+                                  : '${details.video.rating}% · ${details.ratingVotes} 票',
+                            ),
+                          if (details.video.publishedLabel != null)
+                            _StatChip(
+                              icon: Icons.calendar_today_outlined,
+                              label: details.video.publishedLabel!,
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Card(
-                        margin: EdgeInsets.zero,
-                        child: ListTile(
-                          leading: SiteAvatar(
-                            imageUrl: uploader.avatarUrl,
-                            fallbackIcon: Icons.person_outline,
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _ActionButton(
+                            icon: _favorite
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            label: _favorite ? '已收藏' : '收藏',
+                            busy: _updatingFavorite,
+                            onPressed: _toggleFavorite,
                           ),
-                          title: Row(
-                            children: [
-                              Flexible(child: Text(uploader.name)),
-                              if (uploader.verified) ...[
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.verified,
-                                  size: 18,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
+                          _ActionButton(
+                            icon: Icons.download,
+                            label: '下载',
+                            busy: _addingDownload,
+                            onPressed: details.sources.isEmpty
+                                ? null
+                                : _download,
+                          ),
+                          _ActionButton(
+                            icon: Icons.library_add_outlined,
+                            label: '本地分类库',
+                            busy: false,
+                            onPressed: _addToLocalLibrary,
+                          ),
+                          _ActionButton(
+                            icon: Icons.playlist_add,
+                            label: '播放列表',
+                            busy: _addingPlaylist,
+                            onPressed: _addToPlaylist,
+                          ),
+                          _ActionButton(
+                            icon: Icons.share_outlined,
+                            label: '分享',
+                            busy: false,
+                            onPressed: _share,
+                          ),
+                        ],
+                      ),
+                      if (details.description != null) ...[
+                        const SizedBox(height: 24),
+                        Text(
+                          '简介',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        SelectionArea(
+                          key: _descriptionSelectionKey,
+                          child: Text(details.description!),
+                        ),
+                      ],
+                      _MetadataSection(
+                        title: '分类',
+                        items: metadata
+                            .where(
+                              (item) => item.kind == DiscoveryKind.category,
+                            )
+                            .toList(growable: false),
+                        fallbackValues: details.categories,
+                        kind: DiscoveryKind.category,
+                        translationService: widget.translationService,
+                        subscribedPaths: _subscriptionPaths,
+                        updatingKeys: _updatingMetadata,
+                        onTap: _openMetadataActions,
+                      ),
+                      _MetadataSection(
+                        title: '标签',
+                        items: metadata
+                            .where((item) => item.kind == DiscoveryKind.tag)
+                            .toList(growable: false),
+                        fallbackValues: details.tags,
+                        kind: DiscoveryKind.tag,
+                        translationService: widget.translationService,
+                        subscribedPaths: _subscriptionPaths,
+                        updatingKeys: _updatingMetadata,
+                        onTap: _openMetadataActions,
+                      ),
+                      _MetadataSection(
+                        title: '艺术家',
+                        items: metadata
+                            .where((item) => item.kind == DiscoveryKind.model)
+                            .toList(growable: false),
+                        fallbackValues: details.models,
+                        kind: DiscoveryKind.model,
+                        translationService: widget.translationService,
+                        subscribedPaths: _subscriptionPaths,
+                        updatingKeys: _updatingMetadata,
+                        onTap: _openMetadataActions,
+                      ),
+                      if (details.uploader case final uploader?) ...[
+                        const SizedBox(height: 24),
+                        Text(
+                          '上传者',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Card(
+                          margin: EdgeInsets.zero,
+                          child: ListTile(
+                            leading: SiteAvatar(
+                              imageUrl: uploader.avatarUrl,
+                              fallbackIcon: Icons.person_outline,
+                            ),
+                            title: Row(
+                              children: [
+                                Flexible(child: Text(uploader.name)),
+                                if (uploader.verified) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.verified,
+                                    size: 18,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                ],
                               ],
-                            ],
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.pushNamed(
-                            AppRouteNames.uploader,
-                            pathParameters: {'id': uploader.id},
-                            queryParameters: {'name': uploader.name},
-                            extra: uploader,
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => context.pushNamed(
+                              AppRouteNames.uploader,
+                              pathParameters: {'id': uploader.id},
+                              queryParameters: {'name': uploader.name},
+                              extra: uploader,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                    if (details.relatedVideos.isNotEmpty) ...[
-                      const SizedBox(height: 28),
-                      Text(
-                        '相关视频',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      ListenableBuilder(
-                        listenable: widget.settings,
-                        builder: (context, _) => VideoCollectionBox(
-                          layout: widget.settings.settings.videoLayout,
-                          itemCount: details.relatedVideos.length,
-                          itemBuilder: (context, index, compact) {
-                            final video = details.relatedVideos[index];
-                            return VideoCard(
-                              video: video,
-                              compact: compact,
-                              onTap: () async {
-                                await widget.playerHandle.pause();
-                                if (!context.mounted) {
-                                  return;
-                                }
-                                context.pushNamed(
-                                  AppRouteNames.video,
-                                  pathParameters: {
-                                    'id': video.id,
-                                    'slug': video.slug,
-                                  },
-                                  extra: video,
-                                );
-                              },
-                            );
-                          },
+                      ],
+                      if (details.relatedVideos.isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        Text(
+                          '相关视频',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        ListenableBuilder(
+                          listenable: widget.settings,
+                          builder: (context, _) => VideoCollectionBox(
+                            layout: widget.settings.settings.videoLayout,
+                            itemCount: details.relatedVideos.length,
+                            itemBuilder: (context, index, compact) {
+                              final video = details.relatedVideos[index];
+                              return VideoCard(
+                                video: video,
+                                compact: compact,
+                                onTap: () async {
+                                  await widget.playerHandle.pause();
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  context.pushNamed(
+                                    AppRouteNames.video,
+                                    pathParameters: {
+                                      'id': video.id,
+                                      'slug': video.slug,
+                                    },
+                                    extra: video,
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -785,11 +877,80 @@ class _StatChip extends StatelessWidget {
   }
 }
 
+class _AdaptiveMetadataChip extends StatelessWidget {
+  const _AdaptiveMetadataChip({
+    this.avatar,
+    required this.label,
+    this.onPressed,
+  });
+
+  final Widget? avatar;
+  final Widget label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final chipTheme = ChipTheme.of(context);
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(color: theme.colorScheme.outlineVariant),
+    );
+    final maxWidth = (MediaQuery.sizeOf(context).width - 32).clamp(
+      160.0,
+      560.0,
+    );
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Semantics(
+        button: onPressed != null,
+        child: Material(
+          color:
+              chipTheme.backgroundColor ??
+              theme.colorScheme.surfaceContainerHighest,
+          shape: shape,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (avatar != null) ...[
+                    SizedBox.square(
+                      dimension: 24,
+                      child: Center(child: avatar),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: DefaultTextStyle(
+                      style:
+                          chipTheme.labelStyle ?? theme.textTheme.labelLarge!,
+                      child: label,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MetadataSection extends StatelessWidget {
   const _MetadataSection({
     required this.title,
     required this.items,
     required this.fallbackValues,
+    required this.kind,
+    required this.translationService,
     required this.subscribedPaths,
     required this.updatingKeys,
     required this.onTap,
@@ -798,6 +959,8 @@ class _MetadataSection extends StatelessWidget {
   final String title;
   final List<VideoMetadataItem> items;
   final List<String> fallbackValues;
+  final DiscoveryKind kind;
+  final TranslationService translationService;
   final Set<String> subscribedPaths;
   final Set<String> updatingKeys;
   final ValueChanged<VideoMetadataItem> onTap;
@@ -820,7 +983,21 @@ class _MetadataSection extends StatelessWidget {
             children: items.isEmpty
                 ? fallbackValues
                       .take(40)
-                      .map((value) => Chip(label: Text(value)))
+                      .map(
+                        (value) => EditableTranslationRegion(
+                          translationService: translationService,
+                          kind: kind,
+                          english: value,
+                          child: _AdaptiveMetadataChip(
+                            label: LocalizedTranslationText(
+                              value: translationService.resolveMetadata(
+                                kind,
+                                value,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
                       .toList(growable: false)
                 : items
                       .take(40)
@@ -829,15 +1006,28 @@ class _MetadataSection extends StatelessWidget {
                         final busy = updatingKeys.any(
                           (key) => key.endsWith('${item.kind.name}:${item.id}'),
                         );
-                        return ActionChip(
-                          avatar: _metadataAvatar(
-                            context,
-                            item: item,
-                            subscribed: subscribed,
-                            busy: busy,
+                        return EditableTranslationRegion(
+                          translationService: translationService,
+                          kind: item.kind,
+                          english: item.title,
+                          child: _AdaptiveMetadataChip(
+                            avatar: _metadataAvatar(
+                              context,
+                              item: item,
+                              subscribed: subscribed,
+                              busy: busy,
+                            ),
+                            label: LocalizedTranslationText(
+                              value: translationService.resolveMetadata(
+                                item.kind,
+                                item.title,
+                              ),
+                              suffix: item.upScore == 0 && item.downScore == 0
+                                  ? ''
+                                  : ' · ↑${item.upScore} ↓${item.downScore}',
+                            ),
+                            onPressed: busy ? null : () => onTap(item),
                           ),
-                          label: Text(_metadataLabel(item)),
-                          onPressed: busy ? null : () => onTap(item),
                         );
                       })
                       .toList(growable: false),
@@ -899,12 +1089,5 @@ class _MetadataSection extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _metadataLabel(VideoMetadataItem item) {
-    if (item.upScore == 0 && item.downScore == 0) {
-      return item.title;
-    }
-    return '${item.title} · ↑${item.upScore} ↓${item.downScore}';
   }
 }
